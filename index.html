@@ -26,6 +26,9 @@
   #cesium.hidden{display:none}
   #cesium.night canvas{filter:brightness(.52) saturate(.65) contrast(1.06)}
   .cesium-widget-credits{font-size:10px!important;opacity:.85}
+  #todo3d{position:fixed;inset:0}
+  #todo3d.hidden{display:none}
+  #todo3d canvas{display:block}
   #grade{position:fixed;inset:0;pointer-events:none;z-index:5;
     background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(2,6,12,.55) 100%)}
   #loader{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;gap:16px;
@@ -78,6 +81,7 @@
 
 <div id="map" class="hidden"></div>
 <div id="cesium"></div>
+<div id="todo3d" class="hidden"></div>
 <div id="grade"></div>
 
 <div id="loader">
@@ -89,7 +93,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v12</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v13</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -114,6 +118,7 @@
 <div class="hud" id="hud-c">
   <button id="b-foto" class="on">🏙️ Fotorrealista</button>
   <button id="b-sat">🛰️ Satélite</button>
+  <button id="b-todo">🧱 TODO 3D</button>
   <button id="b-tour">▶ Tour Kennedy</button>
   <button id="b-next">Siguiente punto ➜</button>
   <button id="b-trees" class="on">🌳 Árboles 3D</button>
@@ -140,14 +145,14 @@ const KENNEDY = { lng: -74.1620, lat: 4.6252, zoom: 14.2, pitch: 62, bearing: -1
 const INICIO = { lng: -74.1630, lat: 4.6210, zoom: 17.3, pitch: 68, bearing: -18 };
 
 const POIS = [
-  { n: 'Humedal El Burro',        lng: -74.1706, lat: 4.6382, z: 17.2, d: 'Reserva de humedal y aves' },
-  { n: 'Parque Timiza',           lng: -74.1626, lat: 4.6216, z: 17.0, d: 'Lago y zona recreativa' },
+  { n: 'Humedal El Burro',        lng: -74.1706, lat: 4.6382, z: 17.2, d: 'Reserva de humedal y aves', L: [7437, 3271] },
+  { n: 'Parque Timiza',           lng: -74.1626, lat: 4.6216, z: 17.0, d: 'Lago y zona recreativa', L: [7008, -326] },
   { n: 'Plaza de las Américas',   lng: -74.1700, lat: 4.6192, z: 17.4, d: 'Nodo urbano y comercio' },
   { n: 'Portal 80',               lng: -74.1505, lat: 4.6424, z: 17.0, d: 'Portal del sistema masivo' },
-  { n: 'Estadio Metropolitano de Techo', lng: -74.1432, lat: 4.6170, z: 17.2, d: 'Escenario deportivo' },
+  { n: 'Estadio Metropolitano de Techo', lng: -74.1432, lat: 4.6170, z: 17.2, d: 'Escenario deportivo', L: [8258, 3955] },
   { n: 'Corferias',               lng: -74.0931, lat: 4.6358, z: 16.8, d: 'Recinto ferial' },
   { n: 'Biblioteca El Tunal',     lng: -74.1345, lat: 4.5850, z: 17.0, d: 'Biblioteca pública' },
-  { n: 'Humedal Capellanía',      lng: -74.1185, lat: 4.6470, z: 17.2, d: 'Zona de humedal' }
+  { n: 'Humedal Capellanía',      lng: -74.1185, lat: 4.6470, z: 17.2, d: 'Zona de humedal', L: [9545, 7081] }
 ];
 
 /* ---- Espejos de agua 3D (elipses aprox. en metros) ---- */
@@ -473,20 +478,31 @@ let idx = 0;
 const GKEY = 'AIzaSyCF2MXjc0DYRFrHk7j_BCyxVpWOdYqDIC4';
 let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
+let T3 = null, tourT = null;
 
 function setMode(m) {
   mode = m;
   try { if (tour) { clearInterval(tour); tour = null; const b = $('b-tour'); b.classList.remove('on'); b.textContent = '▶ Tour Kennedy'; } } catch (e) {}
   if (tourC) { clearInterval(tourC); tourC = null; }
+  if (typeof tourT !== 'undefined' && tourT) { try { clearInterval(tourT); } catch (e) {} tourT = null; }
   $('cesium').classList.toggle('hidden', m !== 'foto');
   $('map').classList.toggle('hidden', m !== 'sat');
+  $('todo3d').classList.toggle('hidden', m !== 'todo');
   $('b-foto').classList.toggle('on', m === 'foto');
   $('b-sat').classList.toggle('on', m === 'sat');
+  $('b-todo').classList.toggle('on', m === 'todo');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v12' : 'MODO: 🛰️ SATÉLITE · v12';
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v13' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v13' : 'MODO: 🛰️ SATÉLITE · v13');
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
+  if (m === 'todo') {
+    (async () => {
+      const ok = await initTodo();
+      if (!ok) setMode('sat');
+      else if (T3 && !T3.ready) { T3.ready = true; flyTodo(1, true); say('🧱 Estás sobre el Lago Timiza · arrastra para orbitar, WASD para volar'); }
+    })();
+  }
 }
 function flyC(p, dur) {
   if (!viewer) return;
@@ -548,7 +564,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v12 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v13 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -598,8 +614,13 @@ $('b-foto').onclick = () => {
 };
 $('b-sat').onclick = () => { setMode('sat'); say('🛰️ Modo satélite'); };
 initFoto();
+if (new URLSearchParams(location.search).get('todo') === '1') setMode('todo');
 function flyTo(i, z) {
   const p = POIS[i]; idx = i;
+  if (mode === 'todo') {
+    if (!T3) { say('⏳ Mundo 3D aún cargando…'); return; }
+    flyTodo(i); say('🎯 ' + p.n); return;
+  }
   if (mode === 'foto') {
     if (!fotoOK || !viewer) { say('⏳ Fotorrealista aún cargando…'); return; }
     flyC(p, 5); say('🎯 ' + p.n + ' · ' + p.d); return;
@@ -611,6 +632,14 @@ function flyTo(i, z) {
 }
 let tour = null;
 $('b-tour').onclick = e => {
+  if (mode === 'todo') {
+    if (tourT) { clearInterval(tourT); tourT = null; e.target.classList.remove('on'); e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido'); return; }
+    if (!T3) { say('⏳ Mundo 3D aún cargando…'); return; }
+    e.target.classList.add('on'); e.target.textContent = '⏸ Detener tour';
+    let k3 = 0; flyTodo(0);
+    tourT = setInterval(() => { k3 = (k3 + 1) % POIS.length; flyTodo(k3); }, 7000);
+    say('▶ Recorrido TODO 3D por Kennedy'); return;
+  }
   if (mode === 'foto') {
     if (tourC) { clearInterval(tourC); tourC = null; e.target.classList.remove('on'); e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido'); return; }
     if (!fotoOK || !viewer) { say('⏳ Fotorrealista aún cargando…'); return; }
@@ -628,6 +657,7 @@ $('b-tour').onclick = e => {
 };
 $('b-next').onclick = () => flyTo((idx + 1) % POIS.length);
 $('b-home').onclick = () => {
+  if (mode === 'todo') { if (T3) { flyTodoHome(); say('🏠 Vista general TODO 3D'); } return; }
   if (mode === 'foto') { if (viewer) { goHomeC(); say('🏠 Vista fotorrealista de Kennedy'); } return; }
   map.flyTo({ center: [KENNEDY.lng, KENNEDY.lat], zoom: KENNEDY.zoom,
     pitch: KENNEDY.pitch, bearing: KENNEDY.bearing, duration: 4200, essential: true });
@@ -656,6 +686,7 @@ $('b-night').onclick = e => {
   night = !night;
   e.target.classList.toggle('on', night);
   e.target.textContent = night ? '☀️ Día' : '🌙 Noche';
+  if (mode === 'todo') { todoNight(night); say(night ? '🌙 Noche TODO 3D' : '☀️ Día TODO 3D'); return; }
   if (mode === 'foto') { $('cesium').classList.toggle('night', night); say(night ? '🌙 Noche fotorrealista' : '☀️ Día fotorrealista'); return; }
   map.setPaintProperty('sat', 'raster-brightness-min', night ? -0.22 : 0);
   map.setPaintProperty('sat', 'raster-brightness-max', night ? -0.28 : 1);
@@ -682,7 +713,39 @@ addEventListener('keypress', e => {
 
 let acc = 0;
 function flight(ms) {
-  if (mode === 'foto') { flyKeysC(); requestAnimationFrame(flight); return; }
+  if (mode === 'todo' && T3) {
+    const now = performance.now();
+    const dt = Math.min(((T3.last || now) ? (now - (T3.last || now)) : 16) / 1000, 0.1);
+    T3.last = now;
+    if (T3.anim) {
+      const a = T3.anim;
+      a.t += dt;
+      const k2 = a.t >= a.dur ? 1 : (a.t / a.dur) * (a.t / a.dur) * (3 - 2 * (a.t / a.dur));
+      T3.camera.position.lerpVectors(a.p0, a.p1, k2);
+      T3.orbit.target.lerpVectors(a.c0, a.c1, k2);
+      if (a.t >= a.dur) T3.anim = null;
+    }
+    const cam = T3.camera, o = T3.orbit;
+    const fw = new T3.THREE.Vector3();
+    cam.getWorldDirection(fw); fw.y = 0;
+    if (fw.lengthSq() < 1e-6) fw.set(0, 0, -1); fw.normalize();
+    const rt = new T3.THREE.Vector3(-fw.z, 0, fw.x);
+    const turbo = k['ShiftLeft'] || k['ShiftRight'];
+    const sp = (turbo ? 420 : 130) * dt;
+    const mv = new T3.THREE.Vector3();
+    if (k['KeyW'] || k['ArrowUp']) mv.addScaledVector(fw, sp);
+    if (k['KeyS'] || k['ArrowDown']) mv.addScaledVector(fw, -sp);
+    if (k['KeyA'] || k['ArrowLeft']) mv.addScaledVector(rt, -sp);
+    if (k['KeyD'] || k['ArrowRight']) mv.addScaledVector(rt, sp);
+    if (k['KeyE']) mv.y += sp;
+    if (k['KeyQ']) mv.y -= sp;
+    if (mv.lengthSq() > 0) { cam.position.add(mv); o.target.add(mv); }
+    if (k['KeyZ']) o.target.applyAxisAngle(new T3.THREE.Vector3(0, 1, 0), 0); // reservado
+    if (cam.position.y < 3) cam.position.y = 3;
+    o.update();
+    T3.renderer.render(T3.scene, cam);
+    requestAnimationFrame(flight); return;
+  }
   acc = Math.min(acc + ms, 60);
   const turbo = k['ShiftLeft'] || k['ShiftRight'];
   let dx = 0, dy = 0, rot = 0, tilt = 0;
@@ -703,6 +766,16 @@ function flight(ms) {
 requestAnimationFrame(flight);
 
 function tick() {
+  if (mode === 'todo' && T3) {
+    $('o-ctr').textContent = Math.round(T3.camera.position.x + LC.x) + ', ' + Math.round(T3.camera.position.z + LC.y);
+    $('o-zoom').textContent = '3D';
+    const _d = T3.orbit.target.clone().sub(T3.camera.position).normalize();
+    $('o-pitch').textContent = Math.round(Math.asin(Math.max(-1, Math.min(1, _d.y))) * 180 / Math.PI);
+    const dx = T3.camera.position.x - T3.orbit.target.x, dz = T3.camera.position.z - T3.orbit.target.z;
+    $('o-brg').textContent = Math.round((Math.atan2(dx, dz) * 180 / Math.PI + 360) % 360);
+    $('o-alt').textContent = Math.round(T3.camera.position.y);
+    requestAnimationFrame(tick); return;
+  }
   if (mode === 'foto' && viewer && window.Cesium) {
     try {
       const cart = Cesium.Cartographic.fromCartesian(viewer.camera.position);
@@ -721,7 +794,301 @@ function tick() {
   $('o-alt').textContent = '2.550';
   requestAnimationFrame(tick);
 }
-addEventListener('resize', () => { map.resize(); try { if (viewer) viewer.resize(); } catch (e) {} });
+/* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
+const LC = { x: 5341.33, y: 3161.9 };
+const lw = (x, y) => [x - LC.x, y - LC.y];
+const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
+function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
+
+async function fetchProg(url, label) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status + ' en ' + url);
+  const total = +r.headers.get('content-length') || 0;
+  if (!r.body || !total) return r.json();
+  const rd = r.body.getReader(); const chunks = []; let got = 0;
+  for (;;) {
+    const { done, value } = await rd.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    $('lmsg').textContent = label + ' ' + Math.round(got / total * 100) + '% (' + (got / 1048576).toFixed(1) + ' MB)';
+  }
+  const buf = new Uint8Array(got); let o = 0;
+  for (const c of chunks) { buf.set(c, o); o += c.length; }
+  return JSON.parse(new TextDecoder().decode(buf));
+}
+function hashN(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+
+async function initTodo() {
+  if (T3) return true;
+  $('loader').classList.remove('hidden');
+  try {
+    const THREE = await import('three');
+    const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+    renderer.setSize(innerWidth, innerHeight);
+    $('todo3d').appendChild(renderer.domElement);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x9fc3e0);
+    scene.fog = new THREE.FogExp2(0x9fc3e0, 0.00011);
+    const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 40000);
+    const tw = lw(7008, -326);
+    camera.position.set(tw[0] + 380, 170, tw[1] + 480);
+    const orbit = new OrbitControls(camera, renderer.domElement);
+    orbit.target.set(tw[0], 0, tw[1]);
+    orbit.enableDamping = true; orbit.dampingFactor = 0.06;
+    orbit.maxPolarAngle = Math.PI * 0.495; orbit.minDistance = 4; orbit.maxDistance = 9000;
+    const hemi = new THREE.HemisphereLight(0xbcd0ff, 0x2c3527, 0.95);
+    const sun = new THREE.DirectionalLight(0xfff1d6, 1.25);
+    sun.position.set(4000, 5000, 2000);
+    scene.add(hemi, sun);
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(13000, 9500),
+      new THREE.MeshLambertMaterial({ color: 0x232d20 })
+    );
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
+    scene.add(ground);
+    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, night: false, anim: null, last: 0, counts: {} };
+
+    $('lmsg').textContent = 'Cargando edificios (36 MB)…';
+    const B = await fetchProg('data3d/buildings.json', 'Edificios');
+    $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
+    await new Promise(r => setTimeout(r, 30));
+    buildChunks(THREE, B);
+    $('lmsg').textContent = 'Cargando árboles del censo…';
+    const T = await fetchProg('data3d/trees.json', 'Árboles');
+    buildTreesReal(THREE, T);
+    $('lmsg').textContent = 'Cargando aguas, parques y vías…';
+    const [W, P, N] = await Promise.all([
+      fetch('data3d/water_bodies.json').then(r => r.json()),
+      fetch('data3d/parques.json').then(r => r.json()),
+      fetch('data3d/net.json').then(r => r.json())
+    ]);
+    buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
+    $('loader').classList.add('hidden');
+    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles reales');
+    return true;
+  } catch (e) {
+    $('loader').classList.add('hidden');
+    console.warn('TODO3D:', e);
+    say('⚠️ No cargó el mundo 3D: ' + String(e && e.message || e).slice(0, 110), 6000);
+    return false;
+  }
+}
+function bColor(h, i) {
+  const v = ((i * 2654435761) % 1000) / 1000;
+  let w, r;
+  if (h <= 6) { w = [0.62 + v * 0.08, 0.55 + v * 0.07, 0.47 + v * 0.06]; r = [0.72 + v * 0.08, 0.65 + v * 0.07, 0.56 + v * 0.06]; }
+  else if (h <= 12) { w = [0.6 + v * 0.1, 0.6 + v * 0.1, 0.6 + v * 0.1]; r = [0.72 + v * 0.08, 0.72 + v * 0.08, 0.72 + v * 0.08]; }
+  else { w = [0.55 + v * 0.1, 0.65 + v * 0.1, 0.72 + v * 0.08]; r = [0.78 + v * 0.06, 0.82 + v * 0.06, 0.85 + v * 0.05]; }
+  return { w, r };
+}
+function buildChunks(THREE, B) {
+  const CELL = 1500;
+  const cells = new Map();
+  let skipped = 0, total = 0;
+  for (let bi = 0; bi < B.length; bi++) {
+    const b = B[bi], pts = b.pts, n = pts.length - 1;
+    if (n < 3) continue;
+    let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+    for (let i = 0; i < n; i++) {
+      const p = pts[i];
+      if (p[0] < minx) minx = p[0]; if (p[0] > maxx) maxx = p[0];
+      if (p[1] < miny) miny = p[1]; if (p[1] > maxy) maxy = p[1];
+    }
+    if ((maxx - minx) < 2 && (maxy - miny) < 2 && b.h <= 3) { skipped++; continue; }
+    const k = Math.floor((minx + maxx) / 2 / CELL) + '_' + Math.floor((miny + maxy) / 2 / CELL);
+    if (!cells.has(k)) cells.set(k, []);
+    cells.get(k).push(bi);
+    total++;
+  }
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  for (const list of cells.values()) {
+    const P = [], C = [], I = [];
+    let vc = 0;
+    for (const bi of list) {
+      const b = B[bi], h = b.h, ring = b.pts.slice(0, -1), n = ring.length;
+      const col = bColor(h, bi);
+      const W = ring.map(p => lw(p[0], p[1]));
+      let cx = 0, cz = 0;
+      for (const q of W) { cx += q[0]; cz += q[1]; }
+      cx /= n; cz /= n;
+      const base = vc;
+      for (let i = 0; i < n; i++) {
+        P.push(W[i][0], 0, W[i][1]); C.push(col.w[0], col.w[1], col.w[2]); vc++;
+      }
+      for (let i = 0; i < n; i++) {
+        P.push(W[i][0], h, W[i][1]); C.push(col.w[0], col.w[1], col.w[2]); vc++;
+      }
+      P.push(cx, h, cz); C.push(col.r[0], col.r[1], col.r[2]); vc++;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        I.push(base + i, base + j, base + n + j, base + i, base + n + j, base + n + i);
+        I.push(base + 2 * n, base + n + i, base + n + j);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+    g.setIndex(I);
+    g.computeVertexNormals();
+    T3.scene.add(new THREE.Mesh(g, mat));
+  }
+  T3.counts.b = total; T3.counts.skip = skipped;
+}
+function buildTreesReal(THREE, T) {
+  const trunkG = new THREE.CylinderGeometry(0.3, 0.48, 4.2, 4, 1, true);
+  trunkG.translate(0, 2.1, 0);
+  const canG = new THREE.ConeGeometry(3.4, 7.5, 6);
+  canG.translate(0, 7, 0);
+  const trunkM = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
+  const canM = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const N = T.t.length;
+  const trunks = new THREE.InstancedMesh(trunkG, trunkM, N);
+  const cans = new THREE.InstancedMesh(canG, canM, N);
+  const d = new THREE.Object3D(), col = new THREE.Color();
+  const greens = [0x2d6a2f, 0x3c7d36, 0x4c8f3f, 0x5da24c, 0x77a83e, 0x2f7d44];
+  for (let i = 0; i < N; i++) {
+    const t = T.t[i], w = lw(t[0], t[1]);
+    const sc = Math.max(0.3, (t[2] || 4) / 9);
+    d.position.set(w[0], 0, w[1]);
+    d.rotation.set(0, (i * 2.39996) % (Math.PI * 2), 0);
+    d.scale.setScalar(sc);
+    d.updateMatrix();
+    trunks.setMatrixAt(i, d.matrix);
+    cans.setMatrixAt(i, d.matrix);
+    const nm = (T.sp[t[3]] || '').toLowerCase();
+    if (/roble|guayacan|guayacán/.test(nm)) col.setHex(0xd8b93a);
+    else if (/cerezo|flor|rosado|pomarroso/.test(nm)) col.setHex(0xd98bb0);
+    else col.setHex(greens[i % greens.length]).offsetHSL(0, 0, ((i * 7) % 10 - 5) * 0.008);
+    cans.setColorAt(i, col);
+  }
+  trunks.instanceMatrix.needsUpdate = true;
+  cans.instanceMatrix.needsUpdate = true;
+  if (cans.instanceColor) cans.instanceColor.needsUpdate = true;
+  T3.scene.add(trunks, cans);
+  T3.counts.t = N;
+}
+function triShape(THREE, pts) {
+  const v = [];
+  for (let i = 0; i < pts.length; i++) {
+    const w = lw(pts[i][0], pts[i][1]);
+    v.push(new THREE.Vector2(w[0], w[1]));
+  }
+  if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
+  if (v.length < 3) return [];
+  return THREE.ShapeUtils.triangulateShape(v, []);
+}
+function buildWater(THREE, W) {
+  const P = [], C = [], I = [];
+  let vc = 0;
+  const put = (x, z, y, c) => { P.push(x, y, z); C.push(c[0], c[1], c[2]); return vc++; };
+  for (const w of W) {
+    const pts = w.pts, tipo = (w.tipo || '').toLowerCase();
+    const c = /laguna|humedal/.test(tipo) ? [0.12, 0.49, 0.58] : [0.18, 0.59, 0.68];
+    const closed = pts.length > 3 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1.0;
+    if (closed) {
+      const v = [];
+      for (const p of pts) { const q = lw(p[0], p[1]); v.push(new THREE.Vector2(q[0], q[1])); }
+      if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
+      if (v.length < 3) continue;
+      const base = vc;
+      for (const q of v) put(q.x, q.y, 0.35, c);
+      for (const f of THREE.ShapeUtils.triangulateShape(v, [])) I.push(base + f[0], base + f[2], base + f[1]);
+    } else {
+      const wd = /quebrada/.test(tipo) ? 5 : 7;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = lw(pts[i][0], pts[i][1]), b = lw(pts[i + 1][0], pts[i + 1][1]);
+        const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+        const nx = -dz / L * wd / 2, nz = dx / L * wd / 2;
+        const i0 = put(a[0] + nx, a[1] + nz, 0.35, c), i1 = put(a[0] - nx, a[1] - nz, 0.35, c);
+        const i2 = put(b[0] + nx, b[1] + nz, 0.35, c), i3 = put(b[0] - nx, b[1] - nz, 0.35, c);
+        I.push(i0, i1, i2, i1, i3, i2);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  g.setIndex(I);
+  g.computeVertexNormals();
+  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.93, side: THREE.DoubleSide })));
+}
+function buildParks(THREE, P) {
+  const gP = [], gC = [], gI = [];
+  let vc = 0;
+  for (const p of P) {
+    const v = [];
+    for (const q of p.pts) { const w = lw(q[0], q[1]); v.push(new THREE.Vector2(w[0], w[1])); }
+    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
+    if (v.length < 3) continue;
+    const hsh = (hashN(p.nombre || 'x') % 20 - 10) * 0.006;
+    const c = [0.16 + hsh, 0.4 + hsh, 0.19 + hsh];
+    const base = vc;
+    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(c[0], c[1], c[2]); vc++; }
+    for (const f of THREE.ShapeUtils.triangulateShape(v, [])) gI.push(base + f[0], base + f[2], base + f[1]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3));
+  g.setIndex(gI);
+  g.computeVertexNormals();
+  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
+}
+function buildRoads(THREE, N) {
+  const P = [], I = [];
+  let vc = 0;
+  for (const e of N.edges) {
+    const wd = e[0] === 'mid' ? 9 : 5, pts = e[1];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = lw(pts[i][0], pts[i][1]), b = lw(pts[i + 1][0], pts[i + 1][1]);
+      const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+      const nx = -dz / L * wd / 2, nz = dx / L * wd / 2;
+      P.push(a[0] + nx, 0.18, a[1] + nz, a[0] - nx, 0.18, a[1] - nz, b[0] + nx, 0.18, b[1] + nz, b[0] - nx, 0.18, b[1] - nz);
+      I.push(vc, vc + 1, vc + 2, vc + 1, vc + 3, vc + 2);
+      vc += 4;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  g.setIndex(I);
+  g.computeVertexNormals();
+  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0x2a2e35, side: THREE.DoubleSide })));
+}
+function flyTodo(i, instant) {
+  const p = POIS[i]; idx = i;
+  const L = poiLocal(p), w = lw(L[0], L[1]);
+  const p1 = new T3.THREE.Vector3(w[0] + 320, 190, w[1] + 400);
+  const c1 = new T3.THREE.Vector3(w[0], 0, w[1]);
+  if (instant) {
+    T3.camera.position.copy(p1); T3.orbit.target.copy(c1); T3.anim = null;
+  } else {
+    T3.anim = { t: 0, dur: 1.8, p0: T3.camera.position.clone(), c0: T3.orbit.target.clone(), p1, c1 };
+  }
+  $('mission').textContent = '➜ Misión: ' + p.n;
+}
+function flyTodoHome() {
+  T3.anim = {
+    t: 0, dur: 2.2, p0: T3.camera.position.clone(), c0: T3.orbit.target.clone(),
+    p1: new T3.THREE.Vector3(3000, 5200, 3000), c1: new T3.THREE.Vector3(0, 0, 0)
+  };
+  $('mission').textContent = '▶ Misión: reconoce el territorio';
+}
+function todoNight(on) {
+  if (!T3) return;
+  if (on) {
+    T3.scene.background.set(0x05080e); T3.scene.fog.color.set(0x05080e);
+    T3.hemi.intensity = 0.25; T3.hemi.color.set(0x5a76a8);
+    T3.sun.intensity = 0.25; T3.sun.color.set(0x93b6e6);
+  } else {
+    T3.scene.background.set(0x9fc3e0); T3.scene.fog.color.set(0x9fc3e0);
+    T3.hemi.intensity = 0.95; T3.hemi.color.set(0xbcd0ff);
+    T3.sun.intensity = 1.25; T3.sun.color.set(0xfff1d6);
+  }
+}
+$('b-todo').onclick = async () => { setMode('todo'); };
+
+addEventListener('resize', () => { try { if (T3) { T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); T3.renderer.setSize(innerWidth, innerHeight); } } catch (e) {} });
 </script>
 </body>
 </html>
