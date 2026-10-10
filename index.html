@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REN3D • Kennedy Hiperrealista 3D</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#060b14; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff; }
+  canvas.webgl { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #loader { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; gap:14px; align-items:center; justify-content:center; background:radial-gradient(ellipse at center,#0b1a2e 0%,#04070d 70%); transition:opacity .6s; }
+  #loader.hidden { opacity:0; pointer-events:none; }
+  .spin { width:54px; height:54px; border-radius:50%; border:3px solid rgba(56,189,248,.2); border-top-color:#38bdf8; animation:sp 1s linear infinite; }
+  @keyframes sp { to { transform:rotate(360deg);} }
+  #hud-top { position:fixed; top:0; left:0; right:0; z-index:10; display:flex; justify-content:space-between; align-items:flex-start; padding:16px; pointer-events:none; }
+  .card { pointer-events:auto; background:rgba(8,15,26,.86); backdrop-filter:blur(16px); border:1px solid rgba(56,189,248,.3); border-radius:14px; padding:14px 18px; box-shadow:0 12px 32px rgba(0,0,0,.6); }
+  .title { font-weight:800; letter-spacing:2px; font-size:18px; background:linear-gradient(135deg,#38bdf8,#818cf8); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { font-size:12px; color:#94a3b8; margin-top:4px; }
+  .badge { margin-top:8px; display:inline-flex; gap:8px; align-items:center; font-size:11px; color:#4ade80; background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.3); padding:4px 10px; border-radius:20px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 10px #4ade80; animation:pl 1.6s infinite; }
+  @keyframes pl { 50% { opacity:.4; } }
+  #fog-panel { pointer-events:auto; background:rgba(0,0,0,.85); border:1px solid #222; border-radius:6px; padding:10px 12px; min-width:250px; font-size:13px; }
+  #fog-panel label { display:flex; justify-content:space-between; gap:10px; margin:6px 0; color:#ddd; }
+  #fog-panel input[type=range] { width:130px; }
+  #fog-panel input[type=color] { width:110px; height:24px; border:none; background:#fff; }
+  #modes { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:10; display:flex; gap:6px; background:rgba(8,15,26,.9); border:1px solid rgba(56,189,248,.4); padding:6px; border-radius:30px; }
+  #modes button { border:none; background:transparent; color:#94a3b8; padding:9px 16px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; }
+  #modes button.active { background:linear-gradient(135deg,#0284c7,#2563eb); color:#fff; }
+  #bottom { position:fixed; bottom:0; left:0; right:0; z-index:10; display:flex; justify-content:space-between; align-items:flex-end; padding:16px; pointer-events:none; }
+  #keys { pointer-events:auto; font-size:12px; color:#cbd5e1; display:flex; gap:14px; flex-wrap:wrap; }
+  kbd { background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); padding:2px 7px; border-radius:6px; font-size:11px; color:#fff; }
+  #pos { font-size:12px; color:#94a3b8; text-align:right; font-family:monospace; }
+  #pos b { color:#38bdf8; }
+  #cross { position:fixed; top:50%; left:50%; width:6px; height:6px; margin:-3px; border:1.5px solid #fff; border-radius:50%; opacity:.8; z-index:9; display:none; }
+  #toast { position:fixed; top:84px; left:50%; transform:translateX(-50%); z-index:11; background:rgba(8,15,26,.92); border:1px solid rgba(56,189,248,.5); padding:9px 20px; border-radius:20px; font-size:13px; transition:opacity .4s; }
+  #capture-bar { position:fixed; bottom:76px; left:50%; transform:translateX(-50%); z-index:10; display:flex; gap:8px; background:rgba(8,15,26,.9); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,.14); max-width:92vw; }
+  #capture-bar input { width:min(420px,50vw); background:#0f1d31; border:1px solid #274264; color:#e0f2fe; border-radius:8px; padding:8px 10px; font-size:12px; }
+  #capture-bar button { background:#0284c7; border:none; color:#fff; border-radius:8px; padding:8px 14px; font-weight:700; cursor:pointer; font-size:12px; }
+  @media (max-width:760px){ #fog-panel{display:none;} #capture-bar{bottom:120px;} }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/",
+  "@lumaai/luma-web": "https://unpkg.com/@lumaai/luma-web@0.2.0/dist/library/luma-web.module.js"
+} }
+</script>
+</head>
+<body>
+
+<div id="loader"><div class="spin"></div><div><b>REN3D • KENNEDY</b></div><div id="loadmsg" style="font-size:12px;color:#7dd3fc">Cargando escena fotorrealista (Gaussian Splatting)…</div></div>
+
+<div id="hud-top">
+  <div class="card">
+    <div class="title">REN3D • KENNEDY HIPERREALISTA</div>
+    <div class="sub">Gaussian Splatting • Luma Web Library • Three.js</div>
+    <div class="badge"><span class="dot"></span><span id="fps">— FPS</span><span>•</span><span id="status">conectando…</span></div>
+  </div>
+  <div id="fog-panel">
+    <div style="font-weight:700;margin-bottom:4px">Atmósfera</div>
+    <label>fog density <input id="fog-density" type="range" min="0" max="0.3" step="0.001" value="0.02"></label>
+    <label>fog color <input id="fog-color" type="color" value="#dfe4ff"></label>
+    <label>exposure <input id="exposure" type="range" min="0" max="3" step="0.05" value="1.1"></label>
+  </div>
+</div>
+
+<div id="modes">
+  <button id="m-orbit" class="active">🗺️ Órbita</button>
+  <button id="m-walk">🚶 Caminar / Volar</button>
+</div>
+
+<div id="toast">Arrastra para orbitar • Rueda = zoom • Clic en Caminar para jugar con WASD</div>
+<div id="cross"></div>
+
+<div id="capture-bar">
+  <input id="capture-input" placeholder="Pega aquí tu captura de Kennedy: https://lumalabs.ai/capture/…">
+  <button id="capture-go">Cargar Kennedy</button>
+</div>
+
+<div id="bottom">
+  <div class="card" id="keys"><span><kbd>W A S D</kbd> moverse</span><span><kbd>Q / E</kbd> bajar / subir</span><span><kbd>Shift</kbd> correr</span><span><kbd>Esc</kbd> salir</span></div>
+  <div class="card" id="pos">pos <b id="posv">0,0,0</b></div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+import { LumaSplatsThree } from '@lumaai/luma-web';
+
+// ============ CONFIG ============
+// Escena demo = mismo estilo de tu captura (castillo hiperrealista).
+// Para Kennedy: crea tu captura en https://lumalabs.ai (video dron / celular),
+// cópiala y pégala abajo o usa ?capture=URL
+const qs = new URLSearchParams(location.search);
+const DEFAULT_CAPTURE = 'https://lumalabs.ai/capture/da82625c-9c8d-4d05-a9f7-3367ecab438c'; // Chateau de Menthon (estilo de tu foto)
+const CAPTURE_URL = qs.get('capture') || DEFAULT_CAPTURE;
+document.getElementById('capture-input').value = CAPTURE_URL === DEFAULT_CAPTURE ? '' : CAPTURE_URL;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.domElement.classList.add('webgl');
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xdfe4ff);
+scene.fog = new THREE.FogExp2(new THREE.Color(0xdfe4ff), 0.02);
+
+const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
+camera.position.set(2, 1.5, 3);
+
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enableDamping = true;
+orbit.dampingFactor = 0.06;
+
+const walk = new PointerLockControls(camera, document.body);
+
+// Luces suaves para personajes/objetos extra que agregues al juego
+scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(5, 10, 4);
+scene.add(sun);
+
+// ---- SPLAT HIPERREALISTA (Luma) ----
+const statusEl = document.getElementById('status');
+const loadmsg = document.getElementById('loadmsg');
+let splat = null;
+function loadCapture(url) {
+  if (splat) { scene.remove(splat); splat.dispose?.(); }
+  statusEl.textContent = 'cargando…';
+  loadmsg.textContent = 'Cargando: ' + url;
+  document.getElementById('loader').classList.remove('hidden');
+  splat = new LumaSplatsThree({
+    source: url,
+    enableThreeShaderIntegration: true,
+    loadingAnimationEnabled: true,
+    particleRevealEnabled: true,
+  });
+  splat.onInitialCameraTransform = (t) => {
+    t.decompose(camera.position, camera.quaternion, new THREE.Vector3());
+    orbit.target.copy(camera.position).add(new THREE.Vector3(0,0,-2).applyQuaternion(camera.quaternion));
+  };
+  splat.onLoad = () => {
+    document.getElementById('loader').classList.add('hidden');
+    statusEl.textContent = 'EN VIVO • splat OK';
+    toast('Escena hiperrealista lista • ' + url);
+    // entorno realista desde la propia captura
+    splat.captureCubemap(renderer).then((tex) => { scene.environment = tex; }).catch(()=>{});
+  };
+  splat.onLoadError = () => {
+    document.getElementById('loader').classList.add('hidden');
+    statusEl.textContent = 'ERROR de captura';
+    toast('No se pudo cargar esa URL de Luma. Revisa que sea pública.');
+  };
+  scene.add(splat);
+}
+loadCapture(CAPTURE_URL);
+
+document.getElementById('capture-go').onclick = () => {
+  const v = document.getElementById('capture-input').value.trim();
+  if (!v) return toast('Pega primero tu URL de Luma de Kennedy');
+  history.replaceState(null,'','?capture='+encodeURIComponent(v));
+  loadCapture(v);
+};
+
+// ---- Panel niebla/exposición (igual que tu ejemplo) ----
+const fogD = document.getElementById('fog-density');
+const fogC = document.getElementById('fog-color');
+const expo = document.getElementById('exposure');
+fogD.oninput = () => scene.fog.density = parseFloat(fogD.value);
+fogC.oninput = () => { scene.fog.color.set(fogC.value); scene.background = scene.fog.color; };
+expo.oninput = () => renderer.toneMappingExposure = parseFloat(expo.value);
+
+// ---- Modos juego ----
+let mode = 'orbit';
+const bO = document.getElementById('m-orbit'), bW = document.getElementById('m-walk');
+const cross = document.getElementById('cross');
+function setMode(m) {
+  mode = m;
+  bO.classList.toggle('active', m==='orbit');
+  bW.classList.toggle('active', m==='walk');
+  cross.style.display = m==='walk' ? 'block' : 'none';
+  orbit.enabled = (m==='orbit');
+  if (m==='walk') { walk.lock(); toast('Clic para mirar • WASD moverse • Q/E altura • Esc salir'); }
+  else { walk.unlock(); toast('Modo órbita • arrastra / zoom'); }
+}
+bO.onclick = () => setMode('orbit');
+bW.onclick = () => setMode('walk');
+walk.addEventListener('unlock', () => { if(mode==='walk') setMode('orbit'); });
+
+const keys = {};
+addEventListener('keydown', e => keys[e.code]=true);
+addEventListener('keyup', e => keys[e.code]=false);
+
+function toast(t) {
+  const el = document.getElementById('toast');
+  el.textContent = t; el.style.opacity='1';
+  clearTimeout(el._h); el._h = setTimeout(()=>el.style.opacity='0', 3200);
+}
+setTimeout(()=>document.getElementById('toast').style.opacity='0', 5000);
+
+// ---- Loop ----
+function resize() {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight, false);
+}
+addEventListener('resize', resize); resize();
+
+const vel = new THREE.Vector3();
+let prev = performance.now(), frames=0, lastFps=performance.now();
+const posv = document.getElementById('posv'), fpsEl = document.getElementById('fps');
+const fwd = new THREE.Vector3(), rgt = new THREE.Vector3();
+
+renderer.setAnimationLoop(() => {
+  const now = performance.now();
+  const dt = Math.min((now-prev)/1000, 0.1); prev = now;
+  frames++; if (now-lastFps>500){ fpsEl.textContent = Math.round(frames*1000/(now-lastFps))+' FPS'; frames=0; lastFps=now; }
+
+  if (mode==='walk' && walk.isLocked) {
+    camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+    rgt.crossVectors(fwd, new THREE.Vector3(0,1,0)).negate();
+    // corrección: right = fwd x up
+    rgt.crossVectors(fwd, new THREE.Vector3(0,1,0));
+    const sp = (keys.ShiftLeft||keys.ShiftRight) ? 9 : 3.5;
+    vel.set(0,0,0);
+    if (keys.KeyW) vel.addScaledVector(fwd, sp*dt);
+    if (keys.KeyS) vel.addScaledVector(fwd, -sp*dt);
+    if (keys.KeyA) vel.addScaledVector(rgt, -sp*dt);
+    if (keys.KeyD) vel.addScaledVector(rgt, sp*dt);
+    if (keys.KeyE) vel.y += sp*dt;
+    if (keys.KeyQ) vel.y -= sp*dt;
+    camera.position.add(vel);
+  } else {
+    orbit.update();
+  }
+  posv.textContent = camera.position.x.toFixed(1)+','+camera.position.y.toFixed(1)+','+camera.position.z.toFixed(1);
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
