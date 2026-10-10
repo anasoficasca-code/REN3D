@@ -3,41 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>REN3D • Kennedy Hiperrealista 3D</title>
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#060b14; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:#fff; }
-  canvas.webgl { position:fixed; inset:0; width:100%; height:100%; display:block; }
-  #loader { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; gap:14px; align-items:center; justify-content:center; background:radial-gradient(ellipse at center,#0b1a2e 0%,#04070d 70%); transition:opacity .6s; }
-  #loader.hidden { opacity:0; pointer-events:none; }
-  .spin { width:54px; height:54px; border-radius:50%; border:3px solid rgba(56,189,248,.2); border-top-color:#38bdf8; animation:sp 1s linear infinite; }
-  @keyframes sp { to { transform:rotate(360deg);} }
-  #hud-top { position:fixed; top:0; left:0; right:0; z-index:10; display:flex; justify-content:space-between; align-items:flex-start; padding:16px; pointer-events:none; }
-  .card { pointer-events:auto; background:rgba(8,15,26,.86); backdrop-filter:blur(16px); border:1px solid rgba(56,189,248,.3); border-radius:14px; padding:14px 18px; box-shadow:0 12px 32px rgba(0,0,0,.6); }
-  .title { font-weight:800; letter-spacing:2px; font-size:18px; background:linear-gradient(135deg,#38bdf8,#818cf8); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .sub { font-size:12px; color:#94a3b8; margin-top:4px; }
-  .badge { margin-top:8px; display:inline-flex; gap:8px; align-items:center; font-size:11px; color:#4ade80; background:rgba(74,222,128,.1); border:1px solid rgba(74,222,128,.3); padding:4px 10px; border-radius:20px; }
-  .dot { width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow:0 0 10px #4ade80; animation:pl 1.6s infinite; }
-  @keyframes pl { 50% { opacity:.4; } }
-  #fog-panel { pointer-events:auto; background:rgba(0,0,0,.85); border:1px solid #222; border-radius:6px; padding:10px 12px; min-width:250px; font-size:13px; }
-  #fog-panel label { display:flex; justify-content:space-between; gap:10px; margin:6px 0; color:#ddd; }
-  #fog-panel input[type=range] { width:130px; }
-  #fog-panel input[type=color] { width:110px; height:24px; border:none; background:#fff; }
-  #modes { position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:10; display:flex; gap:6px; background:rgba(8,15,26,.9); border:1px solid rgba(56,189,248,.4); padding:6px; border-radius:30px; }
-  #modes button { border:none; background:transparent; color:#94a3b8; padding:9px 16px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; }
-  #modes button.active { background:linear-gradient(135deg,#0284c7,#2563eb); color:#fff; }
-  #bottom { position:fixed; bottom:0; left:0; right:0; z-index:10; display:flex; justify-content:space-between; align-items:flex-end; padding:16px; pointer-events:none; }
-  #keys { pointer-events:auto; font-size:12px; color:#cbd5e1; display:flex; gap:14px; flex-wrap:wrap; }
-  kbd { background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); padding:2px 7px; border-radius:6px; font-size:11px; color:#fff; }
-  #pos { font-size:12px; color:#94a3b8; text-align:right; font-family:monospace; }
-  #pos b { color:#38bdf8; }
-  #cross { position:fixed; top:50%; left:50%; width:6px; height:6px; margin:-3px; border:1.5px solid #fff; border-radius:50%; opacity:.8; z-index:9; display:none; }
-  #toast { position:fixed; top:84px; left:50%; transform:translateX(-50%); z-index:11; background:rgba(8,15,26,.92); border:1px solid rgba(56,189,248,.5); padding:9px 20px; border-radius:20px; font-size:13px; transition:opacity .4s; }
-  #capture-bar { position:fixed; bottom:76px; left:50%; transform:translateX(-50%); z-index:10; display:flex; gap:8px; background:rgba(8,15,26,.9); padding:8px; border-radius:12px; border:1px solid rgba(255,255,255,.14); max-width:92vw; }
-  #capture-bar input { width:min(420px,50vw); background:#0f1d31; border:1px solid #274264; color:#e0f2fe; border-radius:8px; padding:8px 10px; font-size:12px; }
-  #capture-bar button { background:#0284c7; border:none; color:#fff; border-radius:8px; padding:8px 14px; font-weight:700; cursor:pointer; font-size:12px; }
-  @media (max-width:760px){ #fog-panel{display:none;} #capture-bar{bottom:120px;} }
-</style>
+<title>REN3D • Kennedy 3D · Territorio Real</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
@@ -45,199 +13,380 @@
   "@lumaai/luma-web": "https://unpkg.com/@lumaai/luma-web@0.2.0/dist/library/luma-web.module.js"
 } }
 </script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0a0f16;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff}
+  #map{position:fixed;inset:0}
+  #grade{position:fixed;inset:0;pointer-events:none;z-index:5;
+    background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(2,6,12,.55) 100%)}
+  #loader{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;gap:16px;
+    align-items:center;justify-content:center;background:#070c14;transition:opacity .8s}
+  #loader.hidden{opacity:0;pointer-events:none}
+  .ring{width:52px;height:52px;border-radius:50%;border:3px solid rgba(56,189,248,.2);
+    border-top-color:#38bdf8;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hud{position:fixed;z-index:10;background:rgba(7,13,22,.88);backdrop-filter:blur(14px);
+    border:1px solid rgba(56,189,248,.28);border-radius:12px;padding:12px 14px;
+    box-shadow:0 10px 28px rgba(0,0,0,.55)}
+  #hud-l{top:14px;left:14px;max-width:290px}
+  #hud-l .t{font-size:16px;font-weight:800;letter-spacing:1.6px;
+    background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;
+    background-clip:text;color:transparent}
+  #hud-l .s{font-size:11.5px;color:#94a3b8;margin-top:3px;line-height:1.45}
+  #hud-r{top:14px;right:14px;font-size:11.5px;color:#cbd5e1;min-width:196px}
+  #hud-r b{color:#38bdf8;font-family:ui-monospace,monospace}
+  #hud-b{bottom:14px;left:14px;font-size:11.5px;color:#cbd5e1;display:flex;gap:10px;flex-wrap:wrap;max-width:60vw}
+  kbd{background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);
+    padding:1px 6px;border-radius:5px;font-size:10.5px;color:#fff}
+  #hud-c{bottom:14px;right:14px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:64vw}
+  button{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.16);
+    color:#e2e8f0;padding:7px 12px;border-radius:9px;font-size:12px;font-weight:600;
+    cursor:pointer;transition:.15s}
+  button:hover{background:rgba(56,189,248,.22);border-color:#38bdf8}
+  button.on{background:linear-gradient(135deg,#0284c7,#2563eb);border-color:#38bdf8}
+  #toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:20;
+    background:rgba(7,13,22,.94);border:1px solid rgba(56,189,248,.5);padding:9px 20px;
+    border-radius:20px;font-size:13px;transition:opacity .5s}
+  #poi-list{margin-top:9px;display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow:auto}
+  .poi{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#cbd5e1;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    border-radius:7px;padding:6px 8px;cursor:pointer}
+  .poi:hover{background:rgba(56,189,248,.2);border-color:#38bdf8}
+  .poi small{color:#64748b}
+  #mission{margin-top:8px;font-size:12px;color:#4ade80;font-weight:700}
+  .mlg{position:fixed;z-index:12;transform:translate(-50%,-100%)}
+  .mlg .pin{width:13px;height:13px;border-radius:50%;background:#38bdf8;
+    border:2px solid #fff;box-shadow:0 0 12px #38bdf8;margin:0 auto}
+  .mlg .lbl{margin-top:5px;background:rgba(7,13,22,.9);border:1px solid rgba(56,189,248,.4);
+    border-radius:6px;padding:3px 7px;font-size:10.5px;white-space:nowrap;color:#e0f2fe}
+  @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
+</style>
 </head>
 <body>
 
-<div id="loader"><div class="spin"></div><div><b>REN3D • KENNEDY</b></div><div id="loadmsg" style="font-size:12px;color:#7dd3fc">Cargando escena fotorrealista (Gaussian Splatting)…</div></div>
+<div id="map"></div>
+<div id="grade"></div>
 
-<div id="hud-top">
-  <div class="card">
-    <div class="title">REN3D • KENNEDY HIPERREALISTA</div>
-    <div class="sub">Gaussian Splatting • Luma Web Library • Three.js</div>
-    <div class="badge"><span class="dot"></span><span id="fps">— FPS</span><span>•</span><span id="status">conectando…</span></div>
-  </div>
-  <div id="fog-panel">
-    <div style="font-weight:700;margin-bottom:4px">Atmósfera</div>
-    <label>fog density <input id="fog-density" type="range" min="0" max="0.3" step="0.001" value="0.02"></label>
-    <label>fog color <input id="fog-color" type="color" value="#dfe4ff"></label>
-    <label>exposure <input id="exposure" type="range" min="0" max="3" step="0.05" value="1.1"></label>
-  </div>
+<div id="loader">
+  <div class="ring"></div>
+  <div style="font-weight:700;letter-spacing:1px">REN3D · KENNEDY 3D</div>
+  <div style="font-size:12px;color:#7dd3fc" id="lmsg">Cargando territorio satelital de Kennedy…</div>
 </div>
 
-<div id="modes">
-  <button id="m-orbit" class="active">🗺️ Órbita</button>
-  <button id="m-walk">🚶 Caminar / Volar</button>
+<div class="hud" id="hud-l">
+  <div class="t">REN3D · TERRITORIO KENNEDY</div>
+  <div class="s">Imagen satelital real + edificios 3D de OpenStreetMap + relieve del terreno. Motor de vuelo jugable.</div>
+  <div id="poi-list"></div>
+  <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
 
-<div id="toast">Arrastra para orbitar • Rueda = zoom • Clic en Caminar para jugar con WASD</div>
-<div id="cross"></div>
-
-<div id="capture-bar">
-  <input id="capture-input" placeholder="Pega aquí tu captura de Kennedy: https://lumalabs.ai/capture/…">
-  <button id="capture-go">Cargar Kennedy</button>
+<div class="hud" id="hud-r">
+  <div>Centro <b id="o-ctr">—</b></div>
+  <div>Zoom <b id="o-zoom">—</b> · Incl. <b id="o-pitch">—</b>°</div>
+  <div>Altitud aprox. <b id="o-alt">—</b> m</div>
+  <div>Rumbo <b id="o-brg">—</b>°</div>
+  <div style="margin-top:5px;color:#4ade80" id="o-st">iniciando…</div>
 </div>
 
-<div id="bottom">
-  <div class="card" id="keys"><span><kbd>W A S D</kbd> moverse</span><span><kbd>Q / E</kbd> bajar / subir</span><span><kbd>Shift</kbd> correr</span><span><kbd>Esc</kbd> salir</span></div>
-  <div class="card" id="pos">pos <b id="posv">0,0,0</b></div>
+<div class="hud" id="hud-b">
+  <span><kbd>W A S D</kbd> volar</span>
+  <span><kbd>Q / E</kbd> inclinar</span>
+  <span><kbd>Z / C</kbd> girar</span>
+  <span><kbd>Shift</kbd> turbo</span>
+  <span><kbd>Rueda</kbd> zoom</span>
+  <span><kbd>Arrastre</kbd> mirar</span>
 </div>
+
+<div class="hud" id="hud-c">
+  <button id="b-tour">▶ Tour Kennedy</button>
+  <button id="b-next">Siguiente punto ➜</button>
+  <button id="b-night">🌙 Noche</button>
+  <button id="b-home">🏠 Vista general</button>
+  <button id="b-pl3d">🏔️ Relieve</button>
+</div>
+
+<div id="toast"></div>
 
 <script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { LumaSplatsThree } from '@lumaai/luma-web';
+/* ============================================================
+   REN3D · KENNEDY 3D
+   Territorio real de Kennedy, Bogotá:
+   - Imagen satelital Esri World Imagery
+   - Edificios 3D extruidos (OpenStreetMap / OpenFreeMap)
+   - Relieve real (terreno terrarium)
+   - Motor de vuelo jugable
+   ============================================================ */
 
-// ============ CONFIG ============
-// Escena demo = mismo estilo de tu captura (castillo hiperrealista).
-// Para Kennedy: crea tu captura en https://lumalabs.ai (video dron / celular),
-// cópiala y pégala abajo o usa ?capture=URL
-const qs = new URLSearchParams(location.search);
-const DEFAULT_CAPTURE = 'https://lumalabs.ai/capture/da82625c-9c8d-4d05-a9f7-3367ecab438c'; // Chateau de Menthon (estilo de tu foto)
-const CAPTURE_URL = qs.get('capture') || DEFAULT_CAPTURE;
-document.getElementById('capture-input').value = CAPTURE_URL === DEFAULT_CAPTURE ? '' : CAPTURE_URL;
+const KENNEDY = { lng: -74.1620, lat: 4.6252, zoom: 14.2, pitch: 62, bearing: -18 };
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.domElement.classList.add('webgl');
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
-document.body.appendChild(renderer.domElement);
+const POIS = [
+  { n: 'Humedal El Burro',        lng: -74.1706, lat: 4.6382, z: 17.2, d: 'Reserva de humedal y aves' },
+  { n: 'Parque Timiza',           lng: -74.1626, lat: 4.6216, z: 17.0, d: 'Lago y zona recreativa' },
+  { n: 'Plaza de las Américas',   lng: -74.1700, lat: 4.6192, z: 17.4, d: 'Nodo urbano y comercio' },
+  { n: 'Portal 80',               lng: -74.1505, lat: 4.6424, z: 17.0, d: 'Portal del sistema masivo' },
+  { n: 'Estadio Metropolitano de Techo', lng: -74.1432, lat: 4.6170, z: 17.2, d: 'Escenario deportivo' },
+  { n: 'Corferias',               lng: -74.0931, lat: 4.6358, z: 16.8, d: 'Recinto ferial' },
+  { n: 'Biblioteca El Tunal',     lng: -74.1345, lat: 4.5850, z: 17.0, d: 'Biblioteca pública' },
+  { n: 'Humedal Capellanía',      lng: -74.1185, lat: 4.6470, z: 17.2, d: 'Zona de humedal' }
+];
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xdfe4ff);
-scene.fog = new THREE.FogExp2(new THREE.Color(0xdfe4ff), 0.02);
-
-const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 1000);
-camera.position.set(2, 1.5, 3);
-
-const orbit = new OrbitControls(camera, renderer.domElement);
-orbit.enableDamping = true;
-orbit.dampingFactor = 0.06;
-
-const walk = new PointerLockControls(camera, document.body);
-
-// Luces suaves para personajes/objetos extra que agregues al juego
-scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 0.6));
-const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-sun.position.set(5, 10, 4);
-scene.add(sun);
-
-// ---- SPLAT HIPERREALISTA (Luma) ----
-const statusEl = document.getElementById('status');
-const loadmsg = document.getElementById('loadmsg');
-let splat = null;
-function loadCapture(url) {
-  if (splat) { scene.remove(splat); splat.dispose?.(); }
-  statusEl.textContent = 'cargando…';
-  loadmsg.textContent = 'Cargando: ' + url;
-  document.getElementById('loader').classList.remove('hidden');
-  splat = new LumaSplatsThree({
-    source: url,
-    enableThreeShaderIntegration: true,
-    loadingAnimationEnabled: true,
-    particleRevealEnabled: true,
-  });
-  splat.onInitialCameraTransform = (t) => {
-    t.decompose(camera.position, camera.quaternion, new THREE.Vector3());
-    orbit.target.copy(camera.position).add(new THREE.Vector3(0,0,-2).applyQuaternion(camera.quaternion));
-  };
-  splat.onLoad = () => {
-    document.getElementById('loader').classList.add('hidden');
-    statusEl.textContent = 'EN VIVO • splat OK';
-    toast('Escena hiperrealista lista • ' + url);
-    // entorno realista desde la propia captura
-    splat.captureCubemap(renderer).then((tex) => { scene.environment = tex; }).catch(()=>{});
-  };
-  splat.onLoadError = () => {
-    document.getElementById('loader').classList.add('hidden');
-    statusEl.textContent = 'ERROR de captura';
-    toast('No se pudo cargar esa URL de Luma. Revisa que sea pública.');
-  };
-  scene.add(splat);
-}
-loadCapture(CAPTURE_URL);
-
-document.getElementById('capture-go').onclick = () => {
-  const v = document.getElementById('capture-input').value.trim();
-  if (!v) return toast('Pega primero tu URL de Luma de Kennedy');
-  history.replaceState(null,'','?capture='+encodeURIComponent(v));
-  loadCapture(v);
+const SAT = {
+  type: 'raster',
+  tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+  tileSize: 256,
+  maxzoom: 19,
+  attribution: '© Esri · Imagen satelital'
+};
+const OSM = { type: 'vector', url: 'https://tiles.openfreemap.org/planet' };
+const TER = {
+  type: 'raster-dem',
+  tiles: ['https://s3.amazonaws.com/elevation-tiles/terrarium/{z}/{x}/{y}.png'],
+  encoding: 'terrarium', tileSize: 256, maxzoom: 13
 };
 
-// ---- Panel niebla/exposición (igual que tu ejemplo) ----
-const fogD = document.getElementById('fog-density');
-const fogC = document.getElementById('fog-color');
-const expo = document.getElementById('exposure');
-fogD.oninput = () => scene.fog.density = parseFloat(fogD.value);
-fogC.oninput = () => { scene.fog.color.set(fogC.value); scene.background = scene.fog.color; };
-expo.oninput = () => renderer.toneMappingExposure = parseFloat(expo.value);
+const style = {
+  version: 8,
+  glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
+  sources: { sat: SAT, osm: OSM, dem: TER },
+  layers: [
+    { id: 'bg', type: 'background', paint: { 'background-color': '#8fb2cf' } },
 
-// ---- Modos juego ----
-let mode = 'orbit';
-const bO = document.getElementById('m-orbit'), bW = document.getElementById('m-walk');
-const cross = document.getElementById('cross');
-function setMode(m) {
-  mode = m;
-  bO.classList.toggle('active', m==='orbit');
-  bW.classList.toggle('active', m==='walk');
-  cross.style.display = m==='walk' ? 'block' : 'none';
-  orbit.enabled = (m==='orbit');
-  if (m==='walk') { walk.lock(); toast('Clic para mirar • WASD moverse • Q/E altura • Esc salir'); }
-  else { walk.unlock(); toast('Modo órbita • arrastra / zoom'); }
-}
-bO.onclick = () => setMode('orbit');
-bW.onclick = () => setMode('walk');
-walk.addEventListener('unlock', () => { if(mode==='walk') setMode('orbit'); });
+    // ---- Imagen satelital real de Kennedy ----
+    { id: 'sat', type: 'raster', source: 'sat',
+      paint: { 'raster-opacity': 1, 'raster-saturation': -0.08, 'raster-contrast': 0.03 } },
 
-const keys = {};
-addEventListener('keydown', e => keys[e.code]=true);
-addEventListener('keyup', e => keys[e.code]=false);
+    // ---- Cuerpos de agua y humedales ----
+    { id: 'agua', type: 'fill', source: 'osm', 'source-layer': 'water',
+      paint: { 'fill-color': '#1d5f86', 'fill-opacity': 0.62 } },
 
-function toast(t) {
-  const el = document.getElementById('toast');
-  el.textContent = t; el.style.opacity='1';
-  clearTimeout(el._h); el._h = setTimeout(()=>el.style.opacity='0', 3200);
-}
-setTimeout(()=>document.getElementById('toast').style.opacity='0', 5000);
+    // ---- Zonas verdes / parques ----
+    { id: 'verde', type: 'fill', source: 'osm', 'source-layer': 'landcover',
+      filter: ['==', ['get','class'], 'wood'],
+      paint: { 'fill-color': '#1e3a24', 'fill-opacity': 0.22 } },
 
-// ---- Loop ----
-function resize() {
-  camera.aspect = innerWidth/innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight, false);
-}
-addEventListener('resize', resize); resize();
+    // ---- EDIFICIOS 3D (extrusión real) ----
+    { id: 'edif', type: 'fill-extrusion', source: 'osm', 'source-layer': 'building',
+      paint: {
+        'fill-extrusion-height': ['to-number', ['coalesce', ['get','render_height'], ['*', 3.2, ['coalesce', ['get','levels'], 1]]]],
+        'fill-extrusion-base':    ['to-number', ['coalesce', ['get','render_min_height'], 0]],
+        'fill-extrusion-opacity': 0.9,
+        'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get','render_height'], 6],
+          0,    '#8d949c',
+          8,    '#a9aeb5',
+          18,   '#c2c6cc',
+          40,   '#d6d9de',
+          90,   '#e6e8ec']
+      }
+    },
 
-const vel = new THREE.Vector3();
-let prev = performance.now(), frames=0, lastFps=performance.now();
-const posv = document.getElementById('posv'), fpsEl = document.getElementById('fps');
-const fwd = new THREE.Vector3(), rgt = new THREE.Vector3();
+    // ---- Malla vial ----
+    { id: 'vias', type: 'line', source: 'osm', 'source-layer': 'transportation',
+      filter: ['in', ['get','class'], ['literal', ['motorway','trunk','primary','secondary','tertiary','minor']]],
+      paint: {
+        'line-color': ['match', ['get','class'],
+          'motorway','#f5c86b','trunk','#f0b95c','primary','#e8e4dc','secondary','#dedad2','#cfd3d8'],
+        'line-width': ['interpolate', ['exponential', 1.6], ['zoom'],
+          11, ['match',['get','class'],'motorway',1.2,'primary',.9,.4],
+          15, ['match',['get','class'],'motorway',4.5,'primary',3,1.2],
+          18, ['match',['get','class'],'motorway',11,'primary',8,3]],
+        'line-opacity': 0.82
+      }
+    },
 
-renderer.setAnimationLoop(() => {
-  const now = performance.now();
-  const dt = Math.min((now-prev)/1000, 0.1); prev = now;
-  frames++; if (now-lastFps>500){ fpsEl.textContent = Math.round(frames*1000/(now-lastFps))+' FPS'; frames=0; lastFps=now; }
+    // ---- Etiquetas de barrios y lugares ----
+    { id: 'etq', type: 'symbol', source: 'osm', 'source-layer': 'place',
+      filter: ['in', ['get','class'], ['literal', ['neighbourhood','suburb','quarter','city']]],
+      minzoom: 11,
+      layout: {
+        'text-field': ['coalesce', ['get','name'], ''],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate',['linear'],['zoom'], 11, 10, 15, 13, 18, 16],
+        'text-letter-spacing': 0.04,
+        'text-max-width': 8
+      },
+      paint: {
+        'text-color': '#ffffff',
+        'text-halo-color': 'rgba(0,0,0,.72)',
+        'text-halo-width': 1.4,
+        'text-opacity': 0.92
+      }
+    }
+  ]
+};
 
-  if (mode==='walk' && walk.isLocked) {
-    camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
-    rgt.crossVectors(fwd, new THREE.Vector3(0,1,0)).negate();
-    // corrección: right = fwd x up
-    rgt.crossVectors(fwd, new THREE.Vector3(0,1,0));
-    const sp = (keys.ShiftLeft||keys.ShiftRight) ? 9 : 3.5;
-    vel.set(0,0,0);
-    if (keys.KeyW) vel.addScaledVector(fwd, sp*dt);
-    if (keys.KeyS) vel.addScaledVector(fwd, -sp*dt);
-    if (keys.KeyA) vel.addScaledVector(rgt, -sp*dt);
-    if (keys.KeyD) vel.addScaledVector(rgt, sp*dt);
-    if (keys.KeyE) vel.y += sp*dt;
-    if (keys.KeyQ) vel.y -= sp*dt;
-    camera.position.add(vel);
-  } else {
-    orbit.update();
-  }
-  posv.textContent = camera.position.x.toFixed(1)+','+camera.position.y.toFixed(1)+','+camera.position.z.toFixed(1);
-  renderer.render(scene, camera);
+const map = new maplibregl.Map({
+  container: 'map', style, center: [KENNEDY.lng, KENNEDY.lat],
+  zoom: KENNEDY.zoom, pitch: KENNEDY.pitch, bearing: KENNEDY.bearing,
+  antialias: true, attributionControl: { compact: true }
 });
+
+map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-left');
+map.addControl(new maplibregl.ScaleControl({ maxWidth: 92, unit: 'metric' }), 'bottom-right');
+
+const $ = id => document.getElementById(id);
+const toast = $('toast');
+let toastH;
+function say(t, ms = 2600) {
+  toast.textContent = t; toast.style.opacity = '1';
+  clearTimeout(toastH); toastH = setTimeout(() => toast.style.opacity = '0', ms);
+}
+setTimeout(() => toast.style.opacity = '0', 4200);
+
+// ---- relieve real ----
+let relief = true;
+map.on('load', () => {
+  try {
+    map.setTerrain({ source: 'dem', exaggeration: 1.25 });
+  } catch (e) { console.warn('Relieve no disponible', e); $('b-pl3d').disabled = true; }
+
+  map.setLight({ anchor: 'viewport', color: '#fff6e8', intensity: 0.42, position: [1.5, 200, 32] });
+
+  POIS.forEach((p, i) => addPin(p, i));
+  buildPoiList();
+  $('o-st').textContent = 'satélite + 3D listo';
+  $('loader').classList.add('hidden');
+  say('🗺️ Territorio de Kennedy cargado · ' + POIS.length + ' puntos de misión');
+  tick();
+});
+
+map.on('error', e => console.warn('tile:', e && e.error && e.error.message));
+
+// ---- Pines de misión ----
+function addPin(p, i) {
+  const el = document.createElement('div');
+  el.className = 'mlg';
+  el.innerHTML = `<div class="pin"></div><div class="lbl">${p.n}</div>`;
+  el.onclick = () => flyTo(i);
+  new maplibregl.Marker({ element: el, anchor: 'bottom' })
+    .setLngLat([p.lng, p.lat]).addTo(map);
+}
+
+function buildPoiList() {
+  const w = $('poi-list');
+  w.innerHTML = '';
+  POIS.forEach((p, i) => {
+    const d = document.createElement('div');
+    d.className = 'poi';
+    d.innerHTML = `<span>${p.n}</span><small>${p.d}</small>`;
+    d.onclick = () => flyTo(i);
+    w.appendChild(d);
+  });
+}
+
+// ---- Vuelo cinemático ----
+let idx = 0;
+function flyTo(i, z) {
+  const p = POIS[i]; idx = i;
+  map.flyTo({
+    center: [p.lng, p.lat], zoom: z || p.z,
+    pitch: 64, bearing: (map.getBearing() + 118) % 360,
+    duration: 5200, curve: 1.45, essential: true
+  });
+  $('mission').textContent = '➜ Misión: ' + p.n;
+  say('🎯 ' + p.n + ' · ' + p.d);
+}
+
+let tour = null;
+$('b-tour').onclick = e => {
+  if (tour) {
+    clearInterval(tour); tour = null; e.target.classList.remove('on');
+    e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido');
+    return;
+  }
+  e.target.classList.add('on'); e.target.textContent = '⏸ Detener tour';
+  flyTo(0); let k = 0;
+  tour = setInterval(() => { k = (k + 1) % POIS.length; flyTo(k); }, 6000);
+  say('▶ Recorrido automático por Kennedy');
+};
+$('b-next').onclick = () => flyTo((idx + 1) % POIS.length);
+$('b-home').onclick = () => {
+  map.flyTo({ center: [KENNEDY.lng, KENNEDY.lat], zoom: KENNEDY.zoom,
+    pitch: KENNEDY.pitch, bearing: KENNEDY.bearing, duration: 4200, essential: true });
+  $('mission').textContent = '▶ Misión: reconoce el territorio';
+  say('🏠 Vista general del territorio de Kennedy');
+};
+
+// ---- Día / Noche ----
+let night = false;
+$('b-night').onclick = e => {
+  night = !night;
+  e.target.classList.toggle('on', night);
+  e.target.textContent = night ? '☀️ Día' : '🌙 Noche';
+  map.setPaintProperty('sat', 'raster-brightness-min', night ? -0.22 : 0);
+  map.setPaintProperty('sat', 'raster-brightness-max', night ? -0.28 : 1);
+  map.setPaintProperty('sat', 'raster-saturation', night ? -0.85 : -0.08);
+  map.setPaintProperty('edif', 'fill-extrusion-opacity', night ? 0.72 : 0.9);
+  map.setLight({ anchor: 'viewport', color: night ? '#93b6e6' : '#fff6e8',
+    intensity: night ? 0.22 : 0.42, position: [1.5, 200, 32] });
+  map.setPaintProperty('bg', 'background-color', night ? '#060a12' : '#8fb2cf');
+  $('grade').style.background = night
+    ? 'radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 40%,rgba(0,2,8,.85) 100%)'
+    : 'radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(2,6,12,.55) 100%)';
+  say(night ? '🌙 Modo nocturno' : '☀️ Modo día');
+};
+
+// ---- Relieve on/off ----
+$('b-pl3d').classList.add('on');
+$('b-pl3d').onclick = e => {
+  relief = !relief;
+  e.target.classList.toggle('on', relief);
+  try { relief ? map.setTerrain({ source: 'dem', exaggeration: 1.25 }) : map.setTerrain(null); }
+  catch (err) {}
+  say(relief ? '🏔️ Relieve del terreno activado' : '🏔️ Relieve desactivado');
+};
+
+// ---- Motor de vuelo jugable (WASD sobre el mapa) ----
+const k = {};
+addEventListener('keydown', e => {
+  k[e.code] = true;
+  if (['KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','Space'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', e => k[e.code] = false);
+
+addEventListener('keypress', e => {
+  if (e.key === 'r' || e.key === 'R') flyTo(Math.floor(Math.random() * POIS.length));
+});
+
+let acc = 0;
+function flight(ms) {
+  acc = Math.min(acc + ms, 60);
+  const turbo = k['ShiftLeft'] || k['ShiftRight'];
+  let dx = 0, dy = 0, rot = 0, tilt = 0;
+  if (k['KeyW'] || k['ArrowUp']) dy -= 1;
+  if (k['KeyS'] || k['ArrowDown']) dy += 1;
+  if (k['KeyA'] || k['ArrowLeft']) dx -= 1;
+  if (k['KeyD'] || k['ArrowRight']) dx += 1;
+  if (k['KeyQ']) tilt -= 1;
+  if (k['KeyE']) tilt += 1;
+  if (k['KeyZ']) rot -= 1;
+  if (k['KeyC']) rot += 1;
+  if (dx || dy) map.panBy([dx * acc, dy * acc], { duration: 0 });
+  if (rot) map.rotateTo(map.getBearing() + rot * 0.9, { duration: 0 });
+  if (tilt) map.setPitch(Math.max(0, Math.min(85, map.getPitch() + tilt * 0.6)), { duration: 0 });
+  if (turbo && (dx || dy)) map.panBy([dx * acc * 1.7, dy * acc * 1.7], { duration: 0 });
+  requestAnimationFrame(flight);
+}
+requestAnimationFrame(flight);
+
+// ---- HUD en vivo ----
+function tick() {
+  const c = map.getCenter();
+  $('o-ctr').textContent = c.lat.toFixed(4) + ', ' + c.lng.toFixed(4);
+  $('o-zoom').textContent = map.getZoom().toFixed(2);
+  $('o-pitch').textContent = Math.round(map.getPitch());
+  $('o-brg').textContent = Math.round(map.getBearing());
+  let alt = 'n/d';
+  try {
+    const e = map.queryTerrainElevation(c, { exaggerated: false });
+    if (e != null) alt = Math.round(e).toLocaleString('es-CO');
+  } catch (err) {}
+  $('o-alt').textContent = alt;
+  requestAnimationFrame(tick);
+}
+
+// ---- Ajuste de tamaño ----
+addEventListener('resize', () => map.resize());
 </script>
 </body>
 </html>
