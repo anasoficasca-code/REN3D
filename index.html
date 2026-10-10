@@ -476,7 +476,7 @@ function setMode(m) {
 function flyC(p, dur) {
   if (!viewer) return;
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 230),
+    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 2800),
     orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-50), roll: 0 },
     duration: dur || 5
   });
@@ -485,7 +485,7 @@ function flyC(p, dur) {
 function goHomeC0() {
   try {
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(INICIO.lng, INICIO.lat, 430),
+      destination: Cesium.Cartesian3.fromDegrees(INICIO.lng, INICIO.lat, 2950),
       orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-62), roll: 0 }
     });
   } catch (e) {}
@@ -493,7 +493,7 @@ function goHomeC0() {
 function goHomeC() {
   if (!viewer) return;
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(KENNEDY.lng, KENNEDY.lat, 2600),
+    destination: Cesium.Cartesian3.fromDegrees(KENNEDY.lng, KENNEDY.lat, 3600),
     orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-55), roll: 0 },
     duration: 4
   });
@@ -518,6 +518,10 @@ function flyKeysC() {
   if (k['KeyQ']) cam.moveDown(sp);
   if (k['KeyZ']) cam.lookLeft(0.025);
   if (k['KeyC']) cam.lookRight(0.025);
+  try {
+    const ch = Cesium.Cartographic.fromCartesian(cam.position).height;
+    if (ch < 2570) cam.moveUp(2570 - ch);   // no hundirse bajo Kennedy (~2.557 m)
+  } catch (e) {}
 }
 function msgE(e) {
   const s = String((e && e.message) || e || 'error');
@@ -546,6 +550,9 @@ async function initFoto() {
       { showCreditsOnScreen: true }
     );
     viewer.scene.primitives.add(tileset);
+    tileset.loadProgress.addEventListener((n) => {
+      if (!fotoOK) $('o-st').textContent = 'fotorrealista: bajando ' + n + ' bloques…';
+    });
     fotoOK = true;
     goHomeC0();
     say('🏙️ Kennedy fotorrealista listo · arrastra para mirar, WASD para volar');
