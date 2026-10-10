@@ -6,6 +6,8 @@
 <title>REN3D • Kennedy 3D · Territorio Real</title>
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<link href="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+<script src="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Cesium.js"></script>
 <script type="importmap">
 { "imports": {
   "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
@@ -18,6 +20,11 @@
   html,body{width:100%;height:100%;overflow:hidden;background:#0a0f16;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff}
   #map{position:fixed;inset:0}
+  #map.hidden{display:none}
+  #cesium{position:fixed;inset:0}
+  #cesium.hidden{display:none}
+  #cesium.night canvas{filter:brightness(.52) saturate(.65) contrast(1.06)}
+  .cesium-widget-credits{font-size:10px!important;opacity:.85}
   #grade{position:fixed;inset:0;pointer-events:none;z-index:5;
     background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(2,6,12,.55) 100%)}
   #loader{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;gap:16px;
@@ -65,7 +72,8 @@
 </head>
 <body>
 
-<div id="map"></div>
+<div id="map" class="hidden"></div>
+<div id="cesium"></div>
 <div id="grade"></div>
 
 <div id="loader">
@@ -99,6 +107,8 @@
 </div>
 
 <div class="hud" id="hud-c">
+  <button id="b-foto" class="on">🏙️ Fotorrealista</button>
+  <button id="b-sat">🛰️ Satélite</button>
   <button id="b-tour">▶ Tour Kennedy</button>
   <button id="b-next">Siguiente punto ➜</button>
   <button id="b-trees" class="on">🌳 Árboles 3D</button>
@@ -444,8 +454,116 @@ function buildPoiList() {
 }
 
 let idx = 0;
+
+/* ============ MODO FOTORREALISTA (Google 3D Tiles + CesiumJS) ============ */
+const GKEY = 'AIzaSyCF2MXjc0DYRFrHk7j_BCyxVpWOdYqDIC4';
+let mode = 'foto';
+let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
+
+function setMode(m) {
+  mode = m;
+  try { if (tour) { clearInterval(tour); tour = null; const b = $('b-tour'); b.classList.remove('on'); b.textContent = '▶ Tour Kennedy'; } } catch (e) {}
+  if (tourC) { clearInterval(tourC); tourC = null; }
+  $('cesium').classList.toggle('hidden', m !== 'foto');
+  $('map').classList.toggle('hidden', m !== 'sat');
+  $('b-foto').classList.toggle('on', m === 'foto');
+  $('b-sat').classList.toggle('on', m === 'sat');
+  const dim = m !== 'sat';
+  ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
+  if (m === 'sat') { try { map.resize(); } catch (e) {} }
+}
+function flyC(p, dur) {
+  if (!viewer) return;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 230),
+    orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-50), roll: 0 },
+    duration: dur || 5
+  });
+  $('mission').textContent = '➜ Misión: ' + p.n;
+}
+function goHomeC0() {
+  try {
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(INICIO.lng, INICIO.lat, 430),
+      orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-62), roll: 0 }
+    });
+  } catch (e) {}
+}
+function goHomeC() {
+  if (!viewer) return;
+  viewer.camera.flyTo({
+    destination: Cesium.Cartesian3.fromDegrees(KENNEDY.lng, KENNEDY.lat, 2600),
+    orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-55), roll: 0 },
+    duration: 4
+  });
+  $('mission').textContent = '▶ Misión: reconoce el territorio';
+}
+function tourFoto() {
+  let k2 = 0; flyC(POIS[0], 4);
+  tourC = setInterval(() => { k2 = (k2 + 1) % POIS.length; flyC(POIS[k2], 4); }, 6500);
+}
+function flyKeysC() {
+  if (!viewer || !fotoOK) return;
+  const cam = viewer.camera;
+  let h = 300;
+  try { h = Cesium.Cartographic.fromCartesian(cam.position).height; } catch (e) {}
+  const turbo = k['ShiftLeft'] || k['ShiftRight'];
+  const sp = Math.max(1.5, h * 0.25) * (turbo ? 3 : 1) / 60;
+  if (k['KeyW'] || k['ArrowUp']) cam.moveForward(sp);
+  if (k['KeyS'] || k['ArrowDown']) cam.moveBackward(sp);
+  if (k['KeyA'] || k['ArrowLeft']) cam.moveLeft(sp);
+  if (k['KeyD'] || k['ArrowRight']) cam.moveRight(sp);
+  if (k['KeyE']) cam.moveUp(sp);
+  if (k['KeyQ']) cam.moveDown(sp);
+  if (k['KeyZ']) cam.lookLeft(0.025);
+  if (k['KeyC']) cam.lookRight(0.025);
+}
+function msgE(e) {
+  const s = String((e && e.message) || e || 'error');
+  if (/403/.test(s)) return 'llave sin permiso: habilita Map Tiles API en tu proyecto';
+  if (/400/.test(s)) return 'llave inválida';
+  return s.slice(0, 110);
+}
+function fotoFail(m) {
+  fotoFailed = true;
+  setMode('sat');
+  say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
+}
+async function initFoto() {
+  if (!window.Cesium) return fotoFail('no cargó la librería CesiumJS (revisa tu conexión)');
+  try {
+    Cesium.RequestScheduler.requestsByServer['tile.googleapis.com:443'] = 18;
+    viewer = new Cesium.Viewer('cesium', {
+      imageryProvider: false, baseLayerPicker: false, geocoder: false,
+      homeButton: false, sceneModePicker: false, timeline: false, animation: false,
+      fullscreenButton: false, vrButton: false, infoBox: false,
+      selectionIndicator: false, navigationHelpButton: false
+    });
+    try { if (viewer.scene.globe) viewer.scene.globe.show = false; } catch (e) {}
+    const tileset = new Cesium.Cesium3DTileset({
+      url: 'https://tile.googleapis.com/v1/3dtiles/root.json?key=' + GKEY,
+      showCreditsOnScreen: true
+    });
+    viewer.scene.primitives.add(tileset);
+    await tileset.readyPromise;
+    fotoOK = true;
+    goHomeC0();
+    say('🏙️ Kennedy fotorrealista listo · arrastra para mirar, WASD para volar');
+  } catch (err) { console.warn('Foto:', err); fotoFail(msgE(err)); }
+}
+$('b-foto').onclick = () => {
+  if (fotoFailed) { say('⚠️ La llave aún no funciona: habilita Map Tiles API y recarga.', 5000); return; }
+  if (!fotoOK) say('⏳ Cargando fotorrealista…');
+  setMode('foto');
+};
+$('b-sat').onclick = () => { setMode('sat'); say('🛰️ Modo satélite'); };
+initFoto();
 function flyTo(i, z) {
   const p = POIS[i]; idx = i;
+  if (mode === 'foto') {
+    if (!fotoOK || !viewer) { say('⏳ Fotorrealista aún cargando…'); return; }
+    flyC(p, 5); say('🎯 ' + p.n + ' · ' + p.d); return;
+  }
   map.flyTo({ center: [p.lng, p.lat], zoom: z || p.z, pitch: 64,
     bearing: (map.getBearing() + 118) % 360, duration: 5200, curve: 1.45, essential: true });
   $('mission').textContent = '➜ Misión: ' + p.n;
@@ -453,6 +571,12 @@ function flyTo(i, z) {
 }
 let tour = null;
 $('b-tour').onclick = e => {
+  if (mode === 'foto') {
+    if (tourC) { clearInterval(tourC); tourC = null; e.target.classList.remove('on'); e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido'); return; }
+    if (!fotoOK || !viewer) { say('⏳ Fotorrealista aún cargando…'); return; }
+    e.target.classList.add('on'); e.target.textContent = '⏸ Detener tour';
+    tourFoto(); say('▶ Recorrido fotorrealista por Kennedy'); return;
+  }
   if (tour) {
     clearInterval(tour); tour = null; e.target.classList.remove('on');
     e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido'); return;
@@ -464,6 +588,7 @@ $('b-tour').onclick = e => {
 };
 $('b-next').onclick = () => flyTo((idx + 1) % POIS.length);
 $('b-home').onclick = () => {
+  if (mode === 'foto') { if (viewer) { goHomeC(); say('🏠 Vista fotorrealista de Kennedy'); } return; }
   map.flyTo({ center: [KENNEDY.lng, KENNEDY.lat], zoom: KENNEDY.zoom,
     pitch: KENNEDY.pitch, bearing: KENNEDY.bearing, duration: 4200, essential: true });
   $('mission').textContent = '▶ Misión: reconoce el territorio';
@@ -475,6 +600,7 @@ $('b-night').onclick = e => {
   night = !night;
   e.target.classList.toggle('on', night);
   e.target.textContent = night ? '☀️ Día' : '🌙 Noche';
+  if (mode === 'foto') { $('cesium').classList.toggle('night', night); say(night ? '🌙 Noche fotorrealista' : '☀️ Día fotorrealista'); return; }
   map.setPaintProperty('sat', 'raster-brightness-min', night ? -0.22 : 0);
   map.setPaintProperty('sat', 'raster-brightness-max', night ? -0.28 : 1);
   map.setPaintProperty('sat', 'raster-saturation', night ? -0.85 : -0.08);
@@ -500,6 +626,7 @@ addEventListener('keypress', e => {
 
 let acc = 0;
 function flight(ms) {
+  if (mode === 'foto') { flyKeysC(); requestAnimationFrame(flight); return; }
   acc = Math.min(acc + ms, 60);
   const turbo = k['ShiftLeft'] || k['ShiftRight'];
   let dx = 0, dy = 0, rot = 0, tilt = 0;
@@ -520,6 +647,16 @@ function flight(ms) {
 requestAnimationFrame(flight);
 
 function tick() {
+  if (mode === 'foto' && viewer && window.Cesium) {
+    try {
+      const cart = Cesium.Cartographic.fromCartesian(viewer.camera.position);
+      $('o-ctr').textContent = Cesium.Math.toDegrees(cart.latitude).toFixed(4) + ', ' + Cesium.Math.toDegrees(cart.longitude).toFixed(4);
+      $('o-alt').textContent = Math.round(cart.height).toLocaleString('es-CO');
+      $('o-pitch').textContent = Math.round(Cesium.Math.toDegrees(viewer.camera.pitch));
+      $('o-brg').textContent = Math.round((Cesium.Math.toDegrees(viewer.camera.heading) + 360) % 360);
+    } catch (e) {}
+    requestAnimationFrame(tick); return;
+  }
   const c = map.getCenter();
   $('o-ctr').textContent = c.lat.toFixed(4) + ', ' + c.lng.toFixed(4);
   $('o-zoom').textContent = map.getZoom().toFixed(2);
@@ -528,7 +665,7 @@ function tick() {
   $('o-alt').textContent = '2.550';
   requestAnimationFrame(tick);
 }
-addEventListener('resize', () => map.resize());
+addEventListener('resize', () => { map.resize(); try { if (viewer) viewer.resize(); } catch (e) {} });
 </script>
 </body>
 </html>
