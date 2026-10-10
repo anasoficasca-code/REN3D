@@ -120,6 +120,8 @@
    ============================================================ */
 
 const KENNEDY = { lng: -74.1620, lat: 4.6252, zoom: 14.2, pitch: 62, bearing: -18 };
+// Arranque en primer plano sobre el lago Timiza para que el 3D se vea de inmediato
+const INICIO = { lng: -74.1635, lat: 4.6205, zoom: 16.6, pitch: 66, bearing: -18 };
 
 const POIS = [
   { n: 'Humedal El Burro',        lng: -74.1706, lat: 4.6382, z: 17.2, d: 'Reserva de humedal y aves' },
@@ -141,10 +143,10 @@ const WATERS = [
 
 /* ---- Arboledas 3D (rectángulos lng/lat + conteo) ---- */
 const GROVES = [
-  { lng0: -74.1665, lng1: -74.1590, lat0: 4.6190, lat1: 4.6245, n: 650 },  // Parque Timiza
-  { lng0: -74.1750, lng1: -74.1660, lat0: 4.6355, lat1: 4.6410, n: 950 },  // Humedal El Burro
-  { lng0: -74.1220, lng1: -74.1150, lat0: 4.6445, lat1: 4.6495, n: 550 },  // Capellanía
-  { lng0: -74.1580, lng1: -74.1520, lat0: 4.6220, lat1: 4.6270, n: 450 }   // Cayetano Cañizares
+  { lng0: -74.1665, lng1: -74.1590, lat0: 4.6190, lat1: 4.6245, n: 1200 }, // Parque Timiza
+  { lng0: -74.1750, lng1: -74.1660, lat0: 4.6355, lat1: 4.6410, n: 1100 }, // Humedal El Burro
+  { lng0: -74.1220, lng1: -74.1150, lat0: 4.6445, lat1: 4.6495, n: 650 },  // Capellanía
+  { lng0: -74.1580, lng1: -74.1520, lat0: 4.6220, lat1: 4.6270, n: 550 }   // Cayetano Cañizares
 ];
 
 const SAT = {
@@ -208,8 +210,8 @@ const style = {
 };
 
 const map = new maplibregl.Map({
-  container: 'map', style, center: [KENNEDY.lng, KENNEDY.lat],
-  zoom: KENNEDY.zoom, pitch: KENNEDY.pitch, bearing: KENNEDY.bearing,
+  container: 'map', style, center: [INICIO.lng, INICIO.lat],
+  zoom: INICIO.zoom, pitch: INICIO.pitch, bearing: INICIO.bearing,
   antialias: true, attributionControl: { compact: true }
 });
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-left');
@@ -258,9 +260,9 @@ async function init3D() {
   waterU = {
     uTime: { value: 0 },
     uSun: { value: new THREE.Vector3(0.55, -0.35, 0.75).normalize() },
-    uDeep: { value: new THREE.Color(0x0b3d51) },
-    uShallow: { value: new THREE.Color(0x2e9aa8) },
-    uSky: { value: new THREE.Color(0xbfe3f2) }
+    uDeep: { value: new THREE.Color(0x0a4a5e) },
+    uShallow: { value: new THREE.Color(0x37b3c4) },
+    uSky: { value: new THREE.Color(0xd4ecf7) }
   };
   const waterMat = new THREE.ShaderMaterial({
     uniforms: { uTime: waterU.uTime, uSun: waterU.uSun, uDeep: waterU.uDeep, uShallow: waterU.uShallow, uSky: waterU.uSky, uSize: { value: new THREE.Vector2(200, 130) } },
@@ -315,10 +317,10 @@ async function init3D() {
   // ---- Árboles instanciados por arboleda ----
   treeGroup = new THREE.Group();
   const rng = mulberry32(20261010);
-  const trunkG = new THREE.CylinderGeometry(0.22, 0.36, 3.4, 5);
-  trunkG.translate(0, 1.7, 0); trunkG.rotateX(Math.PI / 2);   // Y-up -> Z-up
-  const canG = new THREE.IcosahedronGeometry(2.7, 0);
-  canG.scale(1, 1.3, 1); canG.translate(0, 5.6, 0); canG.rotateX(Math.PI / 2);
+  const trunkG = new THREE.CylinderGeometry(0.3, 0.48, 4.2, 6);
+  trunkG.translate(0, 2.1, 0); trunkG.rotateX(Math.PI / 2);   // Y-up -> Z-up
+  const canG = new THREE.IcosahedronGeometry(3.8, 1);
+  canG.scale(1, 1.35, 1); canG.translate(0, 7.2, 0); canG.rotateX(Math.PI / 2);
   const trunkM = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
   const canM = new THREE.MeshLambertMaterial({ color: 0xffffff });
   const dummy = new THREE.Object3D();
@@ -346,7 +348,7 @@ async function init3D() {
     pts.forEach(([lng, lat], i) => {
       const dx = (lng - cx) * MX(cx, cy);
       const dyS = -(lat - cy) * MY;                    // y = sur
-      const sc = 0.7 + rng() * 0.8;
+      const sc = 1.0 + rng() * 0.9;
       dummy.position.set(dx, dyS, 0);
       dummy.rotation.set(0, 0, rng() * Math.PI * 2);
       dummy.scale.setScalar(sc);
@@ -529,10 +531,10 @@ function tick() {
   $('o-zoom').textContent = map.getZoom().toFixed(2);
   $('o-pitch').textContent = Math.round(map.getPitch());
   $('o-brg').textContent = Math.round(map.getBearing());
-  let alt = 'n/d';
+  let alt = '—';
   try {
     const e = map.queryTerrainElevation(c, { exaggerated: false });
-    if (e != null) alt = Math.round(e).toLocaleString('es-CO');
+    if (e != null && e > 0) alt = Math.round(e).toLocaleString('es-CO');
   } catch (err) {}
   $('o-alt').textContent = alt;
   requestAnimationFrame(tick);
