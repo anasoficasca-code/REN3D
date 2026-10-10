@@ -89,7 +89,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v10</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v11</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -171,14 +171,22 @@ const SAT = {
   tileSize: 256, maxzoom: 19, attribution: '© Esri · Imagen satelital'
 };
 const OSM = { type: 'vector', url: 'https://tiles.openfreemap.org/planet' };
+// Mapa base de respaldo (si el satélite falla en alguna red, este se ve debajo)
+const BASE = {
+  type: 'raster',
+  tiles: ['https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png'],
+  tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap · © CARTO'
+};
 // NOTA: sin fuente de relieve (los DEM gratuitos bloquean CORS); Kennedy es plano (~2.550 m).
 
 const style = {
   version: 8,
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
-  sources: { sat: SAT, osm: OSM },
+  sources: { base: BASE, sat: SAT, osm: OSM },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#8fb2cf' } },
+    { id: 'base', type: 'raster', source: 'base',
+      paint: { 'raster-opacity': 1, 'raster-saturation': -0.15 } },
     { id: 'sat', type: 'raster', source: 'sat',
       paint: { 'raster-opacity': 1, 'raster-saturation': 0.0, 'raster-contrast': 0.05 } },
     { id: 'agua-base', type: 'fill', source: 'osm', 'source-layer': 'water',
@@ -190,9 +198,9 @@ const style = {
       paint: {
         'fill-extrusion-height': ['to-number', ['coalesce', ['get', 'render_height'], ['*', 3.2, ['coalesce', ['get', 'levels'], 1]]]],
         'fill-extrusion-base': ['to-number', ['coalesce', ['get', 'render_min_height'], 0]],
-        'fill-extrusion-opacity': 0.9,
+        'fill-extrusion-opacity': 0.8,
         'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6],
-          0, '#8d949c', 8, '#a9aeb5', 18, '#c2c6cc', 40, '#d6d9de', 90, '#e6e8ec']
+          0, '#8a7a6a', 8, '#a08e7c', 18, '#b5a894', 40, '#c6ccd2', 90, '#e2e6ea']
       }
     },
     { id: 'vias', type: 'line', source: 'osm', 'source-layer': 'transportation',
@@ -475,7 +483,7 @@ function setMode(m) {
   $('b-foto').classList.toggle('on', m === 'foto');
   $('b-sat').classList.toggle('on', m === 'sat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v10' : 'MODO: 🛰️ SATÉLITE · v10';
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v11' : 'MODO: 🛰️ SATÉLITE · v11';
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -543,6 +551,11 @@ function fotoFail(m) {
 }
 async function initFoto() {
   if (!window.Cesium) return fotoFail('no cargó la librería CesiumJS (revisa tu conexión)');
+  try {
+    const tc = document.createElement('canvas');
+    if (!(window.WebGL2RenderingContext && tc.getContext('webgl2')))
+      return fotoFail('tu navegador no tiene WebGL2: actualiza Chrome o Edge a la última versión');
+  } catch (e) { return fotoFail('tu navegador bloqueó el 3D (WebGL2)'); }
   try {
     Cesium.RequestScheduler.requestsByServer['tile.googleapis.com:443'] = 18;
     viewer = new Cesium.Viewer('cesium', {
