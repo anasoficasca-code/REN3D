@@ -93,7 +93,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v13</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v14</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -492,7 +492,7 @@ function setMode(m) {
   $('b-sat').classList.toggle('on', m === 'sat');
   $('b-todo').classList.toggle('on', m === 'todo');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v13' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v13' : 'MODO: 🛰️ SATÉLITE · v13');
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v14' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v14' : 'MODO: 🛰️ SATÉLITE · v14');
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -564,7 +564,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v13 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v14 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -902,7 +902,7 @@ function buildChunks(THREE, B) {
     cells.get(k).push(bi);
     total++;
   }
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true });
   for (const list of cells.values()) {
     const P = [], C = [], I = [];
     let vc = 0;
@@ -915,7 +915,7 @@ function buildChunks(THREE, B) {
       cx /= n; cz /= n;
       const base = vc;
       for (let i = 0; i < n; i++) {
-        P.push(W[i][0], 0, W[i][1]); C.push(col.w[0], col.w[1], col.w[2]); vc++;
+        P.push(W[i][0], 0, W[i][1]); C.push(col.w[0] * 0.68, col.w[1] * 0.68, col.w[2] * 0.68); vc++;
       }
       for (let i = 0; i < n; i++) {
         P.push(W[i][0], h, W[i][1]); C.push(col.w[0], col.w[1], col.w[2]); vc++;
@@ -936,37 +936,90 @@ function buildChunks(THREE, B) {
   }
   T3.counts.b = total; T3.counts.skip = skipped;
 }
+function treeTexture(THREE, variant) {
+  const S = 128, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  g.clearRect(0, 0, S, S);
+  g.fillStyle = '#5d4128';
+  g.fillRect(S * 0.47, S * 0.52, S * 0.06, S * 0.48);
+  g.fillStyle = '#4a3520';
+  g.fillRect(S * 0.47, S * 0.52, S * 0.02, S * 0.48);
+  let s = 1234 + variant * 777;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const layers = variant === 1
+    ? [[0.5, 0.3, 0.26], [0.42, 0.44, 0.23], [0.58, 0.44, 0.23], [0.5, 0.56, 0.25], [0.5, 0.18, 0.18]]
+    : [[0.5, 0.4, 0.33], [0.38, 0.52, 0.23], [0.62, 0.52, 0.23], [0.5, 0.62, 0.27], [0.5, 0.26, 0.21]];
+  for (const L of layers) {
+    for (let i = 0; i < 30; i++) {
+      const a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * L[2];
+      const x = (L[0] + Math.cos(a) * rr) * S, y = (L[1] + Math.sin(a) * rr * 0.9) * S;
+      const rad = (0.05 + rnd() * 0.075) * S;
+      const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+      const l = 24 + rnd() * 24, hh = 92 + rnd() * 32;
+      gr.addColorStop(0, 'hsla(' + hh + ',48%,' + l + '%,0.95)');
+      gr.addColorStop(1, 'hsla(' + hh + ',48%,' + (l - 13) + '%,0)');
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(x, y, rad, 0, 7); g.fill();
+    }
+  }
+  const tx = new THREE.CanvasTexture(cv);
+  tx.colorSpace = THREE.SRGBColorSpace;
+  return tx;
+}
+function crossGeo(THREE, w, h) {
+  const p1 = new THREE.PlaneGeometry(w, h);
+  p1.translate(0, h / 2, 0);
+  const p2 = p1.clone();
+  p2.rotateY(Math.PI / 2);
+  const pa = p1.attributes.position.array, pb = p2.attributes.position.array;
+  const ua = p1.attributes.uv.array, ub = p2.attributes.uv.array;
+  const ia = p1.index.array, ib = p2.index.array;
+  const pos = new Float32Array(pa.length + pb.length);
+  pos.set(pa); pos.set(pb, pa.length);
+  const uv = new Float32Array(ua.length + ub.length);
+  uv.set(ua); uv.set(ub, ua.length);
+  const idx = new Uint16Array(ia.length + ib.length);
+  idx.set(ia);
+  const off = pa.length / 3;
+  for (let i = 0; i < ib.length; i++) idx[ia.length + i] = ib[i] + off;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  return g;
+}
 function buildTreesReal(THREE, T) {
-  const trunkG = new THREE.CylinderGeometry(0.3, 0.48, 4.2, 4, 1, true);
-  trunkG.translate(0, 2.1, 0);
-  const canG = new THREE.ConeGeometry(3.4, 7.5, 6);
-  canG.translate(0, 7, 0);
-  const trunkM = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
-  const canM = new THREE.MeshLambertMaterial({ color: 0xffffff });
   const N = T.t.length;
-  const trunks = new THREE.InstancedMesh(trunkG, trunkM, N);
-  const cans = new THREE.InstancedMesh(canG, canM, N);
+  const geo = [crossGeo(THREE, 8.5, 10), crossGeo(THREE, 8.5, 10)];
+  const mat = [
+    new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 0), alphaTest: 0.4, side: THREE.DoubleSide }),
+    new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 1), alphaTest: 0.4, side: THREE.DoubleSide })
+  ];
+  const n0 = Math.ceil(N / 2), n1 = N - n0;
+  const m0 = new THREE.InstancedMesh(geo[0], mat[0], n0);
+  const m1 = new THREE.InstancedMesh(geo[1], mat[1], n1);
   const d = new THREE.Object3D(), col = new THREE.Color();
-  const greens = [0x2d6a2f, 0x3c7d36, 0x4c8f3f, 0x5da24c, 0x77a83e, 0x2f7d44];
+  let c0 = 0, c1 = 0;
   for (let i = 0; i < N; i++) {
     const t = T.t[i], w = lw(t[0], t[1]);
-    const sc = Math.max(0.3, (t[2] || 4) / 9);
+    const sc = Math.max(0.35, (t[2] || 4) / 9);
     d.position.set(w[0], 0, w[1]);
     d.rotation.set(0, (i * 2.39996) % (Math.PI * 2), 0);
     d.scale.setScalar(sc);
     d.updateMatrix();
-    trunks.setMatrixAt(i, d.matrix);
-    cans.setMatrixAt(i, d.matrix);
     const nm = (T.sp[t[3]] || '').toLowerCase();
-    if (/roble|guayacan|guayacán/.test(nm)) col.setHex(0xd8b93a);
-    else if (/cerezo|flor|rosado|pomarroso/.test(nm)) col.setHex(0xd98bb0);
-    else col.setHex(greens[i % greens.length]).offsetHSL(0, 0, ((i * 7) % 10 - 5) * 0.008);
-    cans.setColorAt(i, col);
+    if (/roble|guayacan/.test(nm)) col.setHex(0xe8c84a);
+    else if (/cerezo|flor|rosado|pomarroso/.test(nm)) col.setHex(0xe8a0c0);
+    else col.setHSL(0.29 + ((i * 13) % 10) * 0.004, 0.32, 0.82 + ((i * 7) % 10) * 0.02);
+    if (i % 2 === 0) { m0.setMatrixAt(c0, d.matrix); m0.setColorAt(c0, col); c0++; }
+    else { m1.setMatrixAt(c1, d.matrix); m1.setColorAt(c1, col); c1++; }
   }
-  trunks.instanceMatrix.needsUpdate = true;
-  cans.instanceMatrix.needsUpdate = true;
-  if (cans.instanceColor) cans.instanceColor.needsUpdate = true;
-  T3.scene.add(trunks, cans);
+  m0.instanceMatrix.needsUpdate = true;
+  m1.instanceMatrix.needsUpdate = true;
+  if (m0.instanceColor) m0.instanceColor.needsUpdate = true;
+  if (m1.instanceColor) m1.instanceColor.needsUpdate = true;
+  T3.scene.add(m0, m1);
   T3.counts.t = N;
 }
 function triShape(THREE, pts) {
@@ -1012,7 +1065,7 @@ function buildWater(THREE, W) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
   g.setIndex(I);
   g.computeVertexNormals();
-  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.93, side: THREE.DoubleSide })));
+  T3.scene.add(new THREE.Mesh(g, new THREE.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: 0.93, side: THREE.DoubleSide, shininess: 90, specular: 0x99ddff })));
 }
 function buildParks(THREE, P) {
   const gP = [], gC = [], gI = [];
@@ -1036,24 +1089,33 @@ function buildParks(THREE, P) {
   T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
 }
 function buildRoads(THREE, N) {
-  const P = [], I = [];
-  let vc = 0;
-  for (const e of N.edges) {
-    const wd = e[0] === 'mid' ? 9 : 5, pts = e[1];
+  const SP = [], SI = [], AP = [], AI = [];
+  const strip = (P, I, pts, wd, y) => {
+    let vc = P.length / 3;
     for (let i = 0; i < pts.length - 1; i++) {
-      const a = lw(pts[i][0], pts[i][1]), b = lw(pts[i + 1][0], pts[i + 1][1]);
+      const a = pts[i], b = pts[i + 1];
       const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
       const nx = -dz / L * wd / 2, nz = dx / L * wd / 2;
-      P.push(a[0] + nx, 0.18, a[1] + nz, a[0] - nx, 0.18, a[1] - nz, b[0] + nx, 0.18, b[1] + nz, b[0] - nx, 0.18, b[1] - nz);
+      P.push(a[0] + nx, y, a[1] + nz, a[0] - nx, y, a[1] - nz, b[0] + nx, y, b[1] + nz, b[0] - nx, y, b[1] - nz);
       I.push(vc, vc + 1, vc + 2, vc + 1, vc + 3, vc + 2);
       vc += 4;
     }
+  };
+  for (const e of N.edges) {
+    const pts = e[1].map(p => lw(p[0], p[1]));
+    if (pts.length < 2) continue;
+    const wd = e[0] === 'mid' ? 9 : 5;
+    strip(SP, SI, pts, wd + 2.5, 0.15);
+    strip(AP, AI, pts, wd, 0.22);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-  g.setIndex(I);
-  g.computeVertexNormals();
-  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0x2a2e35, side: THREE.DoubleSide })));
+  const mk = (P, I, color) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.setIndex(I);
+    g.computeVertexNormals();
+    return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
+  };
+  T3.scene.add(mk(SP, SI, 0x3d4148), mk(AP, AI, 0x23262c));
 }
 function flyTodo(i, instant) {
   const p = POIS[i]; idx = i;
