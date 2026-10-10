@@ -116,6 +116,7 @@
   <button id="b-water" class="on">🌊 Agua 3D</button>
   <button id="b-night">🌙 Noche</button>
   <button id="b-home">🏠 Vista general</button>
+  <button id="b-pie">🚶 A pie</button>
 </div>
 
 <div id="toast"></div>
@@ -476,8 +477,8 @@ function setMode(m) {
 function flyC(p, dur) {
   if (!viewer) return;
   viewer.camera.flyTo({
-    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 2800),
-    orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-50), roll: 0 },
+    destination: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 2620),
+    orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-35), roll: 0 },
     duration: dur || 5
   });
   $('mission').textContent = '➜ Misión: ' + p.n;
@@ -485,8 +486,8 @@ function flyC(p, dur) {
 function goHomeC0() {
   try {
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(INICIO.lng, INICIO.lat, 2850),
-      orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-48), roll: 0 }
+      destination: Cesium.Cartesian3.fromDegrees(INICIO.lng, INICIO.lat, 2575),
+      orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-12), roll: 0 }
     });
   } catch (e) {}
 }
@@ -520,7 +521,7 @@ function flyKeysC() {
   if (k['KeyC']) cam.lookRight(0.025);
   try {
     const ch = Cesium.Cartographic.fromCartesian(cam.position).height;
-    if (ch < 2570) cam.moveUp(2570 - ch);   // no hundirse bajo Kennedy (~2.557 m)
+    if (ch < 2562) cam.moveUp(2562 - ch);   // no hundirse bajo Kennedy (~2.557 m)
   } catch (e) {}
 }
 function msgE(e) {
@@ -612,6 +613,22 @@ $('b-home').onclick = () => {
   $('mission').textContent = '▶ Misión: reconoce el territorio';
   say('🏠 Vista general del territorio de Kennedy');
 };
+function flyPie() {
+  if (mode === 'foto') {
+    if (!fotoOK || !viewer) { say('⏳ Fotorrealista aún cargando…'); return; }
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(-74.1626, 4.6216, 2568),
+      orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-8), roll: 0 },
+      duration: 4
+    });
+    $('mission').textContent = '➜ Misión: a pie por Timiza';
+    say('🚶 A nivel de calle · WASD para caminar, mouse para mirar');
+  } else {
+    map.flyTo({ center: [-74.1626, 4.6216], zoom: 18, pitch: 70, bearing: -18, duration: 4000, essential: true });
+    say('🚶 A nivel de calle (satélite)');
+  }
+}
+$('b-pie').onclick = flyPie;
 
 let night = false;
 $('b-night').onclick = e => {
