@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>REN3D • Kennedy 3D · Territorio Real</title>
+<link rel="icon" href="data:,">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
@@ -540,16 +541,25 @@ async function initFoto() {
       selectionIndicator: false, navigationHelpButton: false
     });
     try { if (viewer.scene.globe) viewer.scene.globe.show = false; } catch (e) {}
-    const tileset = new Cesium.Cesium3DTileset({
-      url: 'https://tile.googleapis.com/v1/3dtiles/root.json?key=' + GKEY,
-      showCreditsOnScreen: true
-    });
+    const tileset = await Cesium.Cesium3DTileset.fromUrl(
+      'https://tile.googleapis.com/v1/3dtiles/root.json?key=' + GKEY,
+      { showCreditsOnScreen: true }
+    );
     viewer.scene.primitives.add(tileset);
-    await tileset.readyPromise;
     fotoOK = true;
     goHomeC0();
     say('🏙️ Kennedy fotorrealista listo · arrastra para mirar, WASD para volar');
-  } catch (err) { console.warn('Foto:', err); fotoFail(msgE(err)); }
+  } catch (err) {
+    let info = 'UNKNOWN';
+    try {
+      info = JSON.stringify({
+        message: err && err.message, name: err && err.name,
+        status: err && err.statusCode, stack: ((err && err.stack) || '').slice(0, 300)
+      });
+    } catch (e) { info = String(err).slice(0, 300); }
+    console.warn('FOTOFAIL:' + info);
+    fotoFail(msgE(err));
+  }
 }
 $('b-foto').onclick = () => {
   if (fotoFailed) { say('⚠️ La llave aún no funciona: habilita Map Tiles API y recarga.', 5000); return; }
