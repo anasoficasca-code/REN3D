@@ -485,8 +485,8 @@ function flyC(p, dur) {
 function goHomeC0() {
   try {
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(INICIO.lng, INICIO.lat, 2950),
-      orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-62), roll: 0 }
+      destination: Cesium.Cartesian3.fromDegrees(INICIO.lng, INICIO.lat, 2850),
+      orientation: { heading: Cesium.Math.toRadians(-18), pitch: Cesium.Math.toRadians(-48), roll: 0 }
     });
   } catch (e) {}
 }
@@ -554,6 +554,7 @@ async function initFoto() {
       if (!fotoOK) $('o-st').textContent = 'fotorrealista: bajando ' + n + ' bloques…';
     });
     fotoOK = true;
+    $('o-st').textContent = 'fotorrealista en vivo';
     goHomeC0();
     say('🏙️ Kennedy fotorrealista listo · arrastra para mirar, WASD para volar');
   } catch (err) {
