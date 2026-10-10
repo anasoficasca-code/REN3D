@@ -48,7 +48,7 @@
   #toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:20;
     background:rgba(7,13,22,.94);border:1px solid rgba(56,189,248,.5);padding:9px 20px;
     border-radius:20px;font-size:13px;transition:opacity .5s}
-  #poi-list{margin-top:9px;display:flex;flex-direction:column;gap:4px;max-height:38vh;overflow:auto}
+  #poi-list{margin-top:9px;display:flex;flex-direction:column;gap:4px;max-height:32vh;overflow:auto}
   .poi{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:#cbd5e1;
     background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
     border-radius:7px;padding:6px 8px;cursor:pointer}
@@ -76,7 +76,7 @@
 
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
-  <div class="s">Imagen satelital real + edificios 3D de OpenStreetMap + relieve del terreno. Motor de vuelo jugable.</div>
+  <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -101,9 +101,10 @@
 <div class="hud" id="hud-c">
   <button id="b-tour">▶ Tour Kennedy</button>
   <button id="b-next">Siguiente punto ➜</button>
+  <button id="b-trees" class="on">🌳 Árboles 3D</button>
+  <button id="b-water" class="on">🌊 Agua 3D</button>
   <button id="b-night">🌙 Noche</button>
   <button id="b-home">🏠 Vista general</button>
-  <button id="b-pl3d">🏔️ Relieve</button>
 </div>
 
 <div id="toast"></div>
@@ -111,11 +112,11 @@
 <script type="module">
 /* ============================================================
    REN3D · KENNEDY 3D
-   Territorio real de Kennedy, Bogotá:
-   - Imagen satelital Esri World Imagery
-   - Edificios 3D extruidos (OpenStreetMap / OpenFreeMap)
-   - Relieve real (terreno terrarium)
-   - Motor de vuelo jugable
+   - Satélite real (Esri World Imagery)
+   - Edificios 3D (OpenStreetMap / OpenFreeMap)
+   - ÁRBOLES 3D instanciados (Three.js, capa custom)
+   - AGUA 3D animada con textura procedural (shader)
+   - Relieve real + vuelo jugable
    ============================================================ */
 
 const KENNEDY = { lng: -74.1620, lat: 4.6252, zoom: 14.2, pitch: 62, bearing: -18 };
@@ -131,12 +132,25 @@ const POIS = [
   { n: 'Humedal Capellanía',      lng: -74.1185, lat: 4.6470, z: 17.2, d: 'Zona de humedal' }
 ];
 
+/* ---- Espejos de agua 3D (elipses aprox. en metros) ---- */
+const WATERS = [
+  { n: 'Lago Timiza',       lng: -74.1626, lat: 4.6216, w: 210, h: 135, rot:  0.30, alt: 2557 },
+  { n: 'Humedal El Burro',  lng: -74.1712, lat: 4.6385, w: 660, h: 175, rot: -0.35, alt: 2558 },
+  { n: 'Humedal Capellanía',lng: -74.1185, lat: 4.6470, w: 430, h: 135, rot:  0.25, alt: 2558 }
+];
+
+/* ---- Arboledas 3D (rectángulos lng/lat + conteo) ---- */
+const GROVES = [
+  { lng0: -74.1665, lng1: -74.1590, lat0: 4.6190, lat1: 4.6245, n: 650 },  // Parque Timiza
+  { lng0: -74.1750, lng1: -74.1660, lat0: 4.6355, lat1: 4.6410, n: 950 },  // Humedal El Burro
+  { lng0: -74.1220, lng1: -74.1150, lat0: 4.6445, lat1: 4.6495, n: 550 },  // Capellanía
+  { lng0: -74.1580, lng1: -74.1520, lat0: 4.6220, lat1: 4.6270, n: 450 }   // Cayetano Cañizares
+];
+
 const SAT = {
   type: 'raster',
   tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
-  tileSize: 256,
-  maxzoom: 19,
-  attribution: '© Esri · Imagen satelital'
+  tileSize: 256, maxzoom: 19, attribution: '© Esri · Imagen satelital'
 };
 const OSM = { type: 'vector', url: 'https://tiles.openfreemap.org/planet' };
 const TER = {
@@ -151,66 +165,44 @@ const style = {
   sources: { sat: SAT, osm: OSM, dem: TER },
   layers: [
     { id: 'bg', type: 'background', paint: { 'background-color': '#8fb2cf' } },
-
-    // ---- Imagen satelital real de Kennedy ----
     { id: 'sat', type: 'raster', source: 'sat',
       paint: { 'raster-opacity': 1, 'raster-saturation': -0.08, 'raster-contrast': 0.03 } },
-
-    // ---- Cuerpos de agua y humedales ----
-    { id: 'agua', type: 'fill', source: 'osm', 'source-layer': 'water',
+    { id: 'agua-base', type: 'fill', source: 'osm', 'source-layer': 'water',
       paint: { 'fill-color': '#1d5f86', 'fill-opacity': 0.62 } },
-
-    // ---- Zonas verdes / parques ----
     { id: 'verde', type: 'fill', source: 'osm', 'source-layer': 'landcover',
-      filter: ['==', ['get','class'], 'wood'],
+      filter: ['==', ['get', 'class'], 'wood'],
       paint: { 'fill-color': '#1e3a24', 'fill-opacity': 0.22 } },
-
-    // ---- EDIFICIOS 3D (extrusión real) ----
     { id: 'edif', type: 'fill-extrusion', source: 'osm', 'source-layer': 'building',
       paint: {
-        'fill-extrusion-height': ['to-number', ['coalesce', ['get','render_height'], ['*', 3.2, ['coalesce', ['get','levels'], 1]]]],
-        'fill-extrusion-base':    ['to-number', ['coalesce', ['get','render_min_height'], 0]],
+        'fill-extrusion-height': ['to-number', ['coalesce', ['get', 'render_height'], ['*', 3.2, ['coalesce', ['get', 'levels'], 1]]]],
+        'fill-extrusion-base': ['to-number', ['coalesce', ['get', 'render_min_height'], 0]],
         'fill-extrusion-opacity': 0.9,
-        'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get','render_height'], 6],
-          0,    '#8d949c',
-          8,    '#a9aeb5',
-          18,   '#c2c6cc',
-          40,   '#d6d9de',
-          90,   '#e6e8ec']
+        'fill-extrusion-color': ['interpolate', ['linear'], ['coalesce', ['get', 'render_height'], 6],
+          0, '#8d949c', 8, '#a9aeb5', 18, '#c2c6cc', 40, '#d6d9de', 90, '#e6e8ec']
       }
     },
-
-    // ---- Malla vial ----
     { id: 'vias', type: 'line', source: 'osm', 'source-layer': 'transportation',
-      filter: ['in', ['get','class'], ['literal', ['motorway','trunk','primary','secondary','tertiary','minor']]],
+      filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'minor']]],
       paint: {
-        'line-color': ['match', ['get','class'],
-          'motorway','#f5c86b','trunk','#f0b95c','primary','#e8e4dc','secondary','#dedad2','#cfd3d8'],
+        'line-color': ['match', ['get', 'class'],
+          'motorway', '#f5c86b', 'trunk', '#f0b95c', 'primary', '#e8e4dc', 'secondary', '#dedad2', '#cfd3d8'],
         'line-width': ['interpolate', ['exponential', 1.6], ['zoom'],
-          11, ['match',['get','class'],'motorway',1.2,'primary',.9,.4],
-          15, ['match',['get','class'],'motorway',4.5,'primary',3,1.2],
-          18, ['match',['get','class'],'motorway',11,'primary',8,3]],
+          11, ['match', ['get', 'class'], 'motorway', 1.2, 'primary', .9, .4],
+          15, ['match', ['get', 'class'], 'motorway', 4.5, 'primary', 3, 1.2],
+          18, ['match', ['get', 'class'], 'motorway', 11, 'primary', 8, 3]],
         'line-opacity': 0.82
       }
     },
-
-    // ---- Etiquetas de barrios y lugares ----
     { id: 'etq', type: 'symbol', source: 'osm', 'source-layer': 'place',
-      filter: ['in', ['get','class'], ['literal', ['neighbourhood','suburb','quarter','city']]],
+      filter: ['in', ['get', 'class'], ['literal', ['neighbourhood', 'suburb', 'quarter', 'city']]],
       minzoom: 11,
       layout: {
-        'text-field': ['coalesce', ['get','name'], ''],
+        'text-field': ['coalesce', ['get', 'name'], ''],
         'text-font': ['Noto Sans Regular'],
-        'text-size': ['interpolate',['linear'],['zoom'], 11, 10, 15, 13, 18, 16],
-        'text-letter-spacing': 0.04,
-        'text-max-width': 8
+        'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10, 15, 13, 18, 16],
+        'text-letter-spacing': 0.04, 'text-max-width': 8
       },
-      paint: {
-        'text-color': '#ffffff',
-        'text-halo-color': 'rgba(0,0,0,.72)',
-        'text-halo-width': 1.4,
-        'text-opacity': 0.92
-      }
+      paint: { 'text-color': '#ffffff', 'text-halo-color': 'rgba(0,0,0,.72)', 'text-halo-width': 1.4, 'text-opacity': 0.92 }
     }
   ]
 };
@@ -220,7 +212,6 @@ const map = new maplibregl.Map({
   zoom: KENNEDY.zoom, pitch: KENNEDY.pitch, bearing: KENNEDY.bearing,
   antialias: true, attributionControl: { compact: true }
 });
-
 map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-left');
 map.addControl(new maplibregl.ScaleControl({ maxWidth: 92, unit: 'metric' }), 'bottom-right');
 
@@ -233,38 +224,220 @@ function say(t, ms = 2600) {
 }
 setTimeout(() => toast.style.opacity = '0', 4200);
 
-// ---- relieve real ----
-let relief = true;
-map.on('load', () => {
+/* ============================================================
+   CAPA 3D · árboles instanciados + agua animada (Three.js)
+   Marco local por grupo: x = este (m), y = sur (m), z = arriba (m)
+   ============================================================ */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const MX = (lng, lat) => 111320 * Math.cos(lat * Math.PI / 180); // metros por grado lng
+const MY = 110540;                                              // metros por grado lat
+
+function inWater(lng, lat) {
+  for (const w of WATERS) {
+    const dx = (lng - w.lng) / ((w.w / 2) / MX(w.lng, w.lat));
+    const dy = (lat - w.lat) / ((w.h / 2) / MY);
+    if (dx * dx + dy * dy < 1.2) return true;
+  }
+  return false;
+}
+
+let layer3d = null, waterGroup = null, treeGroup = null, waterU = null;
+
+async function init3D() {
+  let THREE;
+  try { THREE = await import('three'); }
+  catch (e) { console.warn('3D overlay desactivado:', e); say('⚠️ Sin conexión a librería 3D: árboles/agua pausados'); return; }
+
+  waterU = {
+    uTime: { value: 0 },
+    uSun: { value: new THREE.Vector3(0.55, -0.35, 0.75).normalize() },
+    uDeep: { value: new THREE.Color(0x0b3d51) },
+    uShallow: { value: new THREE.Color(0x2e9aa8) },
+    uSky: { value: new THREE.Color(0xbfe3f2) }
+  };
+  const waterMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: waterU.uTime, uSun: waterU.uSun, uDeep: waterU.uDeep, uShallow: waterU.uShallow, uSky: waterU.uSky, uSize: { value: new THREE.Vector2(200, 130) } },
+    transparent: true, depthWrite: false,
+    vertexShader: `
+      varying vec2 vUv; uniform float uTime; uniform vec2 uSize;
+      void main(){
+        vUv = uv; vec3 p = position;
+        float w = sin((uv.x*uSize.x + uv.y*uSize.y)*0.35 + uTime*1.6)*0.35
+                + sin((uv.x*uSize.x - uv.y*uSize.y)*0.22 - uTime*1.1)*0.45;
+        p.z += w * 0.4;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+      }`,
+    fragmentShader: `
+      varying vec2 vUv; uniform float uTime; uniform vec2 uSize;
+      uniform vec3 uSun, uDeep, uShallow, uSky;
+      void main(){
+        vec2 p = vUv * uSize;
+        float nx = sin(p.x*0.9 + uTime*1.7) + sin((p.x+p.y)*0.5 - uTime*1.2) + sin(p.y*1.3 + uTime*2.1);
+        float ny = cos(p.y*0.8 - uTime*1.5) + cos((p.x-p.y)*0.6 + uTime*1.0) + cos(p.x*1.1 - uTime*1.9);
+        vec3 N = normalize(vec3(nx*0.09, ny*0.09, 1.0));
+        vec3 V = vec3(0.0, 0.0, 1.0);
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+        vec3 col = mix(uDeep, uShallow, 0.5 + 0.25*sin((p.x+p.y)*0.15 + uTime*0.7));
+        // brillo de ondulación
+        float glint = smoothstep(0.75, 1.0, sin((p.x*1.7 - p.y*1.3) + uTime*2.4) * sin((p.y*2.1 + p.x*0.7) - uTime*1.8));
+        col += glint * 0.18;
+        col = mix(col, uSky, fres*0.75);
+        float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 60.0);
+        col += spec * vec3(1.0, 0.95, 0.85) * 0.9;
+        vec2 e = min(vUv, 1.0 - vUv);
+        float edge = smoothstep(0.0, 0.07, min(e.x, e.y));
+        gl_FragColor = vec4(col, mix(0.35, 0.94, edge));
+      }`
+  });
+
+  waterGroup = new THREE.Group();
+  for (const w of WATERS) {
+    const g = new THREE.PlaneGeometry(w.w, w.h, 48, 32);
+    const m = new THREE.Mesh(g, waterMat.clone());
+    m.material.uniforms.uTime = waterU.uTime;
+    m.material.uniforms.uSize.value = new THREE.Vector2(w.w, w.h);
+    const mc = maplibregl.MercatorCoordinate.fromLngLat([w.lng, w.lat], w.alt);
+    const s = mc.meterInMercatorCoordinateUnits();
+    m.position.set(mc.x, mc.y, mc.z);
+    m.scale.setScalar(s);
+    m.rotation.z = w.rot;
+    m.renderOrder = 5;
+    waterGroup.add(m);
+  }
+
+  // ---- Árboles instanciados por arboleda ----
+  treeGroup = new THREE.Group();
+  const rng = mulberry32(20261010);
+  const trunkG = new THREE.CylinderGeometry(0.22, 0.36, 3.4, 5);
+  trunkG.translate(0, 1.7, 0); trunkG.rotateX(Math.PI / 2);   // Y-up -> Z-up
+  const canG = new THREE.IcosahedronGeometry(2.7, 0);
+  canG.scale(1, 1.3, 1); canG.translate(0, 5.6, 0); canG.rotateX(Math.PI / 2);
+  const trunkM = new THREE.MeshLambertMaterial({ color: 0x6b4a2f });
+  const canM = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const dummy = new THREE.Object3D();
+  const greens = [0x2d6a2f, 0x3c7d36, 0x4c8f3f, 0x5da24c, 0x77a83e, 0x2f7d44].map(c => new THREE.Color(c));
+  let total = 0;
+
+  for (const gv of GROVES) {
+    const cx = (gv.lng0 + gv.lng1) / 2, cy = (gv.lat0 + gv.lat1) / 2;
+    const mc = maplibregl.MercatorCoordinate.fromLngLat([cx, cy], 2556);
+    const s = mc.meterInMercatorCoordinateUnits();
+    const grp = new THREE.Group();
+    grp.position.set(mc.x, mc.y, mc.z);
+    grp.scale.setScalar(s);
+
+    const pts = [];
+    let guard = 0;
+    while (pts.length < gv.n && guard++ < gv.n * 12) {
+      const lng = gv.lng0 + rng() * (gv.lng1 - gv.lng0);
+      const lat = gv.lat0 + rng() * (gv.lat1 - gv.lat0);
+      if (inWater(lng, lat)) continue;
+      pts.push([lng, lat]);
+    }
+    const trunks = new THREE.InstancedMesh(trunkG, trunkM, pts.length);
+    const cans = new THREE.InstancedMesh(canG, canM, pts.length);
+    pts.forEach(([lng, lat], i) => {
+      const dx = (lng - cx) * MX(cx, cy);
+      const dyS = -(lat - cy) * MY;                    // y = sur
+      const sc = 0.7 + rng() * 0.8;
+      dummy.position.set(dx, dyS, 0);
+      dummy.rotation.set(0, 0, rng() * Math.PI * 2);
+      dummy.scale.setScalar(sc);
+      dummy.updateMatrix();
+      trunks.setMatrixAt(i, dummy.matrix);
+      cans.setMatrixAt(i, dummy.matrix);
+      const g = greens[(rng() * greens.length) | 0].clone();
+      g.offsetHSL((rng() - 0.5) * 0.03, 0, (rng() - 0.5) * 0.06);
+      cans.setColorAt(i, g);
+    });
+    trunks.instanceMatrix.needsUpdate = true;
+    cans.instanceMatrix.needsUpdate = true;
+    if (cans.instanceColor) cans.instanceColor.needsUpdate = true;
+    grp.add(trunks, cans);
+    treeGroup.add(grp);
+    total += pts.length;
+  }
+
+  const anchor = maplibregl.MercatorCoordinate.fromLngLat([KENNEDY.lng, KENNEDY.lat], 2556);
+  const hemi = new THREE.HemisphereLight(0xbfd9ff, 0x3a4a3a, 1.0);
+  hemi.position.set(anchor.x, anchor.y, anchor.z + 0.05);
+  const sun = new THREE.DirectionalLight(0xfff2dd, 1.15);
+  sun.position.set(anchor.x + 0.02, anchor.y - 0.015, anchor.z + 0.03);
+  sun.target.position.set(anchor.x, anchor.y, anchor.z);
+
+  layer3d = {
+    id: 'capa-3d', type: 'custom', renderingMode: '3d',
+    onAdd(mp, gl) {
+      this.scene = new THREE.Scene();
+      this.scene.add(waterGroup, treeGroup, hemi, sun, sun.target);
+      this.camera = new THREE.Camera();
+      this.renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
+      this.renderer.autoClear = false;
+      this.map = mp;
+    },
+    render(gl, args) {
+      const m = Array.isArray(args) ? args : (args && (args.defaultProjectionData?.mainMatrix || args.mainMatrix));
+      if (m) this.camera.projectionMatrix = new THREE.Matrix4().fromArray(m);
+      waterU.uTime.value = performance.now() / 1000;
+      try { this.renderer.resetState(); } catch (e) { try { this.renderer.state.reset(); } catch (_) {} }
+      this.renderer.clearDepth();
+      this.renderer.render(this.scene, this.camera);
+      this.map.triggerRepaint();
+    }
+  };
+
   try {
-    map.setTerrain({ source: 'dem', exaggeration: 1.25 });
-  } catch (e) { console.warn('Relieve no disponible', e); $('b-pl3d').disabled = true; }
+    map.addLayer(layer3d);
+    $('o-st').textContent = 'satélite + 3D + ' + total.toLocaleString('es-CO') + ' árboles';
+    say('🌳 ' + total.toLocaleString('es-CO') + ' árboles 3D + 🌊 agua animada listos');
+  } catch (e) { console.warn('No se pudo añadir capa 3D:', e); }
+}
 
+$('b-trees').onclick = e => {
+  const on = !e.target.classList.contains('on');
+  e.target.classList.toggle('on', on);
+  if (treeGroup) treeGroup.visible = on;
+  say(on ? '🌳 Árboles 3D activados' : '🌳 Árboles 3D ocultos');
+};
+$('b-water').onclick = e => {
+  const on = !e.target.classList.contains('on');
+  e.target.classList.toggle('on', on);
+  if (waterGroup) waterGroup.visible = on;
+  say(on ? '🌊 Agua 3D activada' : '🌊 Agua 3D oculta');
+};
+
+/* ============================================================ */
+
+map.on('load', () => {
+  try { map.setTerrain({ source: 'dem', exaggeration: 1.25 }); }
+  catch (e) { console.warn('Relieve no disponible', e); }
   map.setLight({ anchor: 'viewport', color: '#fff6e8', intensity: 0.42, position: [1.5, 200, 32] });
-
   POIS.forEach((p, i) => addPin(p, i));
   buildPoiList();
   $('o-st').textContent = 'satélite + 3D listo';
   $('loader').classList.add('hidden');
   say('🗺️ Territorio de Kennedy cargado · ' + POIS.length + ' puntos de misión');
   tick();
+  init3D();
 });
-
 map.on('error', e => console.warn('tile:', e && e.error && e.error.message));
 
-// ---- Pines de misión ----
 function addPin(p, i) {
   const el = document.createElement('div');
   el.className = 'mlg';
   el.innerHTML = `<div class="pin"></div><div class="lbl">${p.n}</div>`;
   el.onclick = () => flyTo(i);
-  new maplibregl.Marker({ element: el, anchor: 'bottom' })
-    .setLngLat([p.lng, p.lat]).addTo(map);
+  new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([p.lng, p.lat]).addTo(map);
 }
-
 function buildPoiList() {
-  const w = $('poi-list');
-  w.innerHTML = '';
+  const w = $('poi-list'); w.innerHTML = '';
   POIS.forEach((p, i) => {
     const d = document.createElement('div');
     d.className = 'poi';
@@ -274,29 +447,23 @@ function buildPoiList() {
   });
 }
 
-// ---- Vuelo cinemático ----
 let idx = 0;
 function flyTo(i, z) {
   const p = POIS[i]; idx = i;
-  map.flyTo({
-    center: [p.lng, p.lat], zoom: z || p.z,
-    pitch: 64, bearing: (map.getBearing() + 118) % 360,
-    duration: 5200, curve: 1.45, essential: true
-  });
+  map.flyTo({ center: [p.lng, p.lat], zoom: z || p.z, pitch: 64,
+    bearing: (map.getBearing() + 118) % 360, duration: 5200, curve: 1.45, essential: true });
   $('mission').textContent = '➜ Misión: ' + p.n;
   say('🎯 ' + p.n + ' · ' + p.d);
 }
-
 let tour = null;
 $('b-tour').onclick = e => {
   if (tour) {
     clearInterval(tour); tour = null; e.target.classList.remove('on');
-    e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido');
-    return;
+    e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido'); return;
   }
   e.target.classList.add('on'); e.target.textContent = '⏸ Detener tour';
-  flyTo(0); let k = 0;
-  tour = setInterval(() => { k = (k + 1) % POIS.length; flyTo(k); }, 6000);
+  flyTo(0); let k2 = 0;
+  tour = setInterval(() => { k2 = (k2 + 1) % POIS.length; flyTo(k2); }, 6000);
   say('▶ Recorrido automático por Kennedy');
 };
 $('b-next').onclick = () => flyTo((idx + 1) % POIS.length);
@@ -307,7 +474,6 @@ $('b-home').onclick = () => {
   say('🏠 Vista general del territorio de Kennedy');
 };
 
-// ---- Día / Noche ----
 let night = false;
 $('b-night').onclick = e => {
   night = !night;
@@ -326,24 +492,12 @@ $('b-night').onclick = e => {
   say(night ? '🌙 Modo nocturno' : '☀️ Modo día');
 };
 
-// ---- Relieve on/off ----
-$('b-pl3d').classList.add('on');
-$('b-pl3d').onclick = e => {
-  relief = !relief;
-  e.target.classList.toggle('on', relief);
-  try { relief ? map.setTerrain({ source: 'dem', exaggeration: 1.25 }) : map.setTerrain(null); }
-  catch (err) {}
-  say(relief ? '🏔️ Relieve del terreno activado' : '🏔️ Relieve desactivado');
-};
-
-// ---- Motor de vuelo jugable (WASD sobre el mapa) ----
 const k = {};
 addEventListener('keydown', e => {
   k[e.code] = true;
-  if (['KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','Space'].includes(e.code)) e.preventDefault();
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyZ', 'KeyC', 'Space'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup', e => k[e.code] = false);
-
 addEventListener('keypress', e => {
   if (e.key === 'r' || e.key === 'R') flyTo(Math.floor(Math.random() * POIS.length));
 });
@@ -369,7 +523,6 @@ function flight(ms) {
 }
 requestAnimationFrame(flight);
 
-// ---- HUD en vivo ----
 function tick() {
   const c = map.getCenter();
   $('o-ctr').textContent = c.lat.toFixed(4) + ', ' + c.lng.toFixed(4);
@@ -384,8 +537,6 @@ function tick() {
   $('o-alt').textContent = alt;
   requestAnimationFrame(tick);
 }
-
-// ---- Ajuste de tamaño ----
 addEventListener('resize', () => map.resize());
 </script>
 </body>
