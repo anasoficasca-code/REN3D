@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>REN3D • Kennedy 3D · Territorio Real</title>
 <link rel="icon" href="data:,">
-<link rel="preload" href="data3d/humedal-v2.splat" as="fetch" crossorigin="anonymous">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
@@ -78,6 +77,7 @@
   .mlg .lbl{margin-top:5px;background:rgba(7,13,22,.9);border:1px solid rgba(56,189,248,.4);
     border-radius:6px;padding:3px 7px;font-size:10.5px;white-space:nowrap;color:#e0f2fe}
   @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
+  #hud-r{display:none}
 </style>
 </head>
 <body>
@@ -96,7 +96,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v17</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v19</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -484,6 +484,8 @@ let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
 let SPLAT = null;
+const SPLAT_URL = 'data3d/humedal-v2.splat';
+const SPLAT_LITE = 'data3d/humedal-lite.splat';
 
 function setMode(m) {
   mode = m;
@@ -500,7 +502,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v17' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v17' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v17' : 'MODO: 🛰️ SATÉLITE · v17'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v19' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v19' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v19' : 'MODO: 🛰️ SATÉLITE · v19'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -516,6 +518,12 @@ function setMode(m) {
       const ok = await initSplat();
       if (!ok) setMode('todo');
     })();
+    setTimeout(() => {
+      if (mode === 'splat' && !SPLAT) {
+        say('⚠️ El visor 3D no respondió a tiempo: tu equipo o red lo bloquean. Te paso al TODO 3D.', 8000);
+        setMode('todo');
+      }
+    }, 240000);
   }
 }
 function flyC(p, dur) {
@@ -578,7 +586,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v17 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v19 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1191,7 +1199,6 @@ function todoNight(on) {
 $('b-todo').onclick = async () => { setMode('todo'); };
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
-const SPLAT_URL = 'data3d/humedal-v2.splat';
 const SPLAT_HOME = {
   up: [0.2066, -0.5341, -0.8198],
   pos: [-0.3, -0.4, -11.1],
@@ -1203,10 +1210,8 @@ async function initSplat() {
   const before = new Set(document.querySelectorAll('canvas'));
   const hideNew = () => { try { [...document.querySelectorAll('canvas')].filter(c => !before.has(c)).forEach(c => c.style.display = 'none'); } catch (_) {} };
   const st = t => { try { $('o-st').textContent = t; } catch (e) {} say(t); };
-  $('loader').classList.remove('hidden');
-  $('lmsg').textContent = 'Cargando visor 3D…';
   const timeout = (ms, msg) => new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms));
-  try {
+  async function tryLoad(url, tag) {
     st('Splat: importando visor…');
     const G = await Promise.race([
       import('@mkkellogg/gaussian-splats-3d'),
@@ -1223,10 +1228,10 @@ async function initSplat() {
       sphericalHarmonicsDegree: 0
     });
     $('loader').classList.add('hidden');
-    st('Splat: descargando humedal (32 MB)…');
+    st('Splat: descargando humedal ' + tag + '…');
     await Promise.race([
-      viewer.addSplatScene(SPLAT_URL, { showLoadingUI: true, progressiveLoad: true }),
-      timeout(180000, 'la descarga del splat se estanco (revisa tu internet)')
+      viewer.addSplatScene(url, { showLoadingUI: true, progressiveLoad: true }),
+      timeout(90000, 'descarga estancada')
     ]);
     st('Splat: pintando…');
     viewer.start();
@@ -1234,16 +1239,26 @@ async function initSplat() {
     const cv = added[0] || null;
     if (cv) { cv.style.position = 'fixed'; cv.style.inset = '0'; cv.style.zIndex = '1'; }
     SPLAT = { viewer, canvas: cv };
-    $('loader').classList.add('hidden');
-    say('🌀 Splat del humedal listo · arrastra para orbitar, WASD para volar');
-    return true;
-  } catch (e) {
-    $('loader').classList.add('hidden');
-    hideNew();
-    console.warn('SPLAT:', e);
-    say('⚠️ No cargó el splat: ' + String(e && e.message || e).slice(0, 110), 6000);
-    return false;
   }
+  $('loader').classList.remove('hidden');
+  $('lmsg').textContent = 'Cargando splat del humedal…';
+  try {
+    await tryLoad(SPLAT_URL, '(32 MB)');
+  } catch (e1) {
+    hideNew();
+    try {
+      await tryLoad(SPLAT_LITE, 'versión liviana (11 MB)');
+    } catch (e2) {
+      $('loader').classList.add('hidden');
+      hideNew();
+      console.warn('SPLAT:', e2);
+      say('⚠️ No cargó el splat: ' + String(e2 && e2.message || e2).slice(0, 110), 7000);
+      return false;
+    }
+  }
+  $('loader').classList.add('hidden');
+  say('🌀 Splat del humedal listo · arrastra para orbitar, WASD para volar');
+  return true;
 }
 function splatHome() {
   if (!SPLAT) return;
