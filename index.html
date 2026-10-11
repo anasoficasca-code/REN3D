@@ -96,7 +96,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v19</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v20</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -484,8 +484,8 @@ let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
 let SPLAT = null;
-const SPLAT_URL = 'data3d/humedal-v2.splat';
-const SPLAT_LITE = 'data3d/humedal-lite.splat';
+const SPLAT_URL = 'data3d/humedal-lite.splat';
+const SPLAT_HD = 'data3d/humedal-v2.splat';
 
 function setMode(m) {
   mode = m;
@@ -502,7 +502,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v19' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v19' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v19' : 'MODO: 🛰️ SATÉLITE · v19'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v20' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v20' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v20' : 'MODO: 🛰️ SATÉLITE · v20'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -586,7 +586,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v19 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v20 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1243,11 +1243,11 @@ async function initSplat() {
   $('loader').classList.remove('hidden');
   $('lmsg').textContent = 'Cargando splat del humedal…';
   try {
-    await tryLoad(SPLAT_URL, '(32 MB)');
+    await tryLoad(SPLAT_URL, '(11 MB)');
   } catch (e1) {
     hideNew();
     try {
-      await tryLoad(SPLAT_LITE, 'versión liviana (11 MB)');
+      await tryLoad(SPLAT_HD, 'versión completa (32 MB)');
     } catch (e2) {
       $('loader').classList.add('hidden');
       hideNew();
