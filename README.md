@@ -40,3 +40,10 @@ La escena demo incluida es el castillo hiperrealista de tu foto, para que veas e
 - Las trayectorias se guardan en `data3d/vehicles.bin` para no descargar un JSON de 58 MB y conservar una carga más rápida.
 - El roble entregado (`data3d/roble.IT.bol`) queda versionado junto con su textura web `data3d/roble.png`; el visor usa esa textura en árboles 3D instanciados.
 - El agua del modo TODO 3D usa una malla y shader continuo, sin capas de partículas/puntos sobre la superficie.
+
+## Modelos reales (carros, arboles, pasto, agua, aves)
+
+- `data3d/real3d.js` construye los carros (cinco estilos, siempre de frente: el modelo mira hacia +Z y el giro usa `atan2(dx, dz)`), los arboles reales 3D con niveles de detalle segun la distancia a la camara, el pasto y los arbustos 3D cerca de la camara, el agua con ondas reales y las aves de los humedales.
+- Los modelos estan en `data3d/models/` y los creditos en `data3d/CREDITOS.txt`.
+- `?liviano=1` abre el modo TODO 3D sin edificios ni sombras (equipos modestos o pruebas).
+- Para usar otra foto de ave, reemplaza los PNG de `data3d/aves/`.

@@ -798,6 +798,7 @@ function flight(ms) {
     o.update();
     updateAves();
     updateCars(dt);
+    if (T3.R) { if (T3.trees) T3.trees.update(cam); if (T3.plants) T3.plants.update(cam); if (T3.waterBirds) T3.waterBirds.update(dt, cam); }
     T3.waterU.value = performance.now() / 1000;
     if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
     T3.sun.position.copy(o.target).add(T3.sunOff);
@@ -865,6 +866,7 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, y - LC.y];
+window.REN3D = { get T3() { return T3; }, lw, get cars() { return CARS; } }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
 
@@ -894,9 +896,10 @@ async function initTodo() {
     const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
     REFL = null; // agua analítica, sin espejo físico (evita manchas negras)
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+    const LIVIANO = initialParams.get('liviano') === '1'; // ?liviano=1: sin edificios ni sombras, para equipos modestos o pruebas
+    renderer.setPixelRatio(LIVIANO ? 0.75 : Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = !LIVIANO;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.12;
@@ -954,12 +957,15 @@ async function initTodo() {
     scene.add(ground);
     T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, sky, skyU, night: false, anim: null, last: 0, counts: {},
       carPlaying: true, waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
+    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); } catch (e) { console.warn('real3d:', e); T3.R = null; }
 
-    $('lmsg').textContent = 'Cargando edificios (36 MB)…';
-    const B = await fetchProg('data3d/buildings.json', 'Edificios');
-    $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
-    await new Promise(r => setTimeout(r, 30));
-    buildChunks(THREE, B);
+    if (!LIVIANO) {
+      $('lmsg').textContent = 'Cargando edificios (36 MB)…';
+      const B = await fetchProg('data3d/buildings.json', 'Edificios');
+      $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
+      await new Promise(r => setTimeout(r, 30));
+      buildChunks(THREE, B);
+    }
     $('lmsg').textContent = 'Cargando árboles, vías y tráfico…';
     const [T, W, P, N] = await Promise.all([
       fetchProg('data3d/trees.json', 'Árboles'),
@@ -972,11 +978,16 @@ async function initTodo() {
     try { await buildCars(THREE, N); if (PROOF_CAR) { T3.scene.remove(PROOF_CAR); PROOF_CAR = null; } say('🚗 ' + VEHICLE_MAX_VISIBLE.toLocaleString('es-CO') + ' carros cargados · Play activo'); } catch (e) { console.warn('cars:', e); T3.counts.cars = 0; say('⚠️ Error de carros: ' + String(e && e.message || e).slice(0, 100), 8000); }
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
+    try { if (AVES) AVES.birds.forEach(b => { if (b.kind === 'pato' || b.kind === 'tingua') b.sc = 0; }); } catch (e) {} // los patos y tinguas ahora son los reales de todos los humedales
+    if (T3.R && T3.env) { try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); } }
+    if (T3.R) T3.R.buildWaterBirds(T3, W, lw).then(a => { T3.waterBirds = a; }).catch(e => console.warn('aves de humedal:', e));
     try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
     try { await buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
+    if (T3.R && T3.env) T3.R.buildNearPlants(T3, W, lw, T3.env).then(a => { T3.plants = a; }).catch(e => console.warn('pasto 3D:', e));
     $('loader').classList.add('hidden');
     say('🚗 TODO 3D listo · ' + (T3.counts.cars || 0).toLocaleString('es-CO') + ' carros · 24:59 · Árboles cargando en segundo plano');
-    buildTreesReal(THREE, T).then(() => say('🌳 Árboles 3D cargados · carros en marcha')).catch(e => console.warn('trees:', e));
+    if (T3.R && T3.env) T3.R.buildTrees(T3, T, W, lw, T3.env).then(a => { T3.trees = a; say('\u2705 \u00c1rboles reales 3D cargados \u00b7 carros en marcha'); }).catch(e => { console.warn('arboles reales:', e); buildTreesReal(THREE, T); });
+    else buildTreesReal(THREE, T).catch(e => console.warn('trees:', e));
     return true;
   } catch (e) {
     $('loader').classList.add('hidden');
@@ -1342,6 +1353,7 @@ async function buildGrass(THREE, P, W) {
       if (spots.length >= 40000) break;
     }
   }
+  T3.grassSpots = spots;
   if (!spots.length) return;
   const p1 = new THREE.PlaneGeometry(1.3, 1.0);
   p1.translate(0, 0.5, 0);
@@ -1423,41 +1435,16 @@ async function loadRecordedVehicles() {
 }
 async function buildCars(THREE, N) {
   const timeline = await loadRecordedVehicles();
-  const bodyGeo = new THREE.BoxGeometry(4.4, 0.9, 2.0);
-  bodyGeo.translate(0, 0.85, 0);
-  const cabinGeo = new THREE.BoxGeometry(2.2, 0.7, 1.75);
-  cabinGeo.translate(-0.2, 1.6, 0);
-  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 10);
-  wheelGeo.rotateX(Math.PI / 2);
-  const bodyMat = new THREE.MeshBasicMaterial({ color: 0xffffff, vertexColors: true });
-  const cabinMat = new THREE.MeshBasicMaterial({ color: 0x172b3d });
-  const wheelMat = new THREE.MeshBasicMaterial({ color: 0x101820 });
-  const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, VEHICLE_MAX_VISIBLE);
-  const cabins = new THREE.InstancedMesh(cabinGeo, cabinMat, VEHICLE_MAX_VISIBLE);
-  const wheels = new THREE.InstancedMesh(wheelGeo, wheelMat, VEHICLE_MAX_VISIBLE * 4);
-  bodies.castShadow = true;
-  bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  cabins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  wheels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const palette = [0xf2f3f5, 0xc0c4c9, 0x1c1e22, 0xb32026, 0x2456c8, 0xf2b705, 0x5a6270, 0x7a1f1f, 0x2e7d4f];
-  const col = new THREE.Color();
-  for (let i = 0; i < VEHICLE_MAX_VISIBLE; i++) {
-    col.setHex(palette[i % palette.length]).offsetHSL(0, 0, (((i * 13) % 10) - 5) * 0.008);
-    bodies.setColorAt(i, col);
-  }
-  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
-  bodies.visible = cabins.visible = wheels.visible = true;
-  bodies.frustumCulled = cabins.frustumCulled = wheels.frustumCulled = false;
-  T3.scene.add(bodies, cabins, wheels);
-  CARS = { bodies, cabins, wheels, timeline, clock: CAR_TIME, playing: CAR_PLAYING, step: -1, nextMap: null, lastAngle: new Map(), dummy: new THREE.Object3D() };
+  if (!T3.R || !T3.env) throw new Error('real3d.js no disponible');
+  T3.fleet = T3.R.createFleet(T3, T3.env);
+  CARS = { timeline, clock: CAR_TIME, playing: CAR_PLAYING, step: -1, nextMap: null, lastAngle: new Map() };
   T3.counts.cars = VEHICLE_MAX_VISIBLE;
   renderRecordedCars(CAR_TIME);
 }
 
+// El modelo del carro mira hacia +Z, y el angulo atan2(dx, dz) apunta +Z hacia donde avanza: los carros andan de frente.
 function renderRecordedCars(time) {
-  if (!CARS || !CARS.timeline.length) return;
-  const d = CARS.dummy;
-  const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
+  if (!CARS || !CARS.timeline.length || !T3.fleet) return;
   const tl = CARS.timeline;
   while (CARS.step + 1 < tl.length - 1 && tl[CARS.step + 1].time <= time) CARS.step++;
   if (CARS.step < 0) CARS.step = 0;
@@ -1467,29 +1454,21 @@ function renderRecordedCars(time) {
     CARS.nextMapStep = CARS.step;
   }
   const frac = b.time > a.time ? Math.max(0, Math.min(1, (time - a.time) / (b.time - a.time))) : 0;
-  const n = Math.min(a.vehicles.length, VEHICLE_MAX_VISIBLE);
+  const n = Math.min(a.vehicles.length, VEHICLE_MAX_VISIBLE), fl = T3.fleet;
+  fl.begin();
   for (let i = 0; i < n; i++) {
     const v = a.vehicles[i], nv = CARS.nextMap.get(v.id) || v;
-    const x = v.x + (nv.x - v.x) * frac, y = v.y + (nv.y - v.y) * frac;
-    const p = lw(x, y);
+    const x = v.x + (nv.x - v.x) * frac, y = v.y + (nv.y - v.y) * frac, p = lw(x, y);
     const dx = nv.x - v.x, dz = nv.y - v.y;
-    const moved = Math.hypot(dx, dz) > 0.05;
-    if (moved) CARS.lastAngle.set(v.id, Math.atan2(dx, dz));
-    const hd = CARS.lastAngle.get(v.id) ?? 0;
-    const carScale = 2.05;
-    d.position.set(p[0], 1.5, p[1]); d.rotation.set(0, hd, 0); d.scale.setScalar(carScale); d.updateMatrix();
-    CARS.bodies.setMatrixAt(i, d.matrix); CARS.cabins.setMatrixAt(i, d.matrix);
-    const ch = Math.cos(hd), sh = Math.sin(hd);
-    for (let w = 0; w < 4; w++) {
-      const lx = WO[w][0], lz = WO[w][1];
-      d.position.set(p[0] + (lx * ch + lz * sh) * carScale, 1.5 + 0.42 * carScale, p[1] + (-lx * sh + lz * ch) * carScale);
-      d.rotation.set(0, hd, 0); d.scale.setScalar(carScale); d.updateMatrix();
-      CARS.wheels.setMatrixAt(i * 4 + w, d.matrix);
+    let hd = CARS.lastAngle.get(v.id);
+    if (Math.hypot(dx, dz) > 0.05) {
+      const t = Math.atan2(dx, dz);
+      if (hd === undefined) hd = t; else { let d = t - hd; d = Math.atan2(Math.sin(d), Math.cos(d)); hd += d * 0.45; }
+      CARS.lastAngle.set(v.id, hd);
     }
+    fl.add(p[0], p[1], hd ?? 0, parseInt(String(v.id).replace(/\D/g, ''), 10) || 0); // los ids son texto ("veh12"): se usa su numero para elegir estilo y color
   }
-  CARS.bodies.count = CARS.cabins.count = n; CARS.wheels.count = n * 4;
-  CARS.bodies.renderOrder = CARS.cabins.renderOrder = CARS.wheels.renderOrder = 20;
-  CARS.bodies.instanceMatrix.needsUpdate = CARS.cabins.instanceMatrix.needsUpdate = CARS.wheels.instanceMatrix.needsUpdate = true;
+  fl.end(T3.camera.position.x, T3.camera.position.z);
 }
 
 function updateCars(dt) {
@@ -1592,6 +1571,7 @@ function buildWater(THREE, W) {
   wmesh.receiveShadow = false;
   wmesh.renderOrder = 4;
   T3.scene.add(wmesh);
+  T3.waterMesh = wmesh;
   T3.waterMat = wmat;
 }
 async function buildParks(THREE, P) {
