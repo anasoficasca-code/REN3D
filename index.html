@@ -124,6 +124,7 @@
   <button id="b-foto" class="on">🏙️ Fotorrealista</button>
   <button id="b-sat">🛰️ Satélite</button>
   <button id="b-todo">🧱 TODO 3D</button>
+  <button id="b-play" class="on">⏸ Pausar carros</button>
   <button id="b-splat">🌀 Splat Humedal</button>
   <button id="b-hd">📦 HD</button>
   <button id="b-tour">▶ Tour Kennedy</button>
@@ -905,31 +906,24 @@ async function initTodo() {
       uCloud: { value: 0.9 },
       uSunDir: { value: new THREE.Vector3(0.42, 0.62, 0.35).normalize() }
     };
-    const sky = new THREE.Mesh(
-      new THREE.SphereGeometry(15000, 20, 12),
-      new THREE.ShaderMaterial({
-        uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
-        vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot, uSunDir; uniform float uTime, uCloud;
-          float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-          float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-            return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
-          float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++){ v += a * vnoise(p); p *= 2.03; a *= 0.5; } return v; }
-          void main(){
-            vec3 d = normalize(vP);
-            float h = d.y;
-            vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.75, h)) : mix(bot, mid, smoothstep(-0.08, 0.12, h));
-            if (d.y > 0.015) {
-              vec2 cuv = d.xz / (d.y + 0.28) * 0.75 + uTime * vec2(0.018, 0.007);
-              float cl = smoothstep(0.36, 0.66, fbm(cuv));
-              float sunAmt = max(dot(d, normalize(uSunDir)), 0.0);
-              vec3 cloudCol = mix(vec3(0.78, 0.83, 0.88), vec3(1.08, 1.02, 0.95), pow(sunAmt, 2.0));
-              c = mix(c, cloudCol, cl * smoothstep(0.015, 0.18, d.y) * uCloud);
-            }
-            gl_FragColor = vec4(c, 1.0);
-          }`
-      })
-    );
+    let skyTexture = null;
+    try {
+      skyTexture = await new THREE.TextureLoader().loadAsync('data3d/clouds_panorama.jpg');
+      skyTexture.colorSpace = THREE.SRGBColorSpace;
+      skyTexture.wrapS = THREE.RepeatWrapping;
+      skyTexture.repeat.set(0.5, 1);
+    } catch (e) { console.warn('clouds_panorama.jpg no disponible, usando cielo procedural', e); }
+    const sky = skyTexture
+      ? new THREE.Mesh(new THREE.SphereGeometry(15000, 48, 24), new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, depthWrite: false, fog: false }))
+      : new THREE.Mesh(new THREE.SphereGeometry(15000, 20, 12), new THREE.ShaderMaterial({
+          uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
+          vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+          fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot, uSunDir; uniform float uTime, uCloud;
+            float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+            float vnoise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
+            float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){v+=a*vnoise(p);p*=2.03;a*=0.5;} return v; }
+            void main(){ vec3 d=normalize(vP); float h=d.y; vec3 c=h>0.12?mix(mid,top,smoothstep(0.12,0.75,h)):mix(bot,mid,smoothstep(-0.08,0.12,h)); float cl=smoothstep(0.36,0.66,fbm(d.xz/(d.y+0.28)*0.75+uTime*vec2(0.018,0.007))); c=mix(c,vec3(0.98,0.99,1.0),cl*smoothstep(0.015,0.18,d.y)*uCloud); gl_FragColor=vec4(c,1.0); }`
+        }));
     sky.frustumCulled = false;
     scene.add(sky);
     const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 40000);
@@ -956,8 +950,8 @@ async function initTodo() {
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
     ground.receiveShadow = true;
     scene.add(ground);
-    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
-      waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
+    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, sky, skyU, night: false, anim: null, last: 0, counts: {},
+      carPlaying: true, waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = await fetchProg('data3d/buildings.json', 'Edificios');
@@ -1148,6 +1142,18 @@ async function buildTreesReal(THREE, T) {
     crowns[0].setColorAt(i, col); col.offsetHSL(0.012, -0.04, 0.08); crowns[1].setColorAt(i, col); col.offsetHSL(-0.018, 0.02, 0.08); crowns[2].setColorAt(i, col);
   }
   for (const m of [trunks, ...crowns]) { m.count = N; m.instanceMatrix.needsUpdate = true; m.castShadow = true; m.receiveShadow = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; T3.scene.add(m); }
+  // Árbol hero 3D basado en el archivo SketchUp entregado; se añade solo en algunos
+  // puntos para conservar rendimiento y evitar que todo el bosque sea una columna.
+  try {
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const gltf = await new GLTFLoader().loadAsync('data3d/tree_skp.glb');
+    const step = Math.max(1, Math.floor(N / 36));
+    for (let i = 0; i < N; i += step) {
+      const t = T.t[i], w = lw(t[0], t[1]), h = Math.max(0.8, t[2] || 4), hero = gltf.scene.clone(true);
+      hero.position.set(w[0], 0, w[1]); hero.scale.setScalar(Math.min(2.2, h / 7)); hero.rotation.y = (i * 2.39996) % (Math.PI * 2);
+      hero.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); T3.scene.add(hero);
+    }
+  } catch (e) { console.warn('tree_skp.glb no disponible, se mantiene bosque volumétrico:', e); }
   T3.counts.t = N;
 }
 
@@ -1433,7 +1439,7 @@ async function buildCars(THREE, N) {
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  CARS = { bodies, cabins, wheels, timeline, clock: 1000, step: -1, nextMap: null, dummy: new THREE.Object3D() };
+  CARS = { bodies, cabins, wheels, timeline, clock: 1000, playing: true, step: -1, nextMap: null, dummy: new THREE.Object3D() };
   T3.counts.cars = VEHICLE_MAX_VISIBLE;
   renderRecordedCars(1000);
 }
@@ -1473,7 +1479,7 @@ function renderRecordedCars(time) {
 }
 
 function updateCars(dt) {
-  if (!CARS) return;
+  if (!CARS || !CARS.playing) return;
   CARS.clock += dt;
   if (CARS.clock > VEHICLE_DURATION) { CARS.clock = 0; CARS.step = -1; CARS.nextMap = null; }
   renderRecordedCars(CARS.clock);
@@ -1523,7 +1529,8 @@ function buildWater(THREE, W) {
       uShallow: { value: new THREE.Color(0x0e3d49) },
       uSkyA: { value: new THREE.Color(0x4a6a80) },
       uSkyB: { value: new THREE.Color(0x7d97a8) },
-      uCloud: { value: 0.7 }
+      uCloud: { value: 0.7 },
+      uWaterTex: { value: new THREE.TextureLoader().load('data3d/water_surface.jpg') }
     },
     transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
     vertexShader: `
@@ -1542,12 +1549,15 @@ function buildWater(THREE, W) {
       varying vec2 vUv; varying vec3 vWp;
       uniform float uTime, uCloud;
       uniform vec3 uSun, uDeep, uShallow, uSkyA, uSkyB;
+      uniform sampler2D uWaterTex;
       void main(){
         // Superficie limpia: variación suave de color, sin reflejos puntuales,
         // destellos ni ruido visual sobre el agua.
         float wave = 0.5 + 0.12 * sin(vWp.x * 0.018 + uTime * 0.35)
                            + 0.08 * sin(vWp.z * 0.023 - uTime * 0.28);
         vec3 col = mix(uDeep, uShallow, clamp(wave, 0.16, 0.84));
+        vec3 texWater = texture2D(uWaterTex, vUv * 0.07 + vec2(uTime * 0.003, -uTime * 0.002)).rgb;
+        col = mix(col, texWater * vec3(0.42, 0.68, 0.70), 0.34);
         col += vec3(0.015, 0.028, 0.032) * (0.5 + 0.5 * sin(vWp.x * 0.006 - vWp.z * 0.004));
         vec3 V = normalize(cameraPosition - vWp);
         vec3 N = normalize(cross(dFdx(vWp), dFdy(vWp)));
@@ -1562,6 +1572,10 @@ function buildWater(THREE, W) {
         #include <colorspace_fragment>
       }`
   });
+  const waterTex = wmat.uniforms.uWaterTex.value;
+  waterTex.colorSpace = THREE.SRGBColorSpace;
+  waterTex.wrapS = waterTex.wrapT = THREE.RepeatWrapping;
+  waterTex.anisotropy = 4;
   const wmesh = new THREE.Mesh(g, wmat);
   wmesh.receiveShadow = false;
   wmesh.renderOrder = 4;
@@ -1879,6 +1893,7 @@ function todoNight(on) {
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
+$('b-play').onclick = () => { if (!CARS) return say('⏳ Cargando carros…'); CARS.playing = !CARS.playing; $('b-play').textContent = CARS.playing ? '⏸ Pausar carros' : '▶ Play carros'; $('b-play').classList.toggle('on', CARS.playing); say(CARS.playing ? '▶ Simulación de carros en marcha' : '⏸ Simulación pausada'); };
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {
