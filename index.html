@@ -98,7 +98,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v28</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v29</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -512,7 +512,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v28' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v28' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v28' : 'MODO: 🛰️ SATÉLITE · v28'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v29' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v29' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v29' : 'MODO: 🛰️ SATÉLITE · v29'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -596,7 +596,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v28 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v29 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -887,8 +887,7 @@ async function initTodo() {
   try {
     const THREE = await import('three');
     const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
-    try { ({ Reflector: REFL } = await import('three/addons/objects/Reflector.js')); }
-    catch (e) { console.warn('sin Reflector, agua simple', e); REFL = null; }
+    REFL = null; // agua analítica, sin espejo físico (evita manchas negras)
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
@@ -1385,76 +1384,15 @@ function buildWater(THREE, W) {
   g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
   g.setIndex(I);
   g.computeVertexNormals();
-  if (REFL) {
-    const wmat = new REFL(g, {
-      clipBias: 0.02,
-      textureWidth: 1024,
-      textureHeight: 1024,
-      multisample: 2,
-      color: new THREE.Color(0x9fc3e0),
-      shader: {
-        uniforms: {
-          color: { value: new THREE.Color(0x9fc3e0) },
-          tDiffuse: { value: null },
-          textureMatrix: { value: null },
-          uTime: T3.waterU,
-          uSun: { value: new THREE.Vector3(0.45, 0.62, 0.35).normalize() },
-          uDeep: { value: new THREE.Color(0x07232e) },
-          uShallow: { value: new THREE.Color(0x14606a) },
-          uSky: { value: new THREE.Color(0xb8d4e4) }
-        },
-        vertexShader: `
-          uniform mat4 textureMatrix;
-          varying vec4 vUvP; varying vec2 vUv; varying vec3 vWp;
-          void main(){
-            vUv = uv;
-            vec4 wp = modelMatrix * vec4(position, 1.0);
-            vWp = wp.xyz;
-            vUvP = textureMatrix * vec4(position, 1.0);
-            gl_Position = projectionMatrix * viewMatrix * wp;
-          }`,
-        fragmentShader: `
-          uniform sampler2D tDiffuse;
-          uniform float uTime;
-          uniform vec3 uSun, uDeep, uShallow, uSky;
-          varying vec4 vUvP; varying vec2 vUv; varying vec3 vWp;
-          void main(){
-            vec2 p = vUv * 90.0;
-            float nx = sin(p.x * 0.9 + uTime * 1.7) + sin((p.x + p.y) * 0.5 - uTime * 1.2) + sin(p.y * 1.3 + uTime * 2.1);
-            float ny = cos(p.y * 0.8 - uTime * 1.5) + cos((p.x - p.y) * 0.6 + uTime * 1.0) + cos(p.x * 1.1 - uTime * 1.9);
-            vec3 N = normalize(vec3(nx * 0.10, 1.0, ny * 0.10));
-            vec4 uv4 = vUvP;
-            uv4.xy += N.xz * 0.15;
-            vec3 refl = texture2DProj(tDiffuse, uv4).rgb;
-            vec3 V = normalize(cameraPosition - vWp);
-            float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
-            vec3 base = mix(uDeep, uShallow, 0.5 + 0.25 * sin((p.x + p.y) * 0.12 + uTime * 0.7));
-            vec3 col = mix(base, refl, clamp(fres * 0.7 + 0.18, 0.0, 1.0));
-            float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 70.0);
-            col += spec * vec3(1.0, 0.96, 0.88) * 0.7;
-            gl_FragColor = vec4(col, 0.97);
-            #include <tonemapping_fragment>
-            #include <colorspace_fragment>
-          }`
-      }
-    });
-    wmat.material.transparent = true;
-    wmat.material.polygonOffset = true;
-    wmat.material.polygonOffsetFactor = -2;
-    wmat.material.polygonOffsetUnits = -2;
-    wmat.material.needsUpdate = true;
-    const wmesh = wmat;
-    wmesh.receiveShadow = true;
-    T3.scene.add(wmesh);
-    T3.waterMat = wmat.material;
-  } else {
   const wmat = new THREE.ShaderMaterial({
     uniforms: {
       uTime: T3.waterU,
       uSun: { value: new THREE.Vector3(0.45, 0.62, 0.35).normalize() },
-      uDeep: { value: new THREE.Color(0x0d4257) },
-      uShallow: { value: new THREE.Color(0x2fa0b0) },
-      uSky: { value: new THREE.Color(0xbfe0f2) }
+      uDeep: { value: new THREE.Color(0x06232e) },
+      uShallow: { value: new THREE.Color(0x15616c) },
+      uSkyA: { value: new THREE.Color(0x9fc3e0) },
+      uSkyB: { value: new THREE.Color(0xdfe9ee) },
+      uCloud: { value: 0.85 }
     },
     transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
     vertexShader: `
@@ -1471,29 +1409,46 @@ function buildWater(THREE, W) {
       }`,
     fragmentShader: `
       varying vec2 vUv; varying vec3 vWp;
-      uniform float uTime; uniform vec3 uSun, uDeep, uShallow, uSky;
+      uniform float uTime, uCloud;
+      uniform vec3 uSun, uDeep, uShallow, uSkyA, uSkyB;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++){ v += a * vnoise(p); p *= 2.05; a *= 0.5; } return v; }
+      vec3 skyRef(vec3 d){
+        float h = clamp(d.y, 0.0, 1.0);
+        vec3 c = mix(uSkyA, uSkyB, smoothstep(0.0, 0.45, h));
+        vec2 cuv = d.xz / (h + 0.35) * 0.8 + uTime * vec2(0.004, 0.002);
+        float cl = smoothstep(0.52, 0.8, fbm(cuv));
+        c = mix(c, vec3(0.98, 0.99, 1.0), cl * 0.85 * uCloud);
+        return c;
+      }
       void main(){
         vec2 p = vUv * 90.0;
         float nx = sin(p.x * 0.9 + uTime * 1.7) + sin((p.x + p.y) * 0.5 - uTime * 1.2) + sin(p.y * 1.3 + uTime * 2.1);
         float ny = cos(p.y * 0.8 - uTime * 1.5) + cos((p.x - p.y) * 0.6 + uTime * 1.0) + cos(p.x * 1.1 - uTime * 1.9);
-        vec3 N = normalize(vec3(nx * 0.10, 1.0, ny * 0.10));
+        vec3 N = normalize(vec3(nx * 0.12, 1.0, ny * 0.12));
         vec3 V = normalize(cameraPosition - vWp);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
-        vec3 col = mix(uDeep, uShallow, 0.5 + 0.25 * sin((p.x + p.y) * 0.12 + uTime * 0.7));
-        float glint = smoothstep(0.75, 1.0, sin((p.x * 1.7 - p.y * 1.3) + uTime * 2.4) * sin((p.y * 2.1 + p.x * 0.7) - uTime * 1.8));
-        col += glint * 0.16;
-        col = mix(col, uSky, fres * 0.72);
-        float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 70.0);
-        col += spec * vec3(1.0, 0.96, 0.88);
-        gl_FragColor = vec4(col, 0.93);
+        vec3 base = mix(uDeep, uShallow, 0.5 + 0.25 * sin((p.x + p.y) * 0.12 + uTime * 0.7));
+        vec3 R = reflect(-V, N);
+        R.y = abs(R.y);
+        vec3 col = mix(base, skyRef(normalize(R)), clamp(fres * 0.75 + 0.22, 0.0, 1.0));
+        float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 80.0);
+        col += spec * vec3(1.0, 0.96, 0.88) * 0.8;
+        gl_FragColor = vec4(col, 0.97);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }`
   });
+  wmat.polygonOffset = true;
+  wmat.polygonOffsetFactor = -2;
+  wmat.polygonOffsetUnits = -2;
   const wmesh = new THREE.Mesh(g, wmat);
   wmesh.receiveShadow = true;
   wmesh.renderOrder = 4;
   T3.scene.add(wmesh);
   T3.waterMat = wmat;
-  }
 }
 function buildParks(THREE, P) {
   const gP = [], gC = [], gI = [];
@@ -1533,8 +1488,8 @@ function buildRoads(THREE, N) {
     const pts = e[1].map(p => lw(p[0], p[1]));
     if (pts.length < 2) continue;
     const wd = e[0] === 'mid' ? 9 : 5;
-    strip(SP, SI, pts, wd + 2.5, 0.15);
-    strip(AP, AI, pts, wd, 0.22);
+    strip(SP, SI, pts, wd + 2.5, 0.65);
+    strip(AP, AI, pts, wd, 0.8);
   }
   const mk = (P, I, color) => {
     const g = new THREE.BufferGeometry();
@@ -1543,7 +1498,7 @@ function buildRoads(THREE, N) {
     g.computeVertexNormals();
     return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
   };
-  T3.scene.add(mk(SP, SI, 0x3d4148), mk(AP, AI, 0x23262c));
+  T3.scene.add(mk(SP, SI, 0x9aa0a8), mk(AP, AI, 0x7b818a));
 }
 function flyTodo(i, instant) {
   const p = POIS[i]; idx = i;
