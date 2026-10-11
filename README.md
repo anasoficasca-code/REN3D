@@ -34,3 +34,9 @@ Google Earth **no sirve** para esta calidad (licencia + sin splats). Necesitas 1
 3. Pégalo en la barra inferior del juego ("Cargar Kennedy") o en `?capture=`.
 
 La escena demo incluida es el castillo hiperrealista de tu foto, para que veas el nivel visual objetivo.
+## Simulación de tráfico y árbol 3D
+
+- La escena **TODO 3D** reproduce las trayectorias del módulo de referencia: **4.202 vehículos identificados**, hasta **2.581 carros simultáneos** y **1.499 segundos (24:59)** de duración, en un ciclo continuo.
+- Las trayectorias se guardan en `data3d/vehicles.bin` para no descargar un JSON de 58 MB y conservar una carga más rápida.
+- El roble entregado (`data3d/roble.IT.bol`) queda versionado junto con su textura web `data3d/roble.png`; el visor usa esa textura en árboles 3D instanciados.
+- El agua del modo TODO 3D usa una malla y shader continuo, sin capas de partículas/puntos sobre la superficie.

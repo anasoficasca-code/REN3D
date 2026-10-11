@@ -490,7 +490,7 @@ let idx = 0;
 
 /* ============ MODO FOTORREALISTA (Google 3D Tiles + CesiumJS) ============ */
 const GKEY = 'AIzaSyCF2MXjc0DYRFrHk7j_BCyxVpWOdYqDIC4';
-let mode = 'foto';
+let mode = 'todo';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
 let SPLAT = null;
@@ -646,8 +646,9 @@ $('b-foto').onclick = () => {
 };
 $('b-sat').onclick = () => { setMode('sat'); say('🛰️ Modo satélite'); };
 initFoto();
-if (new URLSearchParams(location.search).get('todo') === '1') setMode('todo');
-if (new URLSearchParams(location.search).get('splat') === '1') setMode('splat');
+const initialParams = new URLSearchParams(location.search);
+if (initialParams.get('splat') === '1') setMode('splat');
+else if (initialParams.get('todo') === '1' || !initialParams.has('todo')) setMode('todo');
 function flyTo(i, z) {
   const p = POIS[i]; idx = i;
   if (mode === 'splat') {
@@ -980,9 +981,9 @@ async function initTodo() {
     buildAves(THREE);
     try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
     try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
-    try { buildCars(THREE, N); } catch (e) { console.warn('cars:', e); }
+    try { await buildCars(THREE, N); } catch (e) { console.warn('cars:', e); }
     $('loader').classList.add('hidden');
-    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles reales');
+    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles + ' + T3.counts.cars.toLocaleString('es-CO') + ' carros · 24:59');
     return true;
   } catch (e) {
     $('loader').classList.add('hidden');
@@ -1399,19 +1400,37 @@ function buildGrass(THREE, P, W) {
   T3.counts.grass = N;
 }
 let CARS = null;
-function buildCars(THREE, N) {
-  const paths = [], cums = [];
-  for (const e of N.edges) {
-    const pts = e[1].map(p => lw(p[0], p[1]));
-    if (pts.length < 2) continue;
-    const cum = [0];
-    for (let i = 0; i < pts.length - 1; i++)
-      cum.push(cum[i] + Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]));
-    if (cum[cum.length - 1] < 40) continue;
-    paths.push(pts); cums.push(cum);
+const VEHICLE_DATA_URL = 'data3d/vehicles.bin';
+const VEHICLE_DURATION = 1499;
+const VEHICLE_UNIQUE_COUNT = 4202;
+const VEHICLE_MAX_VISIBLE = 2581;
+
+async function loadRecordedVehicles() {
+  const r = await fetch(VEHICLE_DATA_URL);
+  if (!r.ok) throw new Error('No se pudo cargar ' + VEHICLE_DATA_URL);
+  const buf = await r.arrayBuffer();
+  const dv = new DataView(buf);
+  let o = 0;
+  const magic = new TextDecoder().decode(new Uint8Array(buf, o, 9)); o += 9;
+  if (magic !== 'REN3DVEH1') throw new Error('Formato de trayectorias inválido');
+  const steps = dv.getUint16(o, true); o += 2;
+  const timeline = [];
+  for (let si = 0; si < steps; si++) {
+    const time = dv.getFloat32(o, true); o += 4;
+    const count = dv.getUint16(o, true); o += 2;
+    const vehicles = new Array(count);
+    for (let i = 0; i < count; i++) {
+      const id = dv.getUint16(o, true); o += 2;
+      const x = dv.getFloat32(o + 2, true), y = dv.getFloat32(o + 6, true); o += 10;
+      vehicles[i] = { id, x, y };
+    }
+    timeline.push({ time, vehicles });
   }
-  if (!paths.length) return;
-  const NC = Math.min(220, paths.length * 2);
+  return timeline;
+}
+
+async function buildCars(THREE, N) {
+  const timeline = await loadRecordedVehicles();
   const bodyGeo = new THREE.BoxGeometry(4.4, 0.9, 2.0);
   bodyGeo.translate(0, 0.85, 0);
   const cabinGeo = new THREE.BoxGeometry(2.2, 0.7, 1.75);
@@ -1421,75 +1440,67 @@ function buildCars(THREE, N) {
   const bodyMat = new THREE.MeshPhongMaterial({ shininess: 90, specular: 0x8fa5bb });
   const cabinMat = new THREE.MeshPhongMaterial({ color: 0x18242f, shininess: 140, specular: 0xdff1ff });
   const wheelMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
-  const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, NC);
-  const cabins = new THREE.InstancedMesh(cabinGeo, cabinMat, NC);
-  const wheels = new THREE.InstancedMesh(wheelGeo, wheelMat, NC * 4);
+  const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, VEHICLE_MAX_VISIBLE);
+  const cabins = new THREE.InstancedMesh(cabinGeo, cabinMat, VEHICLE_MAX_VISIBLE);
+  const wheels = new THREE.InstancedMesh(wheelGeo, wheelMat, VEHICLE_MAX_VISIBLE * 4);
   bodies.castShadow = true;
   bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   cabins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   wheels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const palette = [0xf2f3f5, 0xf2f3f5, 0xc0c4c9, 0x1c1e22, 0xb32026, 0x2456c8, 0xf2b705, 0x5a6270, 0x7a1f1f, 0x2e7d4f];
-  const cars = [];
+  const palette = [0xf2f3f5, 0xc0c4c9, 0x1c1e22, 0xb32026, 0x2456c8, 0xf2b705, 0x5a6270, 0x7a1f1f, 0x2e7d4f];
   const col = new THREE.Color();
-  for (let i = 0; i < NC; i++) {
-    const pi = (i * 7 + 3) % paths.length;
-    const total = cums[pi][cums[pi].length - 1];
-    cars.push({
-      pi, total,
-      dist: ((i * 977) % 1000) / 1000 * total,
-      speed: 9 + ((i * 31) % 80) / 10,
-      dir: (i % 2 === 0) ? 1 : -1,
-      lane: (i % 2 === 0) ? 1.9 : -1.9
-    });
+  for (let i = 0; i < VEHICLE_MAX_VISIBLE; i++) {
     col.setHex(palette[i % palette.length]).offsetHSL(0, 0, (((i * 13) % 10) - 5) * 0.008);
     bodies.setColorAt(i, col);
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  CARS = { bodies, cabins, wheels, cars, paths, cums, dummy: new THREE.Object3D() };
-  T3.counts.cars = NC;
-  updateCars(0.016);
+  CARS = { bodies, cabins, wheels, timeline, clock: 0, step: -1, nextMap: null, dummy: new THREE.Object3D() };
+  T3.counts.cars = VEHICLE_MAX_VISIBLE;
+  renderRecordedCars(0);
 }
-function updateCars(dt) {
-  if (!CARS) return;
+
+function renderRecordedCars(time) {
+  if (!CARS || !CARS.timeline.length) return;
   const d = CARS.dummy;
   const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
-  for (let i = 0; i < CARS.cars.length; i++) {
-    const c = CARS.cars[i];
-    c.dist += c.speed * c.dir * dt;
-    if (c.dist > c.total) c.dist -= c.total;
-    if (c.dist < 0) c.dist += c.total;
-    const pts = CARS.paths[c.pi], cum = CARS.cums[c.pi];
-    let s = 0;
-    while (s < cum.length - 2 && cum[s + 1] < c.dist) s++;
-    const a = pts[s], b = pts[s + 1];
-    const segL = (cum[s + 1] - cum[s]) || 1;
-    const k = (c.dist - cum[s]) / segL;
-    let dx = b[0] - a[0], dz = b[1] - a[1];
-    const L = Math.hypot(dx, dz) || 1;
-    dx /= L; dz /= L;
-    const px = a[0] + (b[0] - a[0]) * k + (-dz) * c.lane * c.dir;
-    const pz = a[1] + (b[1] - a[1]) * k + (dx) * c.lane * c.dir;
-    const hd = Math.atan2(-dz * c.dir, dx * c.dir);
-    d.position.set(px, 1.5, pz);
-    d.rotation.set(0, hd, 0);
-    d.scale.setScalar(1);
-    d.updateMatrix();
-    CARS.bodies.setMatrixAt(i, d.matrix);
-    CARS.cabins.setMatrixAt(i, d.matrix);
+  const tl = CARS.timeline;
+  while (CARS.step + 1 < tl.length - 1 && tl[CARS.step + 1].time <= time) CARS.step++;
+  if (CARS.step < 0) CARS.step = 0;
+  const a = tl[CARS.step], b = tl[Math.min(CARS.step + 1, tl.length - 1)];
+  if (CARS.nextMap === null || CARS.nextMapStep !== CARS.step) {
+    CARS.nextMap = new Map(b.vehicles.map(v => [v.id, v]));
+    CARS.nextMapStep = CARS.step;
+  }
+  const frac = b.time > a.time ? Math.max(0, Math.min(1, (time - a.time) / (b.time - a.time))) : 0;
+  const n = Math.min(a.vehicles.length, VEHICLE_MAX_VISIBLE);
+  for (let i = 0; i < n; i++) {
+    const v = a.vehicles[i], nv = CARS.nextMap.get(v.id) || v;
+    const x = v.x + (nv.x - v.x) * frac, y = v.y + (nv.y - v.y) * frac;
+    const p = lw(x, y);
+    const dx = nv.x - v.x, dz = nv.y - v.y;
+    const hd = Math.hypot(dx, dz) > 0.05 ? Math.atan2(dx, dz) : 0;
+    d.position.set(p[0], 1.5, p[1]); d.rotation.set(0, hd, 0); d.scale.setScalar(1); d.updateMatrix();
+    CARS.bodies.setMatrixAt(i, d.matrix); CARS.cabins.setMatrixAt(i, d.matrix);
     const ch = Math.cos(hd), sh = Math.sin(hd);
     for (let w = 0; w < 4; w++) {
       const lx = WO[w][0], lz = WO[w][1];
-      d.position.set(px + lx * ch + lz * sh, 1.5 + 0.42, pz - lx * sh + lz * ch);
-      d.rotation.set(0, hd, 0);
-      d.updateMatrix();
+      d.position.set(p[0] + lx * ch + lz * sh, 1.92, p[1] - lx * sh + lz * ch);
+      d.rotation.set(0, hd, 0); d.updateMatrix();
       CARS.wheels.setMatrixAt(i * 4 + w, d.matrix);
     }
   }
-  CARS.bodies.instanceMatrix.needsUpdate = true;
-  CARS.cabins.instanceMatrix.needsUpdate = true;
-  CARS.wheels.instanceMatrix.needsUpdate = true;
+  CARS.bodies.count = CARS.cabins.count = n; CARS.wheels.count = n * 4;
+  CARS.bodies.instanceMatrix.needsUpdate = CARS.cabins.instanceMatrix.needsUpdate = CARS.wheels.instanceMatrix.needsUpdate = true;
 }
+
+function updateCars(dt) {
+  if (!CARS) return;
+  CARS.clock += dt;
+  if (CARS.clock > VEHICLE_DURATION) { CARS.clock = 0; CARS.step = -1; CARS.nextMap = null; }
+  renderRecordedCars(CARS.clock);
+}
+
 function buildWater(THREE, W) {
   const P = [], C = [], UV = [], I = [];
   let vc = 0;
