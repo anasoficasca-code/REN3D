@@ -1,0 +1,23 @@
+REN3D - creditos de modelos, texturas e imagenes
+
+ARBOLES Y PLANTAS (modelos 3D reales, licencia CC0, Poly Haven - polyhaven.com)
+  Arboles: Jacaranda Tree (Rob Tuytel, Rico Cilliers), Tree Small 02 (Rico Cilliers), Island Tree 01 y 02 (Rob Tuytel, Rico Cilliers)
+           -> data3d/models/jacaranda_*, arbolpeq_*, island_tree_01_*, island_tree_02_*  (versiones reducidas para la web; de lejos se usan siluetas dibujadas desde el propio modelo)
+  Plantas: Fern 02, Celandine 01, Nettle Plant, Periwinkle Plant, Calathea Orbifolia 01 (Rico Cilliers, Rob Tuytel, Amal Kumar)
+           -> data3d/models/fern_02.glb, celandine_01.glb, nettle_plant.glb, periwinkle_plant.glb, calathea_orbifolia_01.glb
+  Las hojas de los arboles se redujeron conservando una de cada N y agrandandolas; la madera se simplifico y se quito el parche de suelo del escaneo. No son los modelos originales.
+  El pasto y los juncos 3D se generan por codigo en data3d/real3d.js (no usan modelos descargados).
+
+AGUA
+  data3d/waternormals.jpg: mapa de normales de los ejemplos de three.js (https://github.com/mrdoob/three.js, licencia MIT).
+
+AVES (fotos recortadas)
+  data3d/aves/pato.png, garza.png, tingua.png: tomadas del repositorio humedalburro (anasoficasca-code/humedalburro, carpeta assets).
+  Los creditos de las fotos de iNaturalist del proyecto estan en humedalburro/assets/CREDITOS-inaturalist.txt.
+
+CARROS
+  Los carros (sedan, hatchback, camioneta, taxi y van) estan construidos por codigo en data3d/real3d.js; no usan modelos descargados.
+
+OTROS
+  data3d/tree_skp.glb y roble.*: arbol entregado por el autor del proyecto.
+  data3d/poliigon/*: texturas Poliigon GrassPatchyGround_4585 (segun su licencia).
