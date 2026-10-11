@@ -96,7 +96,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v20</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v21</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -123,6 +123,7 @@
   <button id="b-sat">🛰️ Satélite</button>
   <button id="b-todo">🧱 TODO 3D</button>
   <button id="b-splat">🌀 Splat Humedal</button>
+  <button id="b-hd">📦 HD</button>
   <button id="b-tour">▶ Tour Kennedy</button>
   <button id="b-next">Siguiente punto ➜</button>
   <button id="b-trees" class="on">🌳 Árboles 3D</button>
@@ -502,7 +503,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v20' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v20' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v20' : 'MODO: 🛰️ SATÉLITE · v20'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v21' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v21' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v21' : 'MODO: 🛰️ SATÉLITE · v21'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -586,7 +587,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v20 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v21 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1294,6 +1295,38 @@ function splatKeys() {
   } catch (e) {}
 }
 $('b-splat').onclick = async () => { setMode('splat'); };
+$('b-hd').onclick = async () => {
+  if (mode !== 'splat') { say('Entra primero a 🌀 Splat Humedal'); return; }
+  if (!SPLAT) { say('⏳ Espera que cargue el splat…'); return; }
+  if (SPLAT.hd) { say('Ya estás en HD'); return; }
+  say('📦 Cargando versión HD (32 MB)…');
+  try {
+    const before = new Set(document.querySelectorAll('canvas'));
+    if (SPLAT.canvas) SPLAT.canvas.style.display = 'none';
+    const G = await import('@mkkellogg/gaussian-splats-3d');
+    const V = SPLAT.viewer;
+    const cp = V.camera.position, tg = (V.controls && V.controls.target) || { x: SPLAT_HOME.look[0], y: SPLAT_HOME.look[1], z: SPLAT_HOME.look[2] };
+    const viewer = new G.Viewer({
+      cameraUp: SPLAT_HOME.up,
+      initialCameraPosition: [cp.x, cp.y, cp.z],
+      initialCameraLookAt: [tg.x, tg.y, tg.z],
+      sharedMemoryForWorkers: false,
+      gpuAcceleratedSort: false,
+      sphericalHarmonicsDegree: 0
+    });
+    const before = new Set(document.querySelectorAll('canvas'));
+    await viewer.addSplatScene(SPLAT_HD, { showLoadingUI: true, progressiveLoad: true });
+    viewer.start();
+    const added = [...document.querySelectorAll('canvas')].filter(c => !before.has(c));
+    const cv = added[added.length - 1] || null;
+    if (cv) { cv.style.position = 'fixed'; cv.style.inset = '0'; cv.style.zIndex = '1'; }
+    SPLAT = { viewer, canvas: cv, hd: true };
+    say('📦 HD listo · 1 millón de puntos');
+  } catch (e) {
+    say('⚠️ No cargó el HD: ' + String(e && e.message || e).slice(0, 90));
+    if (SPLAT && SPLAT.canvas) SPLAT.canvas.style.display = '';
+  }
+};
 
 addEventListener('resize', () => { try { if (T3) { T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); T3.renderer.setSize(innerWidth, innerHeight); } } catch (e) {} });
 </script>
