@@ -924,7 +924,7 @@ async function initTodo() {
     scene.add(sky);
     const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 40000);
     const tw = lw(6000, 3000);
-    camera.position.set(tw[0] + 520, 330, tw[1] + 620);
+    camera.position.set(tw[0] + 190, 125, tw[1] + 230);
     const orbit = new OrbitControls(camera, renderer.domElement);
     orbit.target.set(tw[0], 0, tw[1]);
     orbit.enableDamping = true; orbit.dampingFactor = 0.06;
@@ -962,7 +962,7 @@ async function initTodo() {
       fetch('data3d/net.json').then(r => r.json())
     ]);
     // Prioridad visible: los carros aparecen antes de construir el arbolado pesado.
-    try { await buildCars(THREE, N); } catch (e) { console.warn('cars:', e); }
+    try { await buildCars(THREE, N); } catch (e) { console.warn('cars:', e); say('⚠️ Error de carros: ' + String(e && e.message || e).slice(0, 100), 8000); }
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
     try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
@@ -1418,7 +1418,7 @@ async function buildCars(THREE, N) {
   cabinGeo.translate(-0.2, 1.6, 0);
   const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 10);
   wheelGeo.rotateX(Math.PI / 2);
-  const bodyMat = new THREE.MeshPhongMaterial({ shininess: 90, specular: 0x8fa5bb });
+  const bodyMat = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 90, specular: 0x8fa5bb });
   const cabinMat = new THREE.MeshPhongMaterial({ color: 0x18242f, shininess: 140, specular: 0xdff1ff });
   const wheelMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
   const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, VEHICLE_MAX_VISIBLE);
@@ -1461,17 +1461,19 @@ function renderRecordedCars(time) {
     const p = lw(x, y);
     const dx = nv.x - v.x, dz = nv.y - v.y;
     const hd = Math.hypot(dx, dz) > 0.05 ? Math.atan2(dx, dz) : 0;
-    d.position.set(p[0], 1.5, p[1]); d.rotation.set(0, hd, 0); d.scale.setScalar(1); d.updateMatrix();
+    const carScale = 1.55;
+    d.position.set(p[0], 1.5, p[1]); d.rotation.set(0, hd, 0); d.scale.setScalar(carScale); d.updateMatrix();
     CARS.bodies.setMatrixAt(i, d.matrix); CARS.cabins.setMatrixAt(i, d.matrix);
     const ch = Math.cos(hd), sh = Math.sin(hd);
     for (let w = 0; w < 4; w++) {
       const lx = WO[w][0], lz = WO[w][1];
-      d.position.set(p[0] + lx * ch + lz * sh, 1.92, p[1] - lx * sh + lz * ch);
-      d.rotation.set(0, hd, 0); d.updateMatrix();
+      d.position.set(p[0] + (lx * ch + lz * sh) * carScale, 1.5 + 0.42 * carScale, p[1] + (-lx * sh + lz * ch) * carScale);
+      d.rotation.set(0, hd, 0); d.scale.setScalar(carScale); d.updateMatrix();
       CARS.wheels.setMatrixAt(i * 4 + w, d.matrix);
     }
   }
   CARS.bodies.count = CARS.cabins.count = n; CARS.wheels.count = n * 4;
+  CARS.bodies.renderOrder = CARS.cabins.renderOrder = CARS.wheels.renderOrder = 20;
   CARS.bodies.instanceMatrix.needsUpdate = CARS.cabins.instanceMatrix.needsUpdate = CARS.wheels.instanceMatrix.needsUpdate = true;
 }
 
@@ -1590,7 +1592,7 @@ async function buildParks(THREE, P) {
   const ao = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_AmbientOcclusion.jpg', null);
   for (const tx of [base, normal, rough, ao]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1.2, 1.2); tx.anisotropy = 4; }
   if (base) base.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshStandardMaterial({ map: base, normalMap: normal, roughnessMap: rough, aoMap: ao, roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
+  const mat = new THREE.MeshStandardMaterial({ color: 0x86a85d, map: base, normalMap: normal, roughnessMap: rough, aoMap: ao, roughness: 0.92, metalness: 0, emissive: 0x18250d, emissiveIntensity: 0.08, side: THREE.DoubleSide });
   const mesh = new THREE.Mesh(g, mat); mesh.receiveShadow = true; T3.scene.add(mesh);
 }
 
