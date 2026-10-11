@@ -1301,7 +1301,6 @@ $('b-hd').onclick = async () => {
   if (SPLAT.hd) { say('Ya estás en HD'); return; }
   say('📦 Cargando versión HD (32 MB)…');
   try {
-    const before = new Set(document.querySelectorAll('canvas'));
     if (SPLAT.canvas) SPLAT.canvas.style.display = 'none';
     const G = await import('@mkkellogg/gaussian-splats-3d');
     const V = SPLAT.viewer;
