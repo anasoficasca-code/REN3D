@@ -969,7 +969,7 @@ async function initTodo() {
     ]);
     // Prioridad visible: los carros aparecen antes de construir el arbolado pesado.
     buildProofCar(THREE);
-    try { await buildCars(THREE, N); say('🚗 ' + VEHICLE_MAX_VISIBLE.toLocaleString('es-CO') + ' carros cargados · Play activo'); } catch (e) { console.warn('cars:', e); T3.counts.cars = 0; say('⚠️ Error de carros: ' + String(e && e.message || e).slice(0, 100), 8000); }
+    try { await buildCars(THREE, N); if (PROOF_CAR) { T3.scene.remove(PROOF_CAR); PROOF_CAR = null; } say('🚗 ' + VEHICLE_MAX_VISIBLE.toLocaleString('es-CO') + ' carros cargados · Play activo'); } catch (e) { console.warn('cars:', e); T3.counts.cars = 0; say('⚠️ Error de carros: ' + String(e && e.message || e).slice(0, 100), 8000); }
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
     try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
@@ -1406,7 +1406,7 @@ function buildProofCar(THREE) {
   T3.scene.add(g); PROOF_CAR = g;
 }
 
-const VEHICLE_DATA_URL = 'data3d/vehicles.bin';
+const VEHICLE_DATA_URL = 'data3d/kennedy_vehiculos.json';
 const VEHICLE_DURATION = 1499;
 const VEHICLE_UNIQUE_COUNT = 4202;
 const VEHICLE_MAX_VISIBLE = 2581;
@@ -1414,27 +1414,13 @@ const VEHICLE_MAX_VISIBLE = 2581;
 async function loadRecordedVehicles() {
   const r = await fetch(VEHICLE_DATA_URL);
   if (!r.ok) throw new Error('No se pudo cargar ' + VEHICLE_DATA_URL);
-  const buf = await r.arrayBuffer();
-  const dv = new DataView(buf);
-  let o = 0;
-  const magic = new TextDecoder().decode(new Uint8Array(buf, o, 9)); o += 9;
-  if (magic !== 'REN3DVEH1') throw new Error('Formato de trayectorias inválido');
-  const steps = dv.getUint16(o, true); o += 2;
-  const timeline = [];
-  for (let si = 0; si < steps; si++) {
-    const time = dv.getFloat32(o, true); o += 4;
-    const count = dv.getUint16(o, true); o += 2;
-    const vehicles = new Array(count);
-    for (let i = 0; i < count; i++) {
-      const id = dv.getUint16(o, true); o += 2;
-      const x = dv.getFloat32(o + 2, true), y = dv.getFloat32(o + 6, true); o += 10;
-      vehicles[i] = { id, x, y };
-    }
-    timeline.push({ time, vehicles });
-  }
-  return timeline;
+  const data = await r.json();
+  // Mismo formato y mismas trayectorias que modelamiento2/modulo-08-3d.js.
+  return data.map(([time, vehicles]) => ({
+    time,
+    vehicles: vehicles.map(([id, x, y]) => ({ id, x, y }))
+  }));
 }
-
 async function buildCars(THREE, N) {
   const timeline = await loadRecordedVehicles();
   const bodyGeo = new THREE.BoxGeometry(4.4, 0.9, 2.0);
