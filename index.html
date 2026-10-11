@@ -96,7 +96,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v21</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v22</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -485,7 +485,7 @@ let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
 let SPLAT = null;
-const SPLAT_URL = 'data3d/humedal-lite.splat';
+const SPLAT_URL = 'data3d/humedal-micro.splat';
 const SPLAT_HD = 'data3d/humedal-v2.splat';
 
 function setMode(m) {
@@ -503,7 +503,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v21' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v21' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v21' : 'MODO: 🛰️ SATÉLITE · v21'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v22' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v22' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v22' : 'MODO: 🛰️ SATÉLITE · v22'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -587,7 +587,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v21 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v22 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1244,7 +1244,7 @@ async function initSplat() {
   $('loader').classList.remove('hidden');
   $('lmsg').textContent = 'Cargando splat del humedal…';
   try {
-    await tryLoad(SPLAT_URL, '(11 MB)');
+    await tryLoad(SPLAT_URL, '(3 MB)');
   } catch (e1) {
     hideNew();
     try {
