@@ -96,7 +96,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v16</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v17</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -500,7 +500,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v16' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v16' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v16' : 'MODO: 🛰️ SATÉLITE · v16'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v17' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v17' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v17' : 'MODO: 🛰️ SATÉLITE · v17'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -578,7 +578,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v16 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v17 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1202,14 +1202,18 @@ async function initSplat() {
   if (SPLAT) return true;
   const before = new Set(document.querySelectorAll('canvas'));
   const hideNew = () => { try { [...document.querySelectorAll('canvas')].filter(c => !before.has(c)).forEach(c => c.style.display = 'none'); } catch (_) {} };
+  const st = t => { try { $('o-st').textContent = t; } catch (e) {} say(t); };
   $('loader').classList.remove('hidden');
   $('lmsg').textContent = 'Cargando visor 3D…';
   const timeout = (ms, msg) => new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms));
   try {
+    st('Splat: importando visor…');
     const G = await Promise.race([
       import('@mkkellogg/gaussian-splats-3d'),
       timeout(60000, 'no se pudo descargar el visor 3D (revisa tu internet)')
     ]);
+    if (!G || !G.Viewer) throw new Error('el visor 3D llego corrupto (reintenta)');
+    st('Splat: creando visor…');
     const viewer = new G.Viewer({
       cameraUp: SPLAT_HOME.up,
       initialCameraPosition: SPLAT_HOME.pos,
@@ -1219,10 +1223,12 @@ async function initSplat() {
       sphericalHarmonicsDegree: 0
     });
     $('loader').classList.add('hidden');
+    st('Splat: descargando humedal (32 MB)…');
     await Promise.race([
       viewer.addSplatScene(SPLAT_URL, { showLoadingUI: true, progressiveLoad: true }),
       timeout(180000, 'la descarga del splat se estanco (revisa tu internet)')
     ]);
+    st('Splat: pintando…');
     viewer.start();
     const added = [...document.querySelectorAll('canvas')].filter(c => !before.has(c));
     const cv = added[0] || null;
