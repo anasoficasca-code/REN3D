@@ -125,7 +125,7 @@
   <span><kbd>Arrastre</kbd> mirar</span>
 </div>
 
-<div id="trafficHud"><div class="trafficTop"><span>🚗 Simulación de tráfico</span><b id="trafficLabel">00:00 / 24:59</b><button id="trafficPlay" type="button" class="on" aria-label="Reproducir simulación">▶</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
+<div id="trafficHud"><div class="trafficTop"><span>🚗 Simulación de tráfico</span><b id="trafficLabel">16:40 / 24:59</b><button id="trafficPlay" type="button" class="on" aria-label="Reproducir simulación">▶</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
 <div class="hud" id="hud-c">
   <button id="b-foto" class="on">🏙️ Fotorrealista</button>
   <button id="b-sat">🛰️ Satélite</button>
@@ -1400,7 +1400,7 @@ function buildProofCar(THREE) {
   const wheels = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.5, 4.4), new THREE.MeshBasicMaterial({ color: 0x111827 }));
   wheels.position.y = 0.72;
   g.add(body, roof, wheels);
-  g.position.set(...lw(5902.8, 3495.1), 0);
+  g.position.set(...lw(6000, 3000), 0);
   g.renderOrder = 50;
   g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.renderOrder = 50; } });
   T3.scene.add(g); PROOF_CAR = g;
@@ -1919,9 +1919,9 @@ function todoNight(on) {
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
-$('b-play').onclick = () => { CAR_PLAYING = !CAR_PLAYING; if (CARS) CARS.playing = CAR_PLAYING; $('b-play').textContent = CAR_PLAYING ? '⏸ Pausar carros' : '▶ Play carros'; $('b-play').classList.toggle('on', CAR_PLAYING); say(CAR_PLAYING ? '▶ Simulación de carros en marcha' : '⏸ Simulación pausada'); };
+$('b-play').onclick = () => { CAR_PLAYING = !CAR_PLAYING; buildProofCar(T3?.THREE); if (CARS) { CARS.playing = CAR_PLAYING; renderRecordedCars(CAR_TIME); } else if (T3) say('🚗 Vehículo de prueba visible; esperando trayectorias…'); $('b-play').textContent = CAR_PLAYING ? '⏸ Pausar carros' : '▶ Play carros'; $('b-play').classList.toggle('on', CAR_PLAYING); say(CAR_PLAYING ? '▶ Simulación de carros en marcha' : '⏸ Simulación pausada'); };
 $('trafficTime').oninput = e => { CAR_TIME=Number(e.target.value); CAR_PLAYING=true; if(CARS){ CARS.playing=true; CARS.clock=CAR_TIME; CARS.step=-1; CARS.nextMap=null; renderRecordedCars(CAR_TIME); } $('trafficPlay').textContent='⏸'; $('trafficPlay').classList.add('on'); $('b-play').textContent='⏸ Pausar carros'; $('b-play').classList.add('on'); };
-$('trafficPlay').onclick = () => { CAR_PLAYING=!CAR_PLAYING; if(CARS) CARS.playing=CAR_PLAYING; $('trafficPlay').textContent=CAR_PLAYING?'⏸':'▶'; $('trafficPlay').classList.toggle('on',CAR_PLAYING); $('b-play').textContent=CAR_PLAYING?'⏸ Pausar carros':'▶ Play carros'; $('b-play').classList.toggle('on',CAR_PLAYING); say(CAR_PLAYING?'▶ Simulación de tráfico en marcha':'⏸ Simulación de tráfico pausada'); };
+$('trafficPlay').onclick = () => { CAR_PLAYING=!CAR_PLAYING; buildProofCar(T3?.THREE); if(CARS) { CARS.playing=CAR_PLAYING; renderRecordedCars(CAR_TIME); } else if (T3) say('🚗 Vehículo de prueba visible; esperando trayectorias…'); $('trafficPlay').textContent=CAR_PLAYING?'⏸':'▶'; $('trafficPlay').classList.toggle('on',CAR_PLAYING); $('b-play').textContent=CAR_PLAYING?'⏸ Pausar carros':'▶ Play carros'; $('b-play').classList.toggle('on',CAR_PLAYING); say(CAR_PLAYING?'▶ Simulación de tráfico en marcha':'⏸ Simulación de tráfico pausada'); };
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {
