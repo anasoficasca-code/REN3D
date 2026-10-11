@@ -13,7 +13,8 @@
 { "imports": {
   "three": "https://unpkg.com/three@0.157.0/build/three.module.js",
   "three/addons/": "https://unpkg.com/three@0.157.0/examples/jsm/",
-  "@lumaai/luma-web": "https://unpkg.com/@lumaai/luma-web@0.2.0/dist/library/luma-web.module.js"
+  "@lumaai/luma-web": "https://unpkg.com/@lumaai/luma-web@0.2.0/dist/library/luma-web.module.js",
+  "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
 } }
 </script>
 <style>
@@ -29,6 +30,7 @@
   #todo3d{position:fixed;inset:0}
   #todo3d.hidden{display:none}
   #todo3d canvas{display:block}
+  canvas.splat-night{filter:brightness(.52) saturate(.65) contrast(1.06)!important}
   #grade{position:fixed;inset:0;pointer-events:none;z-index:5;
     background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(2,6,12,.55) 100%)}
   #loader{position:fixed;inset:0;z-index:60;display:flex;flex-direction:column;gap:16px;
@@ -93,7 +95,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v14</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v15</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -119,6 +121,7 @@
   <button id="b-foto" class="on">🏙️ Fotorrealista</button>
   <button id="b-sat">🛰️ Satélite</button>
   <button id="b-todo">🧱 TODO 3D</button>
+  <button id="b-splat">🌀 Splat Humedal</button>
   <button id="b-tour">▶ Tour Kennedy</button>
   <button id="b-next">Siguiente punto ➜</button>
   <button id="b-trees" class="on">🌳 Árboles 3D</button>
@@ -479,20 +482,24 @@ const GKEY = 'AIzaSyCF2MXjc0DYRFrHk7j_BCyxVpWOdYqDIC4';
 let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
+let SPLAT = null;
 
 function setMode(m) {
   mode = m;
   try { if (tour) { clearInterval(tour); tour = null; const b = $('b-tour'); b.classList.remove('on'); b.textContent = '▶ Tour Kennedy'; } } catch (e) {}
   if (tourC) { clearInterval(tourC); tourC = null; }
   if (typeof tourT !== 'undefined' && tourT) { try { clearInterval(tourT); } catch (e) {} tourT = null; }
+  try { if (SPLAT && SPLAT.viewer && SPLAT.viewer.controls) SPLAT.viewer.controls.autoRotate = false; } catch (e) {}
   $('cesium').classList.toggle('hidden', m !== 'foto');
   $('map').classList.toggle('hidden', m !== 'sat');
   $('todo3d').classList.toggle('hidden', m !== 'todo');
+  if (SPLAT && SPLAT.canvas) SPLAT.canvas.style.display = m === 'splat' ? '' : 'none';
   $('b-foto').classList.toggle('on', m === 'foto');
   $('b-sat').classList.toggle('on', m === 'sat');
   $('b-todo').classList.toggle('on', m === 'todo');
+  $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v14' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v14' : 'MODO: 🛰️ SATÉLITE · v14');
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v15' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v15' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v15' : 'MODO: 🛰️ SATÉLITE · v15'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -501,6 +508,12 @@ function setMode(m) {
       const ok = await initTodo();
       if (!ok) setMode('sat');
       else if (T3 && !T3.ready) { T3.ready = true; flyTodo(1, true); say('🧱 Estás sobre el Lago Timiza · arrastra para orbitar, WASD para volar'); }
+    })();
+  }
+  if (m === 'splat') {
+    (async () => {
+      const ok = await initSplat();
+      if (!ok) setMode('todo');
     })();
   }
 }
@@ -564,7 +577,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v14 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v15 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -615,8 +628,13 @@ $('b-foto').onclick = () => {
 $('b-sat').onclick = () => { setMode('sat'); say('🛰️ Modo satélite'); };
 initFoto();
 if (new URLSearchParams(location.search).get('todo') === '1') setMode('todo');
+if (new URLSearchParams(location.search).get('splat') === '1') setMode('splat');
 function flyTo(i, z) {
   const p = POIS[i]; idx = i;
+  if (mode === 'splat') {
+    if (!SPLAT) { say('⏳ Splat aún cargando…'); return; }
+    splatHome(); say('🌀 Explora libre el humedal · WASD para volar'); return;
+  }
   if (mode === 'todo') {
     if (!T3) { say('⏳ Mundo 3D aún cargando…'); return; }
     flyTodo(i); say('🎯 ' + p.n); return;
@@ -632,6 +650,15 @@ function flyTo(i, z) {
 }
 let tour = null;
 $('b-tour').onclick = e => {
+  if (mode === 'splat') {
+    if (!SPLAT || !SPLAT.viewer.controls) { say('⏳ Splat aún cargando…'); return; }
+    const c = SPLAT.viewer.controls;
+    const on = !(c.autoRotate === true);
+    c.autoRotate = on; c.autoRotateSpeed = 0.8;
+    e.target.classList.toggle('on', on);
+    e.target.textContent = on ? '⏸ Detener tour' : '▶ Tour Kennedy';
+    say(on ? '🌀 Órbita automática del humedal' : 'Tour detenido'); return;
+  }
   if (mode === 'todo') {
     if (tourT) { clearInterval(tourT); tourT = null; e.target.classList.remove('on'); e.target.textContent = '▶ Tour Kennedy'; say('Tour detenido'); return; }
     if (!T3) { say('⏳ Mundo 3D aún cargando…'); return; }
@@ -657,6 +684,7 @@ $('b-tour').onclick = e => {
 };
 $('b-next').onclick = () => flyTo((idx + 1) % POIS.length);
 $('b-home').onclick = () => {
+  if (mode === 'splat') { if (SPLAT) { splatHome(); say('🏠 Vista inicial del humedal'); } return; }
   if (mode === 'todo') { if (T3) { flyTodoHome(); say('🏠 Vista general TODO 3D'); } return; }
   if (mode === 'foto') { if (viewer) { goHomeC(); say('🏠 Vista fotorrealista de Kennedy'); } return; }
   map.flyTo({ center: [KENNEDY.lng, KENNEDY.lat], zoom: KENNEDY.zoom,
@@ -687,6 +715,7 @@ $('b-night').onclick = e => {
   e.target.classList.toggle('on', night);
   e.target.textContent = night ? '☀️ Día' : '🌙 Noche';
   if (mode === 'todo') { todoNight(night); say(night ? '🌙 Noche TODO 3D' : '☀️ Día TODO 3D'); return; }
+  if (mode === 'splat' && SPLAT && SPLAT.canvas) { SPLAT.canvas.classList.toggle('splat-night', night); say(night ? '🌙 Noche en el humedal' : '☀️ Día en el humedal'); return; }
   if (mode === 'foto') { $('cesium').classList.toggle('night', night); say(night ? '🌙 Noche fotorrealista' : '☀️ Día fotorrealista'); return; }
   map.setPaintProperty('sat', 'raster-brightness-min', night ? -0.22 : 0);
   map.setPaintProperty('sat', 'raster-brightness-max', night ? -0.28 : 1);
@@ -713,6 +742,7 @@ addEventListener('keypress', e => {
 
 let acc = 0;
 function flight(ms) {
+  if (mode === 'splat' && SPLAT) { splatKeys(); requestAnimationFrame(flight); return; }
   if (mode === 'todo' && T3) {
     const now = performance.now();
     const dt = Math.min(((T3.last || now) ? (now - (T3.last || now)) : 16) / 1000, 0.1);
@@ -766,6 +796,15 @@ function flight(ms) {
 requestAnimationFrame(flight);
 
 function tick() {
+  if (mode === 'splat' && SPLAT && SPLAT.viewer) {
+    try {
+      const cp = SPLAT.viewer.camera.position;
+      $('o-ctr').textContent = cp.x.toFixed(1) + ', ' + cp.y.toFixed(1) + ', ' + cp.z.toFixed(1);
+      $('o-zoom').textContent = 'splat';
+      $('o-alt').textContent = '—';
+    } catch (e) {}
+    requestAnimationFrame(tick); return;
+  }
   if (mode === 'todo' && T3) {
     $('o-ctr').textContent = Math.round(T3.camera.position.x + LC.x) + ', ' + Math.round(T3.camera.position.z + LC.y);
     $('o-zoom').textContent = '3D';
@@ -1149,6 +1188,80 @@ function todoNight(on) {
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
+
+/* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
+const SPLAT_URL = 'data3d/humedal.splat';
+const SPLAT_HOME = {
+  up: [0.2066, -0.5341, -0.8198],
+  pos: [2.576, 0.406, -0.023],
+  look: [4.016, 0.664, 5.515]
+};
+const SUP = { x: 0.2066, y: -0.5341, z: -0.8198 };
+async function initSplat() {
+  if (SPLAT) return true;
+  $('loader').classList.remove('hidden');
+  $('lmsg').textContent = 'Cargando splat del humedal (8 MB)…';
+  try {
+    const before = new Set(document.querySelectorAll('canvas'));
+    const G = await import('@mkkellogg/gaussian-splats-3d');
+    const viewer = new G.Viewer({
+      cameraUp: SPLAT_HOME.up,
+      initialCameraPosition: SPLAT_HOME.pos,
+      initialCameraLookAt: SPLAT_HOME.look,
+      sharedMemoryForWorkers: false,
+      gpuAcceleratedSort: false,
+      sphericalHarmonicsDegree: 0
+    });
+    await viewer.addSplatScene(SPLAT_URL, { showLoadingUI: true, progressiveLoad: false });
+    viewer.start();
+    const added = [...document.querySelectorAll('canvas')].filter(c => !before.has(c));
+    const cv = added[0] || null;
+    if (cv) { cv.style.position = 'fixed'; cv.style.inset = '0'; cv.style.zIndex = '1'; }
+    SPLAT = { viewer, canvas: cv };
+    $('loader').classList.add('hidden');
+    say('🌀 Splat del humedal listo · arrastra para orbitar, WASD para volar');
+    return true;
+  } catch (e) {
+    $('loader').classList.add('hidden');
+    console.warn('SPLAT:', e);
+    say('⚠️ No cargó el splat: ' + String(e && e.message || e).slice(0, 110), 6000);
+    return false;
+  }
+}
+function splatHome() {
+  if (!SPLAT) return;
+  try {
+    const V = SPLAT.viewer;
+    V.camera.position.set(SPLAT_HOME.pos[0], SPLAT_HOME.pos[1], SPLAT_HOME.pos[2]);
+    if (V.controls && V.controls.target) V.controls.target.set(SPLAT_HOME.look[0], SPLAT_HOME.look[1], SPLAT_HOME.look[2]);
+    if (V.controls && V.controls.update) V.controls.update();
+  } catch (e) {}
+}
+function splatKeys() {
+  if (!SPLAT) return;
+  try {
+    const V = SPLAT.viewer, cam = V.camera, tgt = (V.controls && V.controls.target) || null;
+    if (!tgt) return;
+    const fw = { x: tgt.x - cam.position.x, y: tgt.y - cam.position.y, z: tgt.z - cam.position.z };
+    const L = Math.hypot(fw.x, fw.y, fw.z) || 1;
+    fw.x /= L; fw.y /= L; fw.z /= L;
+    let rx = fw.y * SUP.z - fw.z * SUP.y, ry = fw.z * SUP.x - fw.x * SUP.z, rz = fw.x * SUP.y - fw.y * SUP.x;
+    const rl = Math.hypot(rx, ry, rz) || 1;
+    rx /= rl; ry /= rl; rz /= rl;
+    const turbo = k['ShiftLeft'] || k['ShiftRight'];
+    const sp = L * 0.022 * (turbo ? 3 : 1);
+    const fA = ((k['KeyW'] || k['ArrowUp']) ? 1 : 0) - ((k['KeyS'] || k['ArrowDown']) ? 1 : 0);
+    const sA = ((k['KeyD'] || k['ArrowRight']) ? 1 : 0) - ((k['KeyA'] || k['ArrowLeft']) ? 1 : 0);
+    const uA = (k['KeyE'] ? 1 : 0) - (k['KeyQ'] ? 1 : 0);
+    const mx = (fw.x * fA + rx * sA) * sp + SUP.x * uA * sp;
+    const my = (fw.y * fA + ry * sA) * sp + SUP.y * uA * sp;
+    const mz = (fw.z * fA + rz * sA) * sp + SUP.z * uA * sp;
+    cam.position.x += mx; cam.position.y += my; cam.position.z += mz;
+    tgt.x += mx; tgt.y += my; tgt.z += mz;
+    if (V.controls.update) V.controls.update();
+  } catch (e) {}
+}
+$('b-splat').onclick = async () => { setMode('splat'); };
 
 addEventListener('resize', () => { try { if (T3) { T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); T3.renderer.setSize(innerWidth, innerHeight); } } catch (e) {} });
 </script>
