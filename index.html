@@ -98,7 +98,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v24</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v25</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -130,6 +130,7 @@
   <button id="b-next">Siguiente punto ➜</button>
   <button id="b-trees" class="on">🌳 Árboles 3D</button>
   <button id="b-water" class="on">🌊 Agua 3D</button>
+  <button id="b-aves" class="on">🦆 Aves</button>
   <button id="b-night">🌙 Noche</button>
   <button id="b-home">🏠 Vista general</button>
   <button id="b-pie">🚶 A pie</button>
@@ -446,6 +447,12 @@ $('b-water').onclick = e => {
   if (waterGroup) waterGroup.visible = on;
   say(on ? '🌊 Agua 3D activada' : '🌊 Agua 3D oculta');
 };
+$('b-aves').onclick = e => {
+  const on = !e.target.classList.contains('on');
+  e.target.classList.toggle('on', on);
+  if (AVES) AVES.grp.visible = on;
+  say(on ? '🦆 Simulación de aves activada: patos, tinguas y garzas' : '🦆 Aves ocultas');
+};
 
 /* ============================================================ */
 
@@ -505,7 +512,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v24' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v24' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v24' : 'MODO: 🛰️ SATÉLITE · v24'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v25' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v25' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v25' : 'MODO: 🛰️ SATÉLITE · v25'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -589,7 +596,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v24 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v25 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -785,6 +792,7 @@ function flight(ms) {
     if (k['KeyZ']) o.target.applyAxisAngle(new T3.THREE.Vector3(0, 1, 0), 0); // reservado
     if (cam.position.y < 3) cam.position.y = 3;
     o.update();
+    updateAves();
     T3.renderer.render(T3.scene, cam);
     requestAnimationFrame(flight); return;
   }
@@ -916,6 +924,7 @@ async function initTodo() {
       fetch('data3d/net.json').then(r => r.json())
     ]);
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
+    buildAves(THREE);
     $('loader').classList.add('hidden');
     say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles reales');
     return true;
@@ -1186,6 +1195,216 @@ function flyTodoHome() {
     p1: new T3.THREE.Vector3(3000, 5200, 3000), c1: new T3.THREE.Vector3(0, 0, 0)
   };
   $('mission').textContent = '▶ Misión: reconoce el territorio';
+}
+/* ============ SIMULACIÓN DE AVES del humedal (tinguas, garzas, patos) ============ */
+let AVES = null;
+const BURRO = { x: 7437 - 5341.33, z: 3271 - 3161.9, rx: 300, rz: 85 };
+function burroIn(x, z, k) {
+  const dx = (x - BURRO.x) / (BURRO.rx * (k || 1)), dz = (z - BURRO.z) / (BURRO.rz * (k || 1));
+  return dx * dx + dz * dz < 1;
+}
+function buildAves(THREE) {
+  T3.avesU = { value: 0 };
+  T3.avesT = 0;
+  const parts = [];
+  function pushParts(g, wing) {
+    const n = g.attributes.position.count;
+    const w = new Float32Array(n).fill(wing);
+    g.setAttribute('aWing', new THREE.BufferAttribute(w, 1));
+    parts.push(g);
+  }
+  const body = new THREE.ConeGeometry(0.32, 1.7, 6);
+  body.rotateX(Math.PI / 2);
+  pushParts(body, 0);
+  function wingQuad(sx) {
+    const g = new THREE.BufferGeometry();
+    const x0 = 0.12 * sx, x1 = 1.35 * sx, z0 = 0.35, z1 = -0.35;
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+      x0, 0, z0, x1, 0, z0, x1, 0, z1, x0, 0, z0, x1, 0, z1, x0, 0, z1]), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1]), 2));
+    g.setAttribute('aWing', new THREE.BufferAttribute(new Float32Array([1, 1, 1, 1, 1, 1]), 1));
+    g.setIndex([0, 1, 2, 3, 4, 5]);
+    g.computeVertexNormals();
+    return g;
+  }
+  parts.push(wingQuad(1), wingQuad(-1));
+  const P = [], Nr = [], U = [], W = [], I = [];
+  let vc = 0;
+  for (const g of parts) {
+    const p = g.attributes.position.array, n = g.attributes.normal.array;
+    const u = g.attributes.uv.array, w = g.attributes.aWing.array, ix = g.index.array;
+    for (let i = 0; i < p.length; i++) P.push(p[i]);
+    for (let i = 0; i < n.length; i++) Nr.push(n[i]);
+    for (let i = 0; i < u.length; i++) U.push(u[i]);
+    for (let i = 0; i < w.length; i++) W.push(w[i]);
+    for (let i = 0; i < ix.length; i++) I.push(ix[i] + vc);
+    vc += p.length / 3;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(Nr, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+  geo.setAttribute('aWing', new THREE.Float32BufferAttribute(W, 1));
+  geo.setIndex(I);
+  const R = mulberry32(77);
+  const defs = [];
+  for (let i = 0; i < 18; i++) defs.push('pato');
+  for (let i = 0; i < 18; i++) defs.push('tingua');
+  for (let i = 0; i < 16; i++) defs.push('garza');
+  const N = defs.length;
+  const ph = new Float32Array(N), fr = new Float32Array(N);
+  geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1));
+  geo.setAttribute('aFreq', new THREE.InstancedBufferAttribute(fr, 1));
+  const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = T3.avesU;
+    sh.vertexShader = 'attribute float aWing;\nattribute float aPhase;\nattribute float aFreq;\nuniform float uTime;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        float flap = sin(uTime * aFreq + aPhase);
+        transformed.y += flap * 0.85 * abs(transformed.x) * aWing;
+        transformed.x *= (1.0 - 0.10 * abs(flap) * aWing);
+      }`);
+  };
+  const mesh = new THREE.InstancedMesh(geo, mat, N);
+  const birds = [];
+  const col = new THREE.Color();
+  const dummy = new THREE.Object3D();
+  function rimPt(f) {
+    const a = R() * Math.PI * 2, rr = 0.82 + R() * 0.16;
+    return { x: BURRO.x + Math.cos(a) * BURRO.rx * rr, z: BURRO.z + Math.sin(a) * BURRO.rz * rr };
+  }
+  function inPt() {
+    for (let t = 0; t < 20; t++) {
+      const x = BURRO.x + (R() * 2 - 1) * BURRO.rx, z = BURRO.z + (R() * 2 - 1) * BURRO.rz;
+      if (burroIn(x, z, 0.92)) return { x, z };
+    }
+    return { x: BURRO.x, z: BURRO.z };
+  }
+  defs.forEach((kind, i) => {
+    const b = { kind, i, heading: R() * Math.PI * 2, phase: R() * Math.PI * 2, pitch: 0, roll: 0 };
+    if (kind === 'pato') {
+      const p = inPt();
+      Object.assign(b, { x: p.x, z: p.z, y: 0.55, sc: 0.75 + R() * 0.2, speed: 2.6 + R() * 1.2, col: 0x7a5c3e });
+      const w = inPt(); b.wx = w.x; b.wz = w.z;
+      ph[i] = b.phase; fr[i] = 7 + R() * 2;
+    } else if (kind === 'tingua') {
+      const p = rimPt();
+      Object.assign(b, { x: p.x, z: p.z, y: 0.45, sc: 0.5 + R() * 0.15, speed: 7, col: 0x2f3540, state: 'pausa', timer: R() * 2 });
+      const w = rimPt(); b.wx = w.x; b.wz = w.z;
+      ph[i] = b.phase; fr[i] = 6;
+    } else {
+      if (i % 4 === 3) {
+        const p = rimPt();
+        Object.assign(b, { x: p.x, z: p.z, y: 0.6, sc: 1.25 + R() * 0.2, speed: 0, col: 0xe9e9e2, state: 'posada' });
+        ph[i] = -Math.PI / 2; fr[i] = 0.001;
+      } else {
+        const a = R() * Math.PI * 2, rr = 120 + R() * 150;
+        Object.assign(b, {
+          x: BURRO.x + Math.cos(a) * rr, z: BURRO.z + Math.sin(a) * rr * 0.5,
+          y: 35 + R() * 45, sc: 1.25 + R() * 0.2, speed: 9 + R() * 3, col: 0xe9e9e2,
+          cx: BURRO.x + (R() - 0.5) * 120, cz: BURRO.z + (R() - 0.5) * 60,
+          cr: rr, ca: a, dir: R() < 0.5 ? 1 : -1, state: 'vuelo'
+        });
+        b.heading = a + (b.dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+        ph[i] = b.phase; fr[i] = 2.2 + R() * 0.8;
+      }
+    }
+    birds.push(b);
+    col.setHex(b.col).offsetHSL(0, 0, (R() - 0.5) * 0.08);
+    dummy.position.set(b.x, b.y, b.z);
+    dummy.rotation.set(0, b.heading, 0);
+    dummy.scale.setScalar(b.sc);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    mesh.setColorAt(i, col);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  const sgeo = new THREE.CircleGeometry(1, 10);
+  sgeo.rotateX(-Math.PI / 2);
+  const shadow = new THREE.InstancedMesh(sgeo,
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.28, depthWrite: false }), N);
+  const grp = new THREE.Group();
+  grp.add(mesh, shadow);
+  T3.scene.add(grp);
+  AVES = { grp, mesh, shadow, birds, dummy: new THREE.Object3D(), n: N };
+}
+function stepBird(b, dt, now) {
+  if (b.kind === 'pato') {
+    const dx = b.wx - b.x, dz = b.wz - b.z, L = Math.hypot(dx, dz);
+    if (L < 4) { for (let t = 0; t < 20; t++) { const x = BURRO.x + (Math.random() * 2 - 1) * BURRO.rx, z = BURRO.z + (Math.random() * 2 - 1) * BURRO.rz; if (burroIn(x, z, 0.92)) { b.wx = x; b.wz = z; break; } } }
+    else {
+      const nh = Math.atan2(dx, dz);
+      let dh = nh - b.heading;
+      while (dh > Math.PI) dh -= Math.PI * 2;
+      while (dh < -Math.PI) dh += Math.PI * 2;
+      b.heading += Math.max(-2.5 * dt, Math.min(2.5 * dt, dh));
+      b.x += Math.sin(b.heading) * b.speed * dt;
+      b.z += Math.cos(b.heading) * b.speed * dt;
+      if (!burroIn(b.x, b.z, 1.05)) { b.wx = BURRO.x; b.wz = BURRO.z; }
+      b.roll = Math.max(-0.3, Math.min(0.3, -dh * 1.2));
+    }
+    b.y = 0.55 + Math.sin(now * 2.2 + b.phase) * 0.12;
+    b.pitch = Math.cos(now * 2.2 + b.phase) * 0.06;
+  } else if (b.kind === 'tingua') {
+    b.timer -= dt;
+    if (b.state === 'pausa') {
+      b.roll *= 0.9;
+      if (b.timer <= 0) {
+        const a = Math.atan2(b.x - BURRO.x, b.z - BURRO.z) + (Math.random() - 0.5) * 1.2;
+        const rr = 0.85 + Math.random() * 0.15;
+        b.wx = BURRO.x + Math.cos(a) * BURRO.rx * rr;
+        b.wz = BURRO.z + Math.sin(a) * BURRO.rz * rr;
+        b.state = 'corre'; b.timer = 0.5 + Math.random() * 0.4;
+      }
+    } else {
+      const dx = b.wx - b.x, dz = b.wz - b.z, L = Math.hypot(dx, dz);
+      if (L < 2 || b.timer <= 0) { b.state = 'pausa'; b.timer = 0.8 + Math.random() * 1.6; }
+      else {
+        const nh = Math.atan2(dx, dz);
+        let dh = nh - b.heading;
+        while (dh > Math.PI) dh -= Math.PI * 2;
+        while (dh < -Math.PI) dh += Math.PI * 2;
+        b.heading += Math.max(-6 * dt, Math.min(6 * dt, dh));
+        b.x += Math.sin(b.heading) * b.speed * dt;
+        b.z += Math.cos(b.heading) * b.speed * dt;
+      }
+    }
+    b.y = 0.45;
+  } else if (b.state === 'vuelo') {
+    b.ca += b.dir * (b.speed / Math.max(60, b.cr)) * dt;
+    b.x = b.cx + Math.cos(b.ca) * b.cr;
+    b.z = b.cz + Math.sin(b.ca) * b.cr * 0.5;
+    b.y += ((38 + (b.i % 5) * 9) - b.y) * Math.min(1, dt);
+    const nh = Math.atan2(-Math.sin(b.ca) * b.dir, -Math.cos(b.ca) * 0.5 * b.dir);
+    b.heading = nh;
+    b.roll = -b.dir * 0.35;
+  }
+}
+function updateAves() {
+  if (!AVES || !AVES.grp.visible) return;
+  const now = performance.now() / 1000;
+  const dt = Math.min(Math.max((now - (T3.avesT || now)), 0.001), 0.1);
+  T3.avesT = now;
+  T3.avesU.value = now;
+  const d = AVES.dummy;
+  for (let i = 0; i < AVES.n; i++) {
+    const b = AVES.birds[i];
+    stepBird(b, dt, now);
+    d.position.set(b.x, b.y, b.z);
+    d.rotation.set(b.pitch || 0, b.heading, b.roll || 0);
+    d.scale.setScalar(b.sc);
+    d.updateMatrix();
+    AVES.mesh.setMatrixAt(i, d.matrix);
+    d.position.set(b.x, 0.37, b.z);
+    d.rotation.set(0, 0, 0);
+    d.scale.setScalar(b.sc * 1.15);
+    d.updateMatrix();
+    AVES.shadow.setMatrixAt(i, d.matrix);
+  }
+  AVES.mesh.instanceMatrix.needsUpdate = true;
+  AVES.shadow.instanceMatrix.needsUpdate = true;
 }
 function todoNight(on) {
   if (!T3) return;
