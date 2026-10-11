@@ -98,7 +98,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v26</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v27</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -512,7 +512,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v26' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v26' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v26' : 'MODO: 🛰️ SATÉLITE · v26'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v27' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v27' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v27' : 'MODO: 🛰️ SATÉLITE · v27'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -596,7 +596,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v26 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v27 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -794,6 +794,7 @@ function flight(ms) {
     o.update();
     updateAves();
     T3.waterU.value = performance.now() / 1000;
+    if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
     T3.sun.position.copy(o.target).add(T3.sunOff);
     T3.sun.target.position.copy(o.target);
     T3.renderer.render(T3.scene, cam);
@@ -886,6 +887,8 @@ async function initTodo() {
   try {
     const THREE = await import('three');
     const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
+    try { ({ Reflector: REFL } = await import('three/addons/objects/Reflector.js')); }
+    catch (e) { console.warn('sin Reflector, agua simple', e); REFL = null; }
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
@@ -900,17 +903,32 @@ async function initTodo() {
     const skyU = {
       top: { value: new THREE.Color(0x2f6cb0) },
       mid: { value: new THREE.Color(0x9fc3e0) },
-      bot: { value: new THREE.Color(0xdfe9ee) }
+      bot: { value: new THREE.Color(0xdfe9ee) },
+      uTime: { value: 0 },
+      uCloud: { value: 0.9 },
+      uSunDir: { value: new THREE.Vector3(0.42, 0.62, 0.35).normalize() }
     };
     const sky = new THREE.Mesh(
       new THREE.SphereGeometry(15000, 20, 12),
       new THREE.ShaderMaterial({
         uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
         vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot;
+        fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot, uSunDir; uniform float uTime, uCloud;
+          float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+          float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++){ v += a * vnoise(p); p *= 2.03; a *= 0.5; } return v; }
           void main(){
-            float h = normalize(vP).y;
+            vec3 d = normalize(vP);
+            float h = d.y;
             vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.75, h)) : mix(bot, mid, smoothstep(-0.08, 0.12, h));
+            if (d.y > 0.015) {
+              vec2 cuv = d.xz / (d.y + 0.28) * 1.1 + uTime * vec2(0.006, 0.0025);
+              float cl = smoothstep(0.5, 0.8, fbm(cuv));
+              float sunAmt = max(dot(d, normalize(uSunDir)), 0.0);
+              vec3 cloudCol = mix(vec3(0.72, 0.78, 0.84), vec3(1.06, 1.0, 0.94), pow(sunAmt, 2.0));
+              c = mix(c, cloudCol, cl * smoothstep(0.015, 0.2, d.y) * uCloud);
+            }
             gl_FragColor = vec4(c, 1.0);
           }`
       })
@@ -960,6 +978,7 @@ async function initTodo() {
     ]);
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
+    try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
     $('loader').classList.add('hidden');
     say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles reales');
     return true;
@@ -1132,6 +1151,96 @@ function triShape(THREE, pts) {
   if (v.length < 3) return [];
   return THREE.ShapeUtils.triangulateShape(v, []);
 }
+function buildReeds(THREE, W) {
+  const cv = document.createElement('canvas');
+  cv.width = 128; cv.height = 128;
+  const g2 = cv.getContext('2d');
+  g2.clearRect(0, 0, 128, 128);
+  let s2 = 4242;
+  const R2 = () => (s2 = (s2 * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 46; i++) {
+    const x = 8 + R2() * 112, wdt = 2 + R2() * 3, hgt = 55 + R2() * 65;
+    const gr = g2.createLinearGradient(0, 128, 0, 128 - hgt);
+    gr.addColorStop(0, 'hsl(' + (80 + R2() * 15) + ',38%,22%)');
+    gr.addColorStop(1, 'hsl(' + (75 + R2() * 20) + ',42%,42%)');
+    g2.fillStyle = gr;
+    g2.fillRect(x, 128 - hgt, wdt, hgt);
+    if (R2() < 0.16) {
+      g2.fillStyle = '#4a2f1a';
+      g2.beginPath(); g2.ellipse(x + wdt / 2, 128 - hgt - 7, 3.2, 8, 0, 0, 7); g2.fill();
+    }
+  }
+  const tx = new THREE.CanvasTexture(cv);
+  tx.colorSpace = THREE.SRGBColorSpace;
+  const spots = [];
+  for (const w of W) {
+    const pts = w.pts.map(p => lw(p[0], p[1]));
+    if (pts.length < 2) continue;
+    const closed = pts.length > 3 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1.0;
+    let cx = 0, cz = 0;
+    for (const p of pts) { cx += p[0]; cz += p[1]; }
+    cx /= pts.length; cz /= pts.length;
+    const step = closed ? 2 : 3;
+    for (let i = 0; i < pts.length; i += step) {
+      const p = pts[i];
+      let ox = 0, oz = 0;
+      if (closed) {
+        const dx = p[0] - cx, dz = p[1] - cz, L = Math.hypot(dx, dz) || 1;
+        const off = 2 + ((i * 37) % 40) / 10;
+        ox = dx / L * off; oz = dz / L * off;
+      } else {
+        const q = pts[Math.min(i + 1, pts.length - 1)];
+        const dx = q[0] - p[0], dz = q[1] - p[1], L = Math.hypot(dx, dz) || 1;
+        const s = (i % 2 === 0) ? 1 : -1, off = 4.5 + ((i * 53) % 30) / 10;
+        ox = -dz / L * off * s; oz = dx / L * off * s;
+      }
+      if (spots.length < 6000) spots.push([p[0] + ox, p[1] + oz]);
+    }
+  }
+  if (!spots.length) return;
+  const p1 = new THREE.PlaneGeometry(3.2, 3.4);
+  p1.translate(0, 1.7, 0);
+  const p2 = p1.clone(); p2.rotateY(Math.PI / 2);
+  const pa = p1.attributes.position.array, pb = p2.attributes.position.array;
+  const ua = p1.attributes.uv.array, ub = p2.attributes.uv.array;
+  const ia = p1.index.array, ib = p2.index.array;
+  const pos = new Float32Array(pa.length + pb.length);
+  pos.set(pa); pos.set(pb, pa.length);
+  const uv = new Float32Array(ua.length + ub.length);
+  uv.set(ua); uv.set(ub, ua.length);
+  const idx = new Uint16Array(ia.length + ib.length);
+  idx.set(ia);
+  const off = pa.length / 3;
+  for (let i = 0; i < ib.length; i++) idx[ia.length + i] = ib[i] + off;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  const N = spots.length;
+  const ph = new Float32Array(N);
+  for (let i = 0; i < N; i++) ph[i] = (i * 2.39996) % (Math.PI * 2);
+  geo.setAttribute('aPhase', new THREE.InstancedBufferAttribute(ph, 1));
+  const mat = new THREE.MeshLambertMaterial({ map: tx, alphaTest: 0.35, side: THREE.DoubleSide });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = T3.avesU;
+    sh.vertexShader = 'attribute float aPhase;\nuniform float uTime;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      transformed.x += sin(uTime * 1.4 + aPhase) * 0.28 * uv.y;`);
+  };
+  const mesh = new THREE.InstancedMesh(geo, mat, N);
+  const d = new THREE.Object3D();
+  spots.forEach((s, i) => {
+    d.position.set(s[0], 0.1, s[1]);
+    d.rotation.set(0, ((i * 2.39996) % (Math.PI * 2)), 0);
+    d.scale.setScalar(0.7 + ((i * 13) % 10) * 0.07);
+    d.updateMatrix();
+    mesh.setMatrixAt(i, d.matrix);
+  });
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.receiveShadow = true;
+  T3.scene.add(mesh);
+  T3.counts.reeds = N;
+}
 function buildWater(THREE, W) {
   const P = [], C = [], UV = [], I = [];
   let vc = 0;
@@ -1165,6 +1274,66 @@ function buildWater(THREE, W) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
   g.setIndex(I);
+  g.computeVertexNormals();
+  if (REFL) {
+    const wmat = new REFL(g, {
+      clipBias: 0.02,
+      textureWidth: 512,
+      textureHeight: 512,
+      multisample: 2,
+      color: new THREE.Color(0x9fc3e0),
+      shader: {
+        uniforms: {
+          color: { value: new THREE.Color(0x9fc3e0) },
+          tDiffuse: { value: null },
+          textureMatrix: { value: null },
+          uTime: T3.waterU,
+          uSun: { value: new THREE.Vector3(0.45, 0.62, 0.35).normalize() },
+          uDeep: { value: new THREE.Color(0x0d4257) },
+          uShallow: { value: new THREE.Color(0x2fa0b0) },
+          uSky: { value: new THREE.Color(0xbfe0f2) }
+        },
+        vertexShader: `
+          uniform mat4 textureMatrix;
+          varying vec4 vUvP; varying vec2 vUv; varying vec3 vWp;
+          void main(){
+            vUv = uv;
+            vec4 wp = modelMatrix * vec4(position, 1.0);
+            vWp = wp.xyz;
+            vUvP = textureMatrix * vec4(position, 1.0);
+            gl_Position = projectionMatrix * viewMatrix * wp;
+          }`,
+        fragmentShader: `
+          uniform sampler2D tDiffuse;
+          uniform float uTime;
+          uniform vec3 uSun, uDeep, uShallow, uSky;
+          varying vec4 vUvP; varying vec2 vUv; varying vec3 vWp;
+          void main(){
+            vec2 p = vUv * 90.0;
+            float nx = sin(p.x * 0.9 + uTime * 1.7) + sin((p.x + p.y) * 0.5 - uTime * 1.2) + sin(p.y * 1.3 + uTime * 2.1);
+            float ny = cos(p.y * 0.8 - uTime * 1.5) + cos((p.x - p.y) * 0.6 + uTime * 1.0) + cos(p.x * 1.1 - uTime * 1.9);
+            vec3 N = normalize(vec3(nx * 0.10, 1.0, ny * 0.10));
+            vec4 uv4 = vUvP;
+            uv4.xy += N.xz * 0.45;
+            vec3 refl = texture2DProj(tDiffuse, uv4).rgb;
+            vec3 V = normalize(cameraPosition - vWp);
+            float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+            vec3 base = mix(uDeep, uShallow, 0.5 + 0.25 * sin((p.x + p.y) * 0.12 + uTime * 0.7));
+            vec3 col = mix(base, refl, clamp(fres * 0.85 + 0.3, 0.0, 1.0));
+            float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 70.0);
+            col += spec * vec3(1.0, 0.96, 0.88);
+            gl_FragColor = vec4(col, 0.95);
+            #include <tonemapping_fragment>
+            #include <colorspace_fragment>
+          }`
+      }
+    });
+    wmat.material.transparent = true;
+    const wmesh = wmat;
+    wmesh.receiveShadow = true;
+    T3.scene.add(wmesh);
+    T3.waterMat = wmat.material;
+  } else {
   const wmat = new THREE.ShaderMaterial({
     uniforms: {
       uTime: T3.waterU,
@@ -1210,6 +1379,7 @@ function buildWater(THREE, W) {
   wmesh.renderOrder = 4;
   T3.scene.add(wmesh);
   T3.waterMat = wmat;
+  }
 }
 function buildParks(THREE, P) {
   const gP = [], gC = [], gI = [];
@@ -1280,6 +1450,7 @@ function flyTodoHome() {
   };
   $('mission').textContent = '▶ Misión: reconoce el territorio';
 }
+let REFL = null;
 /* ============ SIMULACIÓN DE AVES del humedal (tinguas, garzas, patos) ============ */
 let AVES = null;
 const BURRO = { x: 7437 - 5341.33, z: 3271 - 3161.9, rx: 300, rz: 85 };
@@ -1497,12 +1668,14 @@ function todoNight(on) {
     T3.hemi.intensity = 0.22; T3.hemi.color.set(0x5a76a8);
     T3.sun.intensity = 0.35; T3.sun.color.set(0x93b6e6);
     T3.renderer.toneMappingExposure = 0.9;
+    if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); T3.skyU.uCloud.value = 0.18; }
     if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); }
   } else {
     T3.scene.background.set(0x87b5dd); T3.scene.fog.color.set(0x9fc3e0);
     T3.hemi.intensity = 0.85; T3.hemi.color.set(0xbcd6ff);
     T3.sun.intensity = 2.0; T3.sun.color.set(0xfff1d6);
     T3.renderer.toneMappingExposure = 1.12;
+    if (T3.skyU) { T3.skyU.top.value.set(0x2f6cb0); T3.skyU.mid.value.set(0x9fc3e0); T3.skyU.bot.value.set(0xdfe9ee); T3.skyU.uCloud.value = 0.9; }
     if (T3.skyU) { T3.skyU.top.value.set(0x2f6cb0); T3.skyU.mid.value.set(0x9fc3e0); T3.skyU.bot.value.set(0xdfe9ee); }
   }
 }
