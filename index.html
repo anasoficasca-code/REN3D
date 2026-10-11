@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>REN3D • Kennedy 3D · Territorio Real</title>
 <link rel="icon" href="data:,">
+<link rel="preload" href="data3d/humedal.splat" as="fetch" crossorigin="anonymous">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
@@ -1199,11 +1200,16 @@ const SPLAT_HOME = {
 const SUP = { x: 0.2066, y: -0.5341, z: -0.8198 };
 async function initSplat() {
   if (SPLAT) return true;
+  const before = new Set(document.querySelectorAll('canvas'));
+  const hideNew = () => { try { [...document.querySelectorAll('canvas')].filter(c => !before.has(c)).forEach(c => c.style.display = 'none'); } catch (_) {} };
   $('loader').classList.remove('hidden');
-  $('lmsg').textContent = 'Cargando splat del humedal (8 MB)…';
+  $('lmsg').textContent = 'Cargando visor 3D…';
+  const timeout = (ms, msg) => new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms));
   try {
-    const before = new Set(document.querySelectorAll('canvas'));
-    const G = await import('@mkkellogg/gaussian-splats-3d');
+    const G = await Promise.race([
+      import('@mkkellogg/gaussian-splats-3d'),
+      timeout(60000, 'no se pudo descargar el visor 3D (revisa tu internet)')
+    ]);
     const viewer = new G.Viewer({
       cameraUp: SPLAT_HOME.up,
       initialCameraPosition: SPLAT_HOME.pos,
@@ -1212,7 +1218,11 @@ async function initSplat() {
       gpuAcceleratedSort: false,
       sphericalHarmonicsDegree: 0
     });
-    await viewer.addSplatScene(SPLAT_URL, { showLoadingUI: true, progressiveLoad: false });
+    $('loader').classList.add('hidden');
+    await Promise.race([
+      viewer.addSplatScene(SPLAT_URL, { showLoadingUI: true, progressiveLoad: true }),
+      timeout(180000, 'la descarga del splat se estanco (revisa tu internet)')
+    ]);
     viewer.start();
     const added = [...document.querySelectorAll('canvas')].filter(c => !before.has(c));
     const cv = added[0] || null;
@@ -1223,6 +1233,7 @@ async function initSplat() {
     return true;
   } catch (e) {
     $('loader').classList.add('hidden');
+    hideNew();
     console.warn('SPLAT:', e);
     say('⚠️ No cargó el splat: ' + String(e && e.message || e).slice(0, 110), 6000);
     return false;
