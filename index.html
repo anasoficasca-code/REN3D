@@ -81,7 +81,8 @@
   @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
   #hud-r{display:none}
   #trafficHud{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:18;width:min(560px,72vw);padding:10px 14px;background:rgba(7,13,22,.92);border:1px solid rgba(56,189,248,.45);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);color:#dbeafe;font:12px system-ui,sans-serif}
-  #trafficHud .trafficTop{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700}
+  #trafficHud .trafficTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700}
+  #trafficPlay{padding:3px 10px;font-size:15px;line-height:1;border-radius:7px}
   #trafficTime{width:100%;accent-color:#22d3ee;cursor:pointer}
   @media(max-width:820px){#trafficHud{width:82vw;bottom:112px}}
 </style>
@@ -124,7 +125,7 @@
   <span><kbd>Arrastre</kbd> mirar</span>
 </div>
 
-<div id="trafficHud"><div class="trafficTop"><span>🚗 Simulación de tráfico</span><b id="trafficLabel">00:00 / 24:59</b></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
+<div id="trafficHud"><div class="trafficTop"><span>🚗 Simulación de tráfico</span><b id="trafficLabel">00:00 / 24:59</b><button id="trafficPlay" type="button" class="on" aria-label="Reproducir simulación">▶</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
 <div class="hud" id="hud-c">
   <button id="b-foto" class="on">🏙️ Fotorrealista</button>
   <button id="b-sat">🛰️ Satélite</button>
@@ -967,6 +968,7 @@ async function initTodo() {
       fetch('data3d/net.json').then(r => r.json())
     ]);
     // Prioridad visible: los carros aparecen antes de construir el arbolado pesado.
+    buildProofCar(THREE);
     try { await buildCars(THREE, N); say('🚗 ' + VEHICLE_MAX_VISIBLE.toLocaleString('es-CO') + ' carros cargados · Play activo'); } catch (e) { console.warn('cars:', e); T3.counts.cars = 0; say('⚠️ Error de carros: ' + String(e && e.message || e).slice(0, 100), 8000); }
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
@@ -1387,6 +1389,23 @@ async function buildGrass(THREE, P, W) {
 let CAR_PLAYING = true;
 let CAR_TIME = 1000;
 let CARS = null;
+let PROOF_CAR = null;
+function buildProofCar(THREE) {
+  if (PROOF_CAR || !T3) return;
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(8, 1.8, 4), new THREE.MeshBasicMaterial({ color: 0xffc400 }));
+  body.position.y = 2.0;
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.4, 3.2), new THREE.MeshBasicMaterial({ color: 0x164e63 }));
+  roof.position.set(-0.4, 3.55, 0);
+  const wheels = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.5, 4.4), new THREE.MeshBasicMaterial({ color: 0x111827 }));
+  wheels.position.y = 0.72;
+  g.add(body, roof, wheels);
+  g.position.set(...lw(5902.8, 3495.1), 0);
+  g.renderOrder = 50;
+  g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.renderOrder = 50; } });
+  T3.scene.add(g); PROOF_CAR = g;
+}
+
 const VEHICLE_DATA_URL = 'data3d/vehicles.bin';
 const VEHICLE_DURATION = 1499;
 const VEHICLE_UNIQUE_COUNT = 4202;
@@ -1901,7 +1920,8 @@ function todoNight(on) {
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
 $('b-play').onclick = () => { CAR_PLAYING = !CAR_PLAYING; if (CARS) CARS.playing = CAR_PLAYING; $('b-play').textContent = CAR_PLAYING ? '⏸ Pausar carros' : '▶ Play carros'; $('b-play').classList.toggle('on', CAR_PLAYING); say(CAR_PLAYING ? '▶ Simulación de carros en marcha' : '⏸ Simulación pausada'); };
-$('trafficTime').oninput = e => { CAR_TIME=Number(e.target.value); if(CARS){ CARS.clock=CAR_TIME; CARS.step=-1; CARS.nextMap=null; renderRecordedCars(CAR_TIME); } };
+$('trafficTime').oninput = e => { CAR_TIME=Number(e.target.value); CAR_PLAYING=true; if(CARS){ CARS.playing=true; CARS.clock=CAR_TIME; CARS.step=-1; CARS.nextMap=null; renderRecordedCars(CAR_TIME); } $('trafficPlay').textContent='⏸'; $('trafficPlay').classList.add('on'); $('b-play').textContent='⏸ Pausar carros'; $('b-play').classList.add('on'); };
+$('trafficPlay').onclick = () => { CAR_PLAYING=!CAR_PLAYING; if(CARS) CARS.playing=CAR_PLAYING; $('trafficPlay').textContent=CAR_PLAYING?'⏸':'▶'; $('trafficPlay').classList.toggle('on',CAR_PLAYING); $('b-play').textContent=CAR_PLAYING?'⏸ Pausar carros':'▶ Play carros'; $('b-play').classList.toggle('on',CAR_PLAYING); say(CAR_PLAYING?'▶ Simulación de tráfico en marcha':'⏸ Simulación de tráfico pausada'); };
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {
