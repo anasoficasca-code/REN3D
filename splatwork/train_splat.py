@@ -22,6 +22,39 @@ IMGDIR = os.path.join(WORK, 'frames')
 SPARSE = sys.argv[1] if len(sys.argv) > 1 else os.path.join(WORK, 'sparse', '0')
 PREVDIR = os.path.join(WORK, 'preview')
 OUT_SPLAT = os.path.join(WORK, 'humedal.splat')
+_LOCKFD = None
+
+
+def _acquire_lock():
+    import subprocess
+    lp = os.path.join(WORK, 'train.lock')
+    if os.path.exists(lp):
+        try:
+            old = int(open(lp).read().strip().split()[0])
+        except Exception:
+            old = None
+        alive = True
+        if old:
+            try:
+                out = subprocess.run(
+                    ['tasklist', '/FI', 'PID eq %d' % old, '/FO', 'CSV'],
+                    capture_output=True, text=True, timeout=20).stdout
+                alive = ('"%d"' % old) in out
+            except Exception:
+                alive = True
+        if alive:
+            print('OTRA INSTANCIA ENTRENANDO (pid %s): salgo sin hacer nada' % old, flush=True)
+            raise SystemExit(42)
+        try:
+            os.remove(lp)
+        except OSError:
+            pass
+    fd = os.open(lp, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    os.write(fd, str(os.getpid()).encode())
+    return fd
+
+
+_LOCKFD = _acquire_lock()
 SH_DEGREE = 3
 MAX_STEPS = 15000
 SH_INTERVAL = 1000
@@ -144,14 +177,8 @@ if len(pts) > MAX_INIT:
     sel = np.random.choice(len(pts), MAX_INIT, replace=False)
     pts, rgb = pts[sel], rgb[sel]
 means = torch.from_numpy(pts).float().to(device)
-# escala por vecino mas cercano (por bloques para no reventar VRAM)
-BS = 20000
-dmin = torch.full((len(means),), 1e9, device=device)
-for i in range(0, len(means), BS):
-    d = torch.cdist(means[i:i + BS], means)
-    d[d == 0] = 1e9
-    dmin[i:i + BS] = d.min(dim=1).values
-scales = torch.log(torch.clamp(dmin, min=1e-3))[:, None].repeat(1, 3)
+del pts
+scales = torch.full((len(means), 3), math.log(0.1), device=device)
 n_vol_now = len(means) - VOL_START
 if n_vol_now > 0:
     scales[VOL_START:] = math.log(0.15)
@@ -181,6 +208,20 @@ strategy = DefaultStrategy(verbose=True)
 strategy.check_sanity(params, optimizers)
 state = strategy.initialize_state(scene_scale=scene_scale)
 print('init ok, N =', N, flush=True)
+CKPT = os.path.join(WORK, 'ckpt.pt')
+start_step = 1
+if os.path.exists(CKPT):
+    _ck = torch.load(CKPT, map_location='cpu', weights_only=False)
+    for _k in params:
+        params[_k].data = _ck['params'][_k].to(device)
+    start_step = _ck['step'] + 1
+    del _ck
+    print('resume desde paso', start_step, 'n=', len(params['means']), flush=True)
+
+
+def save_ckpt(step):
+    torch.save({'step': step,
+                'params': {k: v.detach().cpu() for k, v in params.items()}}, CKPT)
 
 K_nd = (SH_DEGREE + 1) ** 2
 VAL_IDX = 0
@@ -208,7 +249,7 @@ def save_preview(step):
 
 # ---------- 3. loop ----------
 M = len(names)
-for step in range(1, MAX_STEPS + 1):
+for step in range(start_step, MAX_STEPS + 1):
     idx = random.randrange(M)
     for o in optimizers.values():
         o.zero_grad(set_to_none=True)
@@ -234,12 +275,16 @@ for step in range(1, MAX_STEPS + 1):
     )
     strategy.step_pre_backward(params, optimizers, state, step, info)
     loss.backward()
+    for o in optimizers.values():
+        o.step()
+        o.zero_grad(set_to_none=True)
     strategy.step_post_backward(params, optimizers, state, step, info)
     if step % 500 == 0:
         print('step %d/%d loss %.5f n=%d' % (step, MAX_STEPS, loss.item(), len(params['means'])), flush=True)
         torch.cuda.empty_cache()
     if step % 2000 == 0:
         save_preview(step)
+        save_ckpt(step)
 
 save_preview(MAX_STEPS)
 with torch.no_grad():
@@ -250,3 +295,13 @@ with torch.no_grad():
         format='splat', save_to=OUT_SPLAT,
     )
 print('OK ->', OUT_SPLAT, os.path.getsize(OUT_SPLAT) / 1048576, 'MB', flush=True)
+if os.path.exists(CKPT):
+    os.remove(CKPT)
+try:
+    os.close(_LOCKFD)
+except Exception:
+    pass
+try:
+    os.remove(os.path.join(WORK, 'train.lock'))
+except OSError:
+    pass
