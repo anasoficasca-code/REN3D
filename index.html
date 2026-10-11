@@ -96,7 +96,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v22</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v23</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -485,8 +485,8 @@ let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
 let SPLAT = null;
-const SPLAT_URL = 'data3d/humedal-micro.splat';
-const SPLAT_HD = 'data3d/humedal-v2.splat';
+const SPLAT_URL = 'data3d/humedal-v3.splat';
+const SPLAT_HD = 'data3d/humedal-hd.splat';
 
 function setMode(m) {
   mode = m;
@@ -503,7 +503,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v22' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v22' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v22' : 'MODO: 🛰️ SATÉLITE · v22'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v23' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v23' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v23' : 'MODO: 🛰️ SATÉLITE · v23'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -587,7 +587,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v22 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v23 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1202,8 +1202,8 @@ $('b-todo').onclick = async () => { setMode('todo'); };
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {
   up: [0.2066, -0.5341, -0.8198],
-  pos: [-0.3, -0.4, -11.1],
-  look: [4.016, 0.664, 5.515]
+  pos: [2.576, 0.406, -0.023],
+  look: [7.18, 4.06, 1.18]
 };
 const SUP = { x: 0.2066, y: -0.5341, z: -0.8198 };
 async function initSplat() {
@@ -1244,7 +1244,7 @@ async function initSplat() {
   $('loader').classList.remove('hidden');
   $('lmsg').textContent = 'Cargando splat del humedal…';
   try {
-    await tryLoad(SPLAT_URL, '(3 MB)');
+    await tryLoad(SPLAT_URL, '(22 MB)');
   } catch (e1) {
     hideNew();
     try {
@@ -1299,7 +1299,7 @@ $('b-hd').onclick = async () => {
   if (mode !== 'splat') { say('Entra primero a 🌀 Splat Humedal'); return; }
   if (!SPLAT) { say('⏳ Espera que cargue el splat…'); return; }
   if (SPLAT.hd) { say('Ya estás en HD'); return; }
-  say('📦 Cargando versión HD (32 MB)…');
+  say('📦 Cargando versión HD (76 MB)…');
   try {
     if (SPLAT.canvas) SPLAT.canvas.style.display = 'none';
     const G = await import('@mkkellogg/gaussian-splats-3d');
