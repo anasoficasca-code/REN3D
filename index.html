@@ -1442,7 +1442,7 @@ async function buildCars(THREE, N) {
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  CARS = { bodies, cabins, wheels, timeline, clock: 1000, playing: CAR_PLAYING, step: -1, nextMap: null, dummy: new THREE.Object3D() };
+  CARS = { bodies, cabins, wheels, timeline, clock: CAR_TIME, playing: CAR_PLAYING, step: -1, nextMap: null, lastAngle: new Map(), dummy: new THREE.Object3D() };
   T3.counts.cars = VEHICLE_MAX_VISIBLE;
   renderRecordedCars(CAR_TIME);
 }
@@ -1466,7 +1466,9 @@ function renderRecordedCars(time) {
     const x = v.x + (nv.x - v.x) * frac, y = v.y + (nv.y - v.y) * frac;
     const p = lw(x, y);
     const dx = nv.x - v.x, dz = nv.y - v.y;
-    const hd = Math.hypot(dx, dz) > 0.05 ? Math.atan2(dx, dz) : 0;
+    const moved = Math.hypot(dx, dz) > 0.05;
+    if (moved) CARS.lastAngle.set(v.id, Math.atan2(dx, dz));
+    const hd = CARS.lastAngle.get(v.id) ?? 0;
     const carScale = 1.55;
     d.position.set(p[0], 1.5, p[1]); d.rotation.set(0, hd, 0); d.scale.setScalar(carScale); d.updateMatrix();
     CARS.bodies.setMatrixAt(i, d.matrix); CARS.cabins.setMatrixAt(i, d.matrix);
@@ -1486,7 +1488,7 @@ function renderRecordedCars(time) {
 function updateCars(dt) {
   if (!CARS || !CARS.playing) return;
   CARS.clock += dt;
-  if (CARS.clock > VEHICLE_DURATION) { CARS.clock = 0; CARS.step = -1; CARS.nextMap = null; }
+  if (CARS.clock >= VEHICLE_DURATION) { CARS.clock = 0; CARS.step = -1; CARS.nextMap = null; CARS.lastAngle.clear(); }
   renderRecordedCars(CARS.clock);
 }
 
