@@ -1,10 +1,12 @@
 REN3D - creditos de modelos, texturas e imagenes
 
-ARBOLES, PASTOS, ARBUSTOS Y HELECHOS (modelos 3D reales, licencia CC0, Poly Haven - polyhaven.com)
-  Jacaranda Tree (Rob Tuytel, Rico Cilliers)  -> data3d/models/jacaranda_L0_*.glb, jacaranda_L1_*.glb
-  Tree Small 02 (Rico Cilliers)               -> data3d/models/arbolpeq_L0_*.glb, arbolpeq_L1_*.glb
-  Grass Medium 01 y 02, Shrub 03 y 04, Fern 02 (Rico Cilliers, Rob Tuytel) -> data3d/models/grass_*.glb, shrub_*.glb, fern_02.glb
-  Son versiones reducidas para la web (de las hojas se conserva una de cada N, agrandadas; la madera se simplifico), no los modelos originales.
+ARBOLES Y PLANTAS (modelos 3D reales, licencia CC0, Poly Haven - polyhaven.com)
+  Arboles: Jacaranda Tree (Rob Tuytel, Rico Cilliers), Tree Small 02 (Rico Cilliers), Island Tree 01 y 02 (Rob Tuytel, Rico Cilliers)
+           -> data3d/models/jacaranda_*, arbolpeq_*, island_tree_01_*, island_tree_02_*  (versiones reducidas para la web; de lejos se usan siluetas dibujadas desde el propio modelo)
+  Plantas: Fern 02, Celandine 01, Nettle Plant, Periwinkle Plant, Calathea Orbifolia 01 (Rico Cilliers, Rob Tuytel, Amal Kumar)
+           -> data3d/models/fern_02.glb, celandine_01.glb, nettle_plant.glb, periwinkle_plant.glb, calathea_orbifolia_01.glb
+  Las hojas de los arboles se redujeron conservando una de cada N y agrandandolas; la madera se simplifico y se quito el parche de suelo del escaneo. No son los modelos originales.
+  El pasto y los juncos 3D se generan por codigo en data3d/real3d.js (no usan modelos descargados).
 
 AGUA
   data3d/waternormals.jpg: mapa de normales de los ejemplos de three.js (https://github.com/mrdoob/three.js, licencia MIT).

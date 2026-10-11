@@ -43,7 +43,7 @@ La escena demo incluida es el castillo hiperrealista de tu foto, para que veas e
 
 ## Modelos reales (carros, arboles, pasto, agua, aves)
 
-- `data3d/real3d.js` construye los carros (cinco estilos, siempre de frente: el modelo mira hacia +Z y el giro usa `atan2(dx, dz)`), los arboles reales 3D con niveles de detalle segun la distancia a la camara, el pasto y los arbustos 3D cerca de la camara, el agua con ondas reales y las aves de los humedales.
+- `data3d/real3d.js` construye los carros (cinco estilos, siempre de frente: el modelo mira hacia +Z y el giro usa `atan2(dx, dz)`), cuatro especies de arboles reales 3D (cerca y a media distancia) con siluetas reales de lejos, pasto y juncos 3D verdes y plantas reales cerca de la camara (parques y alrededor del agua), el agua con ondas reales y las aves de los humedales.
 - Los modelos estan en `data3d/models/` y los creditos en `data3d/CREDITOS.txt`.
 - `?liviano=1` abre el modo TODO 3D sin edificios ni sombras (equipos modestos o pruebas).
 - Para usar otra foto de ave, reemplaza los PNG de `data3d/aves/`.

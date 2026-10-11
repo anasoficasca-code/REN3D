@@ -981,9 +981,9 @@ async function initTodo() {
     try { if (AVES) AVES.birds.forEach(b => { if (b.kind === 'pato' || b.kind === 'tingua') b.sc = 0; }); } catch (e) {} // los patos y tinguas ahora son los reales de todos los humedales
     if (T3.R && T3.env) { try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); } }
     if (T3.R) T3.R.buildWaterBirds(T3, W, lw).then(a => { T3.waterBirds = a; }).catch(e => console.warn('aves de humedal:', e));
-    try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
+    // los juncos negros de buildReeds se reemplazaron por juncos 3D verdes en data3d/real3d.js
     try { await buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
-    if (T3.R && T3.env) T3.R.buildNearPlants(T3, W, lw, T3.env).then(a => { T3.plants = a; }).catch(e => console.warn('pasto 3D:', e));
+    if (T3.R && T3.env) T3.R.buildNearPlants(T3, W, lw, T3.env, P).then(a => { T3.plants = a; }).catch(e => console.warn('pasto 3D:', e));
     $('loader').classList.add('hidden');
     say('🚗 TODO 3D listo · ' + (T3.counts.cars || 0).toLocaleString('es-CO') + ' carros · 24:59 · Árboles cargando en segundo plano');
     if (T3.R && T3.env) T3.R.buildTrees(T3, T, W, lw, T3.env).then(a => { T3.trees = a; say('\u2705 \u00c1rboles reales 3D cargados \u00b7 carros en marcha'); }).catch(e => { console.warn('arboles reales:', e); buildTreesReal(THREE, T); });
@@ -1354,6 +1354,7 @@ async function buildGrass(THREE, P, W) {
     }
   }
   T3.grassSpots = spots;
+  return; // el pasto de tarjetas (se veia negro) se reemplazo por pasto 3D verde en data3d/real3d.js
   if (!spots.length) return;
   const p1 = new THREE.PlaneGeometry(1.3, 1.0);
   p1.translate(0, 0.5, 0);

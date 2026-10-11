@@ -13,7 +13,7 @@ export function makeEnv(renderer) {
   const pm = new THREE.PMREMGenerator(renderer), s = new THREE.Scene();
   const sky = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
-    uniforms: { top: { value: new THREE.Color(0x2f6cb0) }, mid: { value: new THREE.Color(0x9fc3e0) }, bot: { value: new THREE.Color(0xdfe9ee) } },
+    uniforms: { top: { value: new THREE.Color(0x255a98) }, mid: { value: new THREE.Color(0x6f98bd) }, bot: { value: new THREE.Color(0x9fb7c9) } },
     vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     fragmentShader: 'varying vec3 vP; uniform vec3 top, mid, bot; void main(){ float y = normalize(vP).y; vec3 c = mix(bot, mid, smoothstep(-0.1, 0.3, y)); c = mix(c, top, smoothstep(0.25, 0.9, y)); c = mix(c, vec3(0.25, 0.28, 0.25), smoothstep(-0.02, -0.25, y)); gl_FragColor = vec4(c, 1.0); }'
   }));
@@ -132,117 +132,196 @@ function cuerposDeAgua(W, lw) {
 }
 
 /* ------------------------------------------------------------------ arboles reales con niveles de detalle ------------------------------------------------------------------ */
+// Cerca: modelo real completo. Media distancia: modelo real reducido. Lejos: siluetas del mismo arbol real (dibujadas una vez desde el propio modelo), nunca esferas.
+const ESPECIES_ARBOL = [
+  { base: 'jacaranda', peso: 0.30, ancho: 13 }, { base: 'arbolpeq', peso: 0.25, ancho: 9 },
+  { base: 'island_tree_01', peso: 0.25, ancho: 12 }, { base: 'island_tree_02', peso: 0.20, ancho: 12 }
+];
+function realzarMaterial(m, env, hoja) {
+  ajustarMat(m, env, { roughness: 0.9, tinte: hoja ? 1.25 : 1.0, env: 0.4 });
+  // las caras que no miran al sol no se ven negras: la textura aporta un poco de luz propia
+  if (m.map) { m.emissiveMap = m.map; m.emissive = new THREE.Color(1, 1, 1); m.emissiveIntensity = hoja ? 0.42 : 0.18; }
+  m.needsUpdate = true; return m;
+}
+function dibujarSiluetas(T3, partes, alto, ancho) {
+  const lado = Math.max(alto, ancho) * 1.08, rt = new THREE.WebGLRenderTarget(512, 512, { samples: 4 }), s = new THREE.Scene();
+  s.add(new THREE.HemisphereLight(0xdfeaff, 0x6a7a55, 1.4)); const sol = new THREE.DirectionalLight(0xfff1d6, 2.6); sol.position.set(30, 60, 40); s.add(sol);
+  partes.forEach(p => { const mesh = new THREE.Mesh(p.geo, p.mat); s.add(mesh); });
+  const cam = new THREE.OrthographicCamera(-lado / 2, lado / 2, lado / 2, -lado / 2, 1, 200); cam.position.set(0, lado / 2, 80); cam.lookAt(0, lado / 2, 0);
+  const r = T3.renderer, c0 = new THREE.Color(); r.getClearColor(c0); const a0 = r.getClearAlpha(), rt0 = r.getRenderTarget();
+  r.setRenderTarget(rt); r.setClearColor(0x000000, 0); r.clear(); r.render(s, cam); r.setRenderTarget(rt0); r.setClearColor(c0, a0);
+  return { tex: rt.texture, lado };
+}
 export async function buildTrees(T3, T, W, lw, env) {
   const stride = Math.max(1, Math.ceil(T.t.length / 18000));
-  const X = [], Z = [], Hh = [], SP = [];
-  for (let i = 0; i < T.t.length; i += stride) { const t = T.t[i], w = lw(t[0], t[1]); X.push(w[0]); Z.push(w[1]); Hh.push(Math.max(4, Math.min(16, t[2] || 6))); SP.push(hash(i * 3 + 1) < 0.45 ? 0 : 1); }
-  // arboles de ribera: alrededor de los cuerpos de agua
+  const X = [], Z = [], Hh = [], SP = [], pesoTot = ESPECIES_ARBOL.reduce((a, e) => a + e.peso, 0);
+  const elegir = (r) => { r *= pesoTot; for (let k = 0; k < ESPECIES_ARBOL.length; k++) { r -= ESPECIES_ARBOL[k].peso; if (r < 0) return k; } return ESPECIES_ARBOL.length - 1; };
+  for (let i = 0; i < T.t.length; i += stride) { const t = T.t[i], w = lw(t[0], t[1]); X.push(w[0]); Z.push(w[1]); Hh.push(Math.max(4, Math.min(16, t[2] || 6))); SP.push(elegir(hash(i * 3 + 1))); }
   const aguas = cuerposDeAgua(W, lw); let ribera = 0;
   for (const a of aguas) {
-    for (let i = 0; i < a.pts.length && ribera < 3200; i += 5) {
+    for (let i = 0; i < a.pts.length && ribera < 4200; i += 4) {
       const p = a.pts[i]; let dx, dz;
-      if (a.cerrado) { dx = p[0] - a.cx; dz = p[1] - a.cz; } else { const q = a.pts[Math.min(i + 1, a.pts.length - 1)]; dx = -(q[1] - p[1]); dz = q[0] - p[0]; if ((i % 10) >= 5) { dx = -dx; dz = -dz; } }
-      const L = Math.hypot(dx, dz) || 1, r = 7 + hash(i * 17 + 3) * 16;
-      if (hash(i * 29 + 7) < 0.7) { X.push(p[0] + dx / L * r + (hash(i * 5 + 1) - 0.5) * 6); Z.push(p[1] + dz / L * r + (hash(i * 11 + 9) - 0.5) * 6); Hh.push(5 + hash(i) * 6); SP.push(hash(i * 7) < 0.5 ? 0 : 1); ribera++; }
+      if (a.cerrado) { dx = p[0] - a.cx; dz = p[1] - a.cz; } else { const q = a.pts[Math.min(i + 1, a.pts.length - 1)]; dx = -(q[1] - p[1]); dz = q[0] - p[0]; if ((i % 8) >= 4) { dx = -dx; dz = -dz; } }
+      const L = Math.hypot(dx, dz) || 1, r = 6 + hash(i * 17 + 3) * 20;
+      if (hash(i * 29 + 7) < 0.75) { X.push(p[0] + dx / L * r + (hash(i * 5 + 1) - 0.5) * 6); Z.push(p[1] + dz / L * r + (hash(i * 11 + 9) - 0.5) * 6); Hh.push(5 + hash(i) * 7); SP.push(elegir(hash(i * 7 + 2))); ribera++; }
     }
   }
   const N = X.length, ROT = new Float32Array(N); for (let i = 0; i < N; i++) ROT[i] = hash(i * 41 + 11) * Math.PI * 2;
-  // modelos: se normalizan a base en el suelo, centrados, altura 1 = altura del modelo original
   const especies = [];
-  for (const base of ['jacaranda', 'arbolpeq']) {
+  for (const E of ESPECIES_ARBOL) {
     const niveles = {};
     for (const nv of ['L0', 'L1']) {
       const partes = [];
-      for (const parte of ['madera', 'hojas']) { const g = await gltfLoader.loadAsync(`data3d/models/${base}_${nv}_${parte}.glb`); partes.push(...recolectar(g.scene).map(p => ({ ...p, hoja: parte === 'hojas' }))); }
+      for (const parte of ['madera', 'hojas']) { const g = await gltfLoader.loadAsync(`data3d/models/${E.base}_${nv}_${parte}.glb`); partes.push(...recolectar(g.scene).map(p => ({ ...p, hoja: parte === 'hojas' }))); }
       niveles[nv] = partes;
     }
-    const b = cajaDe(niveles.L0), cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, alto = b.max.y - b.min.y;
-    for (const nv of ['L0', 'L1']) niveles[nv].forEach(p => { p.geo.translate(-cx, -b.min.y, -cz); ajustarMat(p.mat, env, { roughness: 0.9, tinte: p.hoja ? 1.35 : 1.0, env: 0.4 }); });
-    especies.push({ base, niveles, alto });
+    const b = cajaDe(niveles.L0), cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, alto = b.max.y - b.min.y, ancho = Math.max(b.max.x - b.min.x, b.max.z - b.min.z);
+    for (const nv of ['L0', 'L1']) niveles[nv].forEach(p => { p.geo.translate(-cx, -b.min.y, -cz); realzarMaterial(p.mat, env, p.hoja); });
+    const sil = dibujarSiluetas(T3, niveles.L0, alto, ancho);
+    especies.push({ ...E, niveles, alto, ancho, sil });
   }
-  const CAP0 = 90, CAP1 = 1500, R0 = 60, R1 = 240, d = new THREE.Object3D(), col = new THREE.Color();
+  const CAP0 = 80, CAP1 = 1400, R0 = 55, R1 = 260, d = new THREE.Object3D(), col = new THREE.Color();
   const lod = especies.map(e => ({ L0: e.niveles.L0.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP0); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; T3.scene.add(m); return m; }),
     L1: e.niveles.L1.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP1); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; T3.scene.add(m); return m; }) }));
   lod.forEach(l => [...l.L0, ...l.L1].forEach(m => { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }));
-  // lejos: copas simples (siguen siendo volumenes, pero a esa distancia no se distinguen)
-  const trunkG = new THREE.CylinderGeometry(0.10, 0.24, 3.0, 6); trunkG.translate(0, 1.5, 0);
-  const crownG = new THREE.SphereGeometry(2.35, 9, 6), crownG2 = crownG.clone(); crownG2.scale(0.86, 0.76, 0.92);
-  const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a2c1c, roughness: 0.98 }), leafM = [0x1b4825, 0x2d6733].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.88 }));
-  const far = [new THREE.InstancedMesh(trunkG, trunkM, N), new THREE.InstancedMesh(crownG, leafM[0], N), new THREE.InstancedMesh(crownG2, leafM[1], N)];
-  far.forEach(m => { m.frustumCulled = false; m.count = 0; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3); T3.scene.add(m); });
-  const fm = [new Float32Array(N * 16), new Float32Array(N * 16), new Float32Array(N * 16)], fc = new Float32Array(N * 3);
-  for (let i = 0; i < N; i++) {
-    const sc = Math.max(0.40, Math.min(1.8, Hh[i] / 6)), r = ROT[i];
-    d.position.set(X[i], 0, Z[i]); d.rotation.set(0, r, 0); d.scale.setScalar(sc); d.updateMatrix(); fm[0].set(d.matrix.elements, i * 16);
-    d.position.set(X[i], 2.9 * sc, Z[i]); d.updateMatrix(); fm[1].set(d.matrix.elements, i * 16);
-    d.position.set(X[i] + Math.sin(r) * 0.7 * sc, 4.4 * sc, Z[i] + Math.cos(r) * 0.6 * sc); d.scale.setScalar(sc * 0.78); d.updateMatrix(); fm[2].set(d.matrix.elements, i * 16);
-    col.setHSL(0.27 + hash(i * 3) * 0.05, 0.4, 0.22 + hash(i * 5) * 0.12); fc[i * 3] = col.r; fc[i * 3 + 1] = col.g; fc[i * 3 + 2] = col.b;
-  }
+  // lejos: tres planos cruzados con la silueta real de la especie
+  const cruz = (lado) => { const ps = [0, Math.PI / 3, -Math.PI / 3].map(a => { const g = new THREE.PlaneGeometry(lado, lado); g.translate(0, lado / 2, 0); g.rotateY(a); return g; }); return mergeGeometries(ps); };
+  const lejos = especies.map(e => { const mat = new THREE.MeshBasicMaterial({ map: e.sil.tex, alphaTest: 0.42, side: THREE.DoubleSide }); const m = new THREE.InstancedMesh(cruz(e.sil.lado), mat, N); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
+  const escala = (i) => { const e = especies[SP[i]]; return Math.min(Hh[i] / e.alto, e.ancho / e.ancho0 || Hh[i] / e.alto); };
+  especies.forEach(e => { e.ancho0 = e.ancho; });
+  const esc = (i) => { const e = especies[SP[i]]; return Math.min(Hh[i] / e.alto, ESPECIES_ARBOL[SP[i]].ancho / e.ancho); };
   const ult = { x: 1e9, z: 1e9, t: 0 }, cand = [];
-  const api = { N, ribera, tris: especies.map(e => e.niveles.L0.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0) + '/' + e.niveles.L1.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0)) };
+  const api = { N, ribera, especies: especies.map(e => e.base + ':' + e.niveles.L0.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0) + '/' + e.niveles.L1.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0)) };
   api.update = (cam, force) => {
     const now = performance.now(), dx = cam.position.x - ult.x, dz = cam.position.z - ult.z;
     if (!force && dx * dx + dz * dz < 36 && now - ult.t < 1500) return;
     ult.x = cam.position.x; ult.z = cam.position.z; ult.t = now;
     cand.length = 0;
-    for (let i = 0; i < N; i++) { const ex = X[i] - ult.x, ez = Z[i] - ult.z, d2 = ex * ex + ez * ez; if (d2 < R1 * R1) cand.push(i, d2); }
-    const ord = []; for (let k = 0; k < cand.length; k += 2) ord.push([cand[k], cand[k + 1]]); ord.sort((a, b) => a[1] - b[1]);
-    const n0 = lod.map(() => 0), n1 = lod.map(() => 0), tipo = new Uint8Array(N);
-    for (const [i, d2] of ord) {
-      const s = SP[i], e = especies[s], sc = Hh[i] / e.alto * (s === 0 ? 1.0 : 1.15), tv = 0.78 + hash(i * 19) * 0.40;
-      d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.93);
-      if (d2 < R0 * R0 && n0[s] < CAP0) { const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); tipo[i] = 1; }
-      else if (n1[s] < CAP1) { const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); tipo[i] = 1; }
+    for (let i = 0; i < N; i++) { const ex = X[i] - ult.x, ez = Z[i] - ult.z, d2 = ex * ex + ez * ez; if (d2 < R1 * R1) cand.push([i, d2]); }
+    cand.sort((a, b) => a[1] - b[1]);
+    const n0 = lod.map(() => 0), n1 = lod.map(() => 0), asignado = new Uint8Array(N);
+    for (const [i, d2] of cand) {
+      const s = SP[i], sc = esc(i), tv = 0.82 + hash(i * 19) * 0.34;
+      d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.94);
+      if (d2 < R0 * R0 && n0[s] < CAP0) { const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
+      else if (n1[s] < CAP1) { const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
     }
     lod.forEach((l, s) => { l.L0.forEach(m => { m.count = n0[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }); l.L1.forEach(m => { m.count = n1[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }); });
-    let nf = 0; for (let i = 0; i < N; i++) { if (tipo[i]) continue; far.forEach((m, k) => m.instanceMatrix.array.set(fm[k].subarray(i * 16, i * 16 + 16), nf * 16)); const cc = far[0].instanceColor.array; for (let q = 0; q < 3; q++) { far[0].instanceColor.array[nf * 3 + q] = 0.55; far[1].instanceColor.array[nf * 3 + q] = fc[i * 3 + q]; far[2].instanceColor.array[nf * 3 + q] = fc[i * 3 + q] * 1.15; } nf++; }
-    far.forEach(m => { m.count = nf; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
-    api.stats = { cerca: n0.join('+'), medio: n1.join('+'), lejos: nf };
+    const nf = lejos.map(() => 0);
+    for (let i = 0; i < N; i++) {
+      if (asignado[i]) continue;
+      const s = SP[i], e = especies[s], sc = esc(i) * (e.alto / e.sil.lado) ** 0 , tv = 0.88 + hash(i * 19) * 0.24;
+      d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv, tv);
+      const k = nf[s]++; lejos[s].setMatrixAt(k, d.matrix); lejos[s].setColorAt(k, col);
+    }
+    lejos.forEach((m, s) => { m.count = nf[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
+    api.stats = { cerca: n0.join('+'), medio: n1.join('+'), lejos: nf.join('+') };
   };
-  api.update({ position: new THREE.Vector3(1e8, 0, 1e8) }, true); // arranca con todo lejos hasta que haya camara
+  api.update({ position: new THREE.Vector3(1e8, 0, 1e8) }, true);
   return api;
 }
 
-/* ------------------------------------------------------------------ pasto, arbustos y helechos reales cerca de la camara ------------------------------------------------------------------ */
-export async function buildNearPlants(T3, W, lw, env) {
-  const fuentes = [['grass_medium_01', 6, 1.5, 2.6, 1.0], ['grass_medium_02', 5, 1.5, 2.6, 1.0], ['shrub_03', 4, 2.2, 3.6, 0.3], ['fern_02', 4, 1.8, 3.0, 0.35], ['shrub_04', 1, 0.7, 1.3, 0.12]];
-  const variantes = [];
-  for (const [id, cuantas, s0, s1, peso] of fuentes) {
-    const g = await gltfLoader.loadAsync(`data3d/models/${id}.glb`); const partes = recolectar(g.scene).slice(0, cuantas);
-    partes.forEach(p => { p.geo.computeBoundingBox(); const b = p.geo.boundingBox; p.geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2); ajustarMat(p.mat, env, { roughness: 0.9, alphaTest: 0.45, env: 0.25, tinte: 1.1 }); variantes.push({ geo: p.geo, mat: p.mat, s0, s1, peso: peso / partes.length, id }); });
+/* ------------------------------------------------------------------ pasto 3D verde, matas y plantas reales ------------------------------------------------------------------ */
+function geometriaPasto(sem, o) {
+  o = Object.assign({ blades: 18, hMin: 0.25, hMax: 0.55, radio: 0.17, ancho: 0.03, incl: [0.06, 0.26], base: [0.10, 0.26, 0.05], punta: [0.50, 0.74, 0.20] }, o || {});
+  const rnd = (i) => hash(sem * 1000 + i * 7 + 1), P = [], C = [], I = [];
+  for (let b = 0; b < o.blades; b++) {
+    const ang = rnd(b * 5) * Math.PI * 2, rad = Math.sqrt(rnd(b * 5 + 1)) * o.radio, alto = o.hMin + rnd(b * 5 + 2) * (o.hMax - o.hMin), inclina = (o.incl[0] + rnd(b * 5 + 3) * (o.incl[1] - o.incl[0])) * alto, dir = ang + (rnd(b * 5 + 4) - 0.5) * 1.4;
+    const ox = Math.cos(ang) * rad, oz = Math.sin(ang) * rad, ancho = o.ancho * (0.8 + rnd(b * 5 + 6) * 0.6), px = -Math.sin(dir), pz = Math.cos(dir), jit = (rnd(b * 5 + 8) - 0.5) * 0.12;
+    const v0 = P.length / 3;
+    for (let s = 0; s <= 3; s++) {
+      const t = s / 3, y = alto * t, off = inclina * t * t, w = ancho * (1 - t * 0.9) * 0.5, cx = ox + Math.cos(dir) * off, cz = oz + Math.sin(dir) * off;
+      const col = [o.base[0] + (o.punta[0] - o.base[0]) * t + jit * 0.5, o.base[1] + (o.punta[1] - o.base[1]) * t + jit, o.base[2] + (o.punta[2] - o.base[2]) * t];
+      if (s < 3) { P.push(cx - px * w, y, cz - pz * w, cx + px * w, y, cz + pz * w); C.push(col[0], col[1], col[2], col[0], col[1], col[2]); }
+      else { P.push(cx, y, cz); C.push(col[0], col[1], col[2]); }
+    }
+    I.push(v0, v0 + 1, v0 + 2, v0 + 1, v0 + 3, v0 + 2, v0 + 2, v0 + 3, v0 + 4, v0 + 3, v0 + 5, v0 + 4, v0 + 4, v0 + 5, v0 + 6);
   }
-  const aguas = cuerposDeAgua(W, lw), spots = [];
-  const base = T3.grassSpots || [];
-  for (const s of base) spots.push(s[0], s[1]);
-  for (const a of aguas) {
-    for (let i = 0; i < a.pts.length; i += 2) {
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
+  const n = g.attributes.normal.array; for (let i = 0; i < n.length; i += 3) { n[i] *= 0.4; n[i + 1] = 0.9; n[i + 2] *= 0.4; } return g;
+}
+export async function buildNearPlants(T3, W, lw, env, Pq) {
+  const plantas = [['fern_02', 4, 0.50, 1.00, 0.26], ['celandine_01', 5, 0.24, 0.45, 0.14], ['nettle_plant', 6, 0.50, 0.95, 0.20], ['periwinkle_plant', 6, 0.45, 0.85, 0.22], ['calathea_orbifolia_01', 5, 0.55, 1.05, 0.18]];
+  const variantes = [];
+  for (const [id, cuantas, a0, a1, peso] of plantas) {
+    const g = await gltfLoader.loadAsync(`data3d/models/${id}.glb`); const partes = recolectar(g.scene).slice(0, cuantas);
+    partes.forEach(p => { p.geo.computeBoundingBox(); const b = p.geo.boundingBox, h0 = Math.max(0.02, b.max.y - b.min.y); p.geo.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2); ajustarMat(p.mat, env, { roughness: 0.9, alphaTest: 0.45, env: 0.2, tinte: 1.15 }); p.mat.emissiveMap = p.mat.map; p.mat.emissive = new THREE.Color(1, 1, 1); p.mat.emissiveIntensity = 0.38; variantes.push({ geo: p.geo, mat: p.mat, h0, a0, a1, peso: peso / partes.length }); });
+  }
+  const pastoMat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  pastoMat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = T3.waterU;
+    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        float ph = instanceMatrix[3].x * 0.35 + instanceMatrix[3].z * 0.27;
+        transformed.x += sin(uTime * 1.8 + ph) * 0.07 * position.y;
+        transformed.z += cos(uTime * 1.3 + ph) * 0.05 * position.y;
+      #endif`);
+  };
+  const pastos = [0, 1, 2, 3].map(s => geometriaPasto(s + 1)), juncos = [0, 1].map(s => geometriaPasto(40 + s, { blades: 16, hMin: 1.2, hMax: 2.3, radio: 0.24, ancho: 0.04, incl: [0.10, 0.30], base: [0.16, 0.30, 0.07], punta: [0.58, 0.62, 0.22] }));
+  const NP = pastos.length, NJ = juncos.length, NV = variantes.length, TIPOS = NP + NJ + NV;
+  const sx = [], sz = [], tp = [], esc = [], rot = [];
+  const poner = (x, z, i, modo) => { // modo: 0 pasto, 1 planta real, 2 junco
+    if (sx.length > 700000) return;
+    let t;
+    if (modo === 1) { let r = hash(i * 23 + 5) * variantes.reduce((a, v) => a + v.peso, 0), v = 0; for (; v < NV - 1; v++) { r -= variantes[v].peso; if (r < 0) break; } t = NP + NJ + v; esc.push((variantes[v].a0 + hash(i * 3 + 2) * (variantes[v].a1 - variantes[v].a0)) / variantes[v].h0); }
+    else if (modo === 2) { t = NP + Math.floor(hash(i * 13 + 4) * NJ); esc.push(0.8 + hash(i * 3 + 2) * 0.5); }
+    else { t = Math.floor(hash(i * 13 + 4) * NP); esc.push(1.4 + hash(i * 3 + 2) * 1.2); }
+    sx.push(x); sz.push(z); tp.push(t); rot.push(hash(i * 7 + 1) * Math.PI * 2);
+  };
+  let n = 0;
+  for (const s of (T3.grassSpots || [])) poner(s[0], s[1], n++, hash(n) < 0.12 ? 1 : 0);
+  // alrededor del agua: anillos de pasto y matas, mas densos y mas anchos en los humedales
+  for (const a of cuerposDeAgua(W, lw)) {
+    const hum = /humedal|laguna|lago/.test(a.tipo), radios = hum ? [0.8, 1.6, 2.4, 3.3, 4.4, 5.8, 7.4, 9.4, 11.8, 14.6, 18, 22, 27, 33] : [0.8, 1.8, 3, 4.6, 6.6, 9, 12, 16];
+    for (let i = 0; i < a.pts.length; i += hum ? 1 : 2) {
       const p = a.pts[i]; let dx, dz;
       if (a.cerrado) { dx = p[0] - a.cx; dz = p[1] - a.cz; } else { const q = a.pts[Math.min(i + 1, a.pts.length - 1)]; dx = -(q[1] - p[1]); dz = q[0] - p[0]; if ((i % 4) >= 2) { dx = -dx; dz = -dz; } }
       const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
-      for (const r of [1.5, 3, 4.5, 6.5, 9, 12, 16]) for (let k = 0; k < 3; k++) {
-        if (spots.length > 150000) break;
-        spots.push(p[0] + dx * (r + (hash(i * 13 + k * 7 + r) - 0.5) * 2.4) + (hash(i * 31 + k) - 0.5) * 3.0, p[1] + dz * (r + (hash(i * 17 + k * 3 + r) - 0.5) * 2.4) + (hash(i * 43 + k) - 0.5) * 3.0);
+      for (const r of (hum ? [-1.8, -1.0, -0.3, 0.4, 1.1, 1.9, 2.7] : [-0.8, 0.2, 1.2])) for (let k = 0; k < 2; k++) {
+        const rr = r + (hash(i * 19 + k * 7 + r * 5) - 0.5) * 1.2, lat = (hash(i * 37 + k * 5 + r) - 0.5) * 2.4;
+        if (hash(i * 41 + k * 3 + r * 7) < (hum ? 0.55 : 0.30)) poner(p[0] + dx * rr - dz * lat, p[1] + dz * rr + dx * lat, n++, 2);
+      }
+      for (const r of radios) for (let k = 0; k < (hum ? 4 : 3); k++) {
+        const rr = r + (hash(i * 13 + k * 7 + r * 3) - 0.5) * 2.6, lat = (hash(i * 31 + k * 5 + r) - 0.5) * 3.4;
+        poner(p[0] + dx * rr - dz * lat, p[1] + dz * rr + dx * lat, n++, r >= 2.4 && hash(i * 17 + k * 11 + r) < (hum ? 0.18 : 0.10) ? 1 : 0);
       }
     }
   }
-  const M = spots.length / 2, tot = variantes.reduce((a, v) => a + v.peso, 0), tipo = new Uint8Array(M), esc = new Float32Array(M), rot = new Float32Array(M);
-  for (let i = 0; i < M; i++) { let r = hash(i * 23 + 5) * tot, v = 0; for (; v < variantes.length - 1; v++) { r -= variantes[v].peso; if (r < 0) break; } tipo[i] = v; esc[i] = variantes[v].s0 + hash(i * 3 + 2) * (variantes[v].s1 - variantes[v].s0); rot[i] = hash(i * 7 + 1) * Math.PI * 2; }
-  const CAP = 700, R = 75, d = new THREE.Object3D(), col = new THREE.Color();
-  const meshes = variantes.map(v => { const m = new THREE.InstancedMesh(v.geo, v.mat, CAP); m.count = 0; m.frustumCulled = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
-  const ult = { x: 1e9, z: 1e9, t: 0 }, api = { puntos: M, variantes: variantes.length };
+  // zonas verdes (parques): pasto denso y matas
+  for (const p of (Pq || [])) {
+    const v = []; for (const q of p.pts) { const w = lw(q[0], q[1]); v.push([w[0], w[1]]); }
+    if (v.length > 1 && Math.hypot(v[0][0] - v[v.length - 1][0], v[0][1] - v[v.length - 1][1]) < 0.01) v.pop();
+    if (v.length < 3) continue;
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, area = 0;
+    for (let i = 0; i < v.length; i++) { const a = v[i], b = v[(i + 1) % v.length]; x0 = Math.min(x0, a[0]); x1 = Math.max(x1, a[0]); z0 = Math.min(z0, a[1]); z1 = Math.max(z1, a[1]); area += a[0] * b[1] - b[0] * a[1]; }
+    area = Math.abs(area) / 2; const quiero = Math.min(3000, Math.floor(area / 9)); let puestos = 0, intentos = 0;
+    while (puestos < quiero && intentos++ < quiero * 6) { const x = x0 + hash(n * 3 + intentos) * (x1 - x0), z = z0 + hash(n * 5 + intentos * 2 + 1) * (z1 - z0); if (estaDentro(x, z, v)) { poner(x, z, n++, hash(n * 9 + 1) < 0.07 ? 1 : 0); puestos++; } }
+  }
+  const M = sx.length, SX = Float32Array.from(sx), SZ = Float32Array.from(sz), TP = Uint8Array.from(tp), ES = Float32Array.from(esc), RO = Float32Array.from(rot);
+  const CELDA = 64, clave = (cx, cz) => (cx + 512) * 1024 + (cz + 512), grid = new Map();
+  for (let i = 0; i < M; i++) { const k = clave(Math.floor(SX[i] / CELDA), Math.floor(SZ[i] / CELDA)); let a = grid.get(k); if (!a) grid.set(k, a = []); a.push(i); }
+  const CAPG = 4200, CAPJ = 3200, CAPV = 380, RG = 75, RV = 100, d = new THREE.Object3D(), col = new THREE.Color();
+  const meshes = [];
+  [...pastos, ...juncos].forEach((g, gi) => { const m = new THREE.InstancedMesh(g, pastoMat, gi < NP ? CAPG : CAPJ); m.count = 0; m.frustumCulled = false; m.receiveShadow = false; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array((gi < NP ? CAPG : CAPJ) * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); meshes.push(m); });
+  variantes.forEach(v => { const m = new THREE.InstancedMesh(v.geo, v.mat, CAPV); m.count = 0; m.frustumCulled = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAPV * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); meshes.push(m); });
+  const ult = { x: 1e9, z: 1e9, t: 0 }, api = { puntos: M, pastos: NP, juncos: NJ, variantes: NV };
   api.update = (cam, force) => {
-    const now = performance.now(), dx = cam.position.x - ult.x, dz = cam.position.z - ult.z;
-    if (!force && dx * dx + dz * dz < 16 && now - ult.t < 1500) return;
+    const now = performance.now(), ddx = cam.position.x - ult.x, ddz = cam.position.z - ult.z;
+    if (!force && ddx * ddx + ddz * ddz < 16 && now - ult.t < 1500) return;
     ult.x = cam.position.x; ult.z = cam.position.z; ult.t = now;
-    const cnt = variantes.map(() => 0); let tot2 = 0;
-    for (let i = 0; i < M; i++) {
-      const ex = spots[i * 2] - ult.x, ez = spots[i * 2 + 1] - ult.z; if (ex * ex + ez * ez > R * R) continue;
-      const v = tipo[i]; if (cnt[v] >= CAP) continue;
-      const k = cnt[v]++; d.position.set(spots[i * 2], 0.15, spots[i * 2 + 1]); d.rotation.set(0, rot[i], 0); d.scale.setScalar(esc[i]); d.updateMatrix();
-      meshes[v].setMatrixAt(k, d.matrix); const t = 0.82 + hash(i * 5) * 0.3; col.setRGB(t * (0.92 + hash(i) * 0.14), t, t * 0.85); meshes[v].setColorAt(k, col); tot2++;
+    const cnt = new Int32Array(TIPOS), cap = (t) => (t < NP ? CAPG : t < NP + NJ ? CAPJ : CAPV), R = Math.max(RG, RV), c0x = Math.floor((ult.x - R) / CELDA), c1x = Math.floor((ult.x + R) / CELDA), c0z = Math.floor((ult.z - R) / CELDA), c1z = Math.floor((ult.z + R) / CELDA);
+    let total = 0;
+    for (let cx = c0x; cx <= c1x; cx++) for (let cz = c0z; cz <= c1z; cz++) {
+      const a = grid.get(clave(cx, cz)); if (!a) continue;
+      for (let q = 0; q < a.length; q++) {
+        const i = a[q], t = TP[i], ex = SX[i] - ult.x, ez = SZ[i] - ult.z, d2 = ex * ex + ez * ez, lim = t < NP + NJ ? RG + (t >= NP ? 25 : 0) : RV;
+        if (d2 > lim * lim || cnt[t] >= cap(t)) continue;
+        const k = cnt[t]++; d.position.set(SX[i], 0.15, SZ[i]); d.rotation.set(0, RO[i], 0); d.scale.setScalar(ES[i]); d.updateMatrix();
+        meshes[t].setMatrixAt(k, d.matrix); const tv = 0.95 + hash(i * 5) * 0.32; col.setRGB(tv, tv, tv * 0.92); meshes[t].setColorAt(k, col); total++;
+      }
     }
-    meshes.forEach((m, v) => { m.count = cnt[v]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
-    api.cerca = tot2;
+    meshes.forEach((m, t) => { m.count = cnt[t]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
+    api.cerca = total;
   };
   api.update({ position: new THREE.Vector3(1e8, 0, 1e8) }, true);
   return api;
@@ -266,6 +345,10 @@ export function upgradeWater(T3, env) {
         normal = normalize( tbn * mapN );
       #endif`);
   };
+  // base mucho mas oscura (se atenua el color por vertice) y reflejo del cielo mas fuerte para que se siga viendo su color
+  const cv = mesh.geometry.attributes.color;
+  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i++) cv.array[i] *= 0.13; cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
+  mat.envMapIntensity = 0.85; mat.roughness = 0.03; mat.opacity = 0.98;
   mesh.material = mat; T3.waterMat = mat; return true;
 }
 
