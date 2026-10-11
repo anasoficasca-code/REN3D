@@ -320,12 +320,8 @@ async function init3D() {
         vec3 V = vec3(0.0, 0.0, 1.0);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
         vec3 col = mix(uDeep, uShallow, 0.5 + 0.25*sin((p.x+p.y)*0.15 + uTime*0.7));
-        // brillo de ondulación
-        float glint = smoothstep(0.75, 1.0, sin((p.x*1.7 - p.y*1.3) + uTime*2.4) * sin((p.y*2.1 + p.x*0.7) - uTime*1.8));
-        col += glint * 0.18;
-        col = mix(col, uSky, fres*0.75);
-        float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 60.0);
-        col += spec * vec3(1.0, 0.95, 0.85) * 0.9;
+        // Agua continua: sin destellos ni puntos blancos.
+        col = mix(col, uSky, fres*0.12);
         vec2 e = min(vUv, 1.0 - vUv);
         float edge = smoothstep(0.0, 0.07, min(e.x, e.y));
         gl_FragColor = vec4(col, mix(0.35, 0.94, edge));
@@ -520,7 +516,7 @@ function setMode(m) {
     (async () => {
       const ok = await initTodo();
       if (!ok) setMode('sat');
-      else if (T3 && !T3.ready) { T3.ready = true; flyTodo(1, true); say('🧱 Estás sobre el Lago Timiza · arrastra para orbitar, WASD para volar'); }
+      else if (T3 && !T3.ready) { T3.ready = true; flyTrafficHome(true); say('🚗 Tráfico visible · 2.581 carros máximo · 24:59'); }
     })();
   }
   if (m === 'splat') {
@@ -937,8 +933,8 @@ async function initTodo() {
     sky.frustumCulled = false;
     scene.add(sky);
     const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 40000);
-    const tw = lw(7008, -326);
-    camera.position.set(tw[0] + 380, 170, tw[1] + 480);
+    const tw = lw(6000, 3000);
+    camera.position.set(tw[0] + 520, 330, tw[1] + 620);
     const orbit = new OrbitControls(camera, renderer.domElement);
     orbit.target.set(tw[0], 0, tw[1]);
     orbit.enableDamping = true; orbit.dampingFactor = 0.06;
@@ -1455,7 +1451,7 @@ async function buildCars(THREE, N) {
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  CARS = { bodies, cabins, wheels, timeline, clock: 0, step: -1, nextMap: null, dummy: new THREE.Object3D() };
+  CARS = { bodies, cabins, wheels, timeline, clock: 1000, step: -1, nextMap: null, dummy: new THREE.Object3D() };
   T3.counts.cars = VEHICLE_MAX_VISIBLE;
   renderRecordedCars(0);
 }
@@ -1560,36 +1556,13 @@ function buildWater(THREE, W) {
       varying vec2 vUv; varying vec3 vWp;
       uniform float uTime, uCloud;
       uniform vec3 uSun, uDeep, uShallow, uSkyA, uSkyB;
-      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
-      float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++){ v += a * vnoise(p); p *= 2.05; a *= 0.5; } return v; }
-      vec3 skyRef(vec3 d){
-        float h = clamp(d.y, 0.0, 1.0);
-        vec3 c = mix(uSkyA, uSkyB, smoothstep(0.0, 0.45, h));
-        vec2 cuv = d.xz / (h + 0.35) * 0.8 + uTime * vec2(0.004, 0.002);
-        float cl = smoothstep(0.52, 0.8, fbm(cuv));
-        c = mix(c, vec3(0.98, 0.99, 1.0), cl * 0.85 * uCloud);
-        return c;
-      }
       void main(){
-        vec2 p = vWp.xz * 0.55;
-        vec2 q = vec2(p.x * 0.6 + p.y * 1.4, p.x * 1.5 - p.y * 0.7);
-        float nx = sin(q.x * 1.1 + uTime * 2.0) + sin((q.x + q.y) * 0.6 - uTime * 1.4) + sin(q.y * 1.6 + uTime * 2.6) * 0.6;
-        float ny = cos(q.y * 1.0 - uTime * 1.8) + cos((q.x - q.y) * 0.7 + uTime * 1.2) + cos(q.x * 1.4 - uTime * 2.2) * 0.6;
-        float fine = sin(p.x * 6.0 + uTime * 3.0) * sin(p.y * 5.0 - uTime * 2.5);
-        vec3 N = normalize(vec3(nx * 0.16 + fine * 0.05, 1.0, ny * 0.16 + fine * 0.05));
-        vec3 V = normalize(cameraPosition - vWp);
-        float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-        vec3 base = mix(uDeep, uShallow, 0.5 + 0.25 * sin((p.x + p.y) * 0.15 + uTime * 0.8));
-        vec3 R = reflect(-V, N);
-        R.y = abs(R.y);
-        vec3 col = mix(base, skyRef(normalize(R)), clamp(fres * 0.5 + 0.06, 0.0, 1.0));
-        vec3 H = normalize(normalize(uSun) + V);
-        float spec = pow(max(dot(N, H), 0.0), 120.0);
-        float glint = smoothstep(0.6, 1.0, sin(q.x * 2.2 + uTime * 2.8) * sin(q.y * 2.6 - uTime * 2.2));
-        col += (spec * 2.2 + glint * 0.12) * vec3(1.0, 0.97, 0.9);
-        gl_FragColor = vec4(col, 0.97);
+        // Superficie limpia: variación suave de color, sin reflejos puntuales,
+        // destellos ni ruido visual sobre el agua.
+        float wave = 0.5 + 0.10 * sin(vWp.x * 0.018 + uTime * 0.35)
+                           + 0.07 * sin(vWp.z * 0.023 - uTime * 0.28);
+        vec3 col = mix(uDeep, uShallow, clamp(wave, 0.18, 0.82));
+        gl_FragColor = vec4(col, 0.98);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`
@@ -1649,6 +1622,16 @@ function buildRoads(THREE, N) {
     return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
   };
   T3.scene.add(mk(SP, SI, 0xb4b9c0), mk(AP, AI, 0x8d939b));
+}
+function flyTrafficHome(instant) {
+  const target = new T3.THREE.Vector3(lw(6000, 3000)[0], 0, lw(6000, 3000)[1]);
+  const position = new T3.THREE.Vector3(target.x + 520, 330, target.z + 620);
+  if (instant) {
+    T3.camera.position.copy(position); T3.orbit.target.copy(target); T3.anim = null;
+  } else {
+    T3.anim = { t: 0, dur: 1.8, p0: T3.camera.position.clone(), c0: T3.orbit.target.clone(), p1: position, c1: target };
+  }
+  $('mission').textContent = '▶ Simulación de tráfico · 24:59';
 }
 function flyTodo(i, instant) {
   const p = POIS[i]; idx = i;
