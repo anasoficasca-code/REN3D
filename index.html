@@ -1400,9 +1400,27 @@ function buildGrass(THREE, P, W) {
 }
 let CARS = null;
 function buildCars(THREE, N) {
+  // Filter edges that go through water to avoid cars appearing in water
   const paths = [], cums = [];
+  const waterLats = [4.6216, 4.6385, 4.6470]; // Water body latitudes from WATERS const
+  const waterLngs = [-74.1626, -74.1712, -74.1185];
+  const MX = (lng, lat) => 111320 * Math.cos(lat * Math.PI / 180);
+  const MY = 110540;
+  function inWater(lng, lat) {
+    for (let i = 0; i < waterLats.length; i++) {
+      const dx = (lng - waterLngs[i]) / ((210 / 2) / MX(waterLngs[i], waterLats[i])); // use first water body approx
+      const dy = (lat - waterLats[i]) / (135 / 2) / MY;
+      if (dx * dx + dy * dy < 1.2) return true;
+    }
+    return false;
+  }
   for (const e of N.edges) {
-    const pts = e[1].map(p => lw(p[0], p[1]));
+    const pts = e[1].map(p => {
+      const lng = p[0], lat = p[1];
+      // Skip points in water
+      if (inWater(lng, lat)) return null;
+      return lw(lng, lat);
+    }).filter(p => p !== null);
     if (pts.length < 2) continue;
     const cum = [0];
     for (let i = 0; i < pts.length - 1; i++)
@@ -1411,24 +1429,27 @@ function buildCars(THREE, N) {
     paths.push(pts); cums.push(cum);
   }
   if (!paths.length) return;
-  const NC = Math.min(220, paths.length * 2);
-  const bodyGeo = new THREE.BoxGeometry(4.4, 0.9, 2.0);
-  bodyGeo.translate(0, 0.85, 0);
-  const cabinGeo = new THREE.BoxGeometry(2.2, 0.7, 1.75);
-  cabinGeo.translate(-0.2, 1.6, 0);
-  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.35, 10);
+  const NC = Math.min(220, paths.length * 2); // Same car count as before, but realistic
+  // Realistic car geometry: chassis + cabin + wheels
+  const chassisGeo = new THREE.BoxGeometry(4.5, 1.2, 2.2);
+  chassisGeo.translate(0, 0.6, 0);
+  const cabinGeo = new THREE.BoxGeometry(2.5, 1.5, 1.8);
+  cabinGeo.translate(-0.5, 2.0, 0);
+  const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 12);
   wheelGeo.rotateX(Math.PI / 2);
-  const bodyMat = new THREE.MeshPhongMaterial({ shininess: 90, specular: 0x8fa5bb });
-  const cabinMat = new THREE.MeshPhongMaterial({ color: 0x18242f, shininess: 140, specular: 0xdff1ff });
-  const wheelMat = new THREE.MeshLambertMaterial({ color: 0x141414 });
-  const bodies = new THREE.InstancedMesh(bodyGeo, bodyMat, NC);
+  const bodyMat = new THREE.MeshStandardMaterial({ metalness: 0.3, roughness: 0.4 });
+  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.2, roughness: 0.6 });
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.1, roughness: 0.8 });
+  const nWheels = 4;
+  const bodies = new THREE.InstancedMesh(chassisGeo, bodyMat, NC);
   const cabins = new THREE.InstancedMesh(cabinGeo, cabinMat, NC);
-  const wheels = new THREE.InstancedMesh(wheelGeo, wheelMat, NC * 4);
+  const wheels = new THREE.InstancedMesh(wheelGeo, wheelMat, NC * nWheels);
   bodies.castShadow = true;
+  cabins.castShadow = true;
+  wheels.castShadow = true;
   bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   cabins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   wheels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const palette = [0xf2f3f5, 0xf2f3f5, 0xc0c4c9, 0x1c1e22, 0xb32026, 0x2456c8, 0xf2b705, 0x5a6270, 0x7a1f1f, 0x2e7d4f];
   const cars = [];
   const col = new THREE.Color();
   for (let i = 0; i < NC; i++) {
@@ -1441,10 +1462,15 @@ function buildCars(THREE, N) {
       dir: (i % 2 === 0) ? 1 : -1,
       lane: (i % 2 === 0) ? 1.9 : -1.9
     });
-    col.setHex(palette[i % palette.length]).offsetHSL(0, 0, (((i * 13) % 10) - 5) * 0.008);
+    col.setHSL(0.55 + ((i * 13) % 10) * 0.01, 0.5, 0.5);
     bodies.setColorAt(i, col);
+    // Random car color variant
+    const hue = (0.5 + ((i * 7) % 10) * 0.02) % 1.0;
+    col.setHSL(hue, 0.4, 0.5);
+    cabins.setColorAt(i, col.clone());
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  if (cabins.instanceColor) cabins.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
   CARS = { bodies, cabins, wheels, cars, paths, cums, dummy: new THREE.Object3D() };
   T3.counts.cars = NC;
