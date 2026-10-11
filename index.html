@@ -524,7 +524,7 @@ function setMode(m) {
         say('⚠️ El visor 3D no respondió a tiempo: tu equipo o red lo bloquean. Te paso al TODO 3D.', 8000);
         setMode('todo');
       }
-    }, 240000);
+    }, 700000);
   }
 }
 function flyC(p, dur) {
@@ -1216,7 +1216,7 @@ async function initSplat() {
     st('Splat: importando visor…');
     const G = await Promise.race([
       import('@mkkellogg/gaussian-splats-3d'),
-      timeout(60000, 'no se pudo descargar el visor 3D (revisa tu internet)')
+      timeout(120000, 'no se pudo descargar el visor 3D (revisa tu internet)')
     ]);
     if (!G || !G.Viewer) throw new Error('el visor 3D llego corrupto (reintenta)');
     st('Splat: creando visor…');
@@ -1229,10 +1229,10 @@ async function initSplat() {
       sphericalHarmonicsDegree: 0
     });
     $('loader').classList.add('hidden');
-    st('Splat: descargando humedal ' + tag + '…');
+    st('Splat: descargando humedal ' + tag + ' (puede tardar varios minutos, no cierres)…');
     await Promise.race([
       viewer.addSplatScene(url, { showLoadingUI: true, progressiveLoad: true }),
-      timeout(90000, 'descarga estancada')
+      timeout(600000, 'descarga estancada')
     ]);
     st('Splat: pintando…');
     viewer.start();
