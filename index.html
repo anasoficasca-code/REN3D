@@ -976,7 +976,7 @@ async function initTodo() {
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
     try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
-    try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
+    try { await buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
     try { await buildCars(THREE, N); } catch (e) { console.warn('cars:', e); }
     $('loader').classList.add('hidden');
     say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles + ' + T3.counts.cars.toLocaleString('es-CO') + ' carros · 24:59');
@@ -1129,54 +1129,31 @@ async function buildTreesReal(THREE, T) {
   let oakTx = null;
   try {
     oakTx = await new THREE.TextureLoader().loadAsync('data3d/roble.png');
-    oakTx.colorSpace = THREE.SRGBColorSpace;
-  } catch (e) { console.warn('sin roble.png, solo procedurales', e); }
-  const geo = [crossGeo(THREE, 8.5, 10), crossGeo(THREE, 8.5, 10), crossGeo(THREE, 9.5, 11)];
-  const mat = [
-    new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 0), alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x1c2a14, emissiveIntensity: 0.55 }),
-    new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 1), alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x1c2a14, emissiveIntensity: 0.55 })
-  ];
-  if (oakTx) mat.push(new THREE.MeshLambertMaterial({ map: oakTx, alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x111a0e, emissiveIntensity: 0.5 }));
-  const NV = mat.length;
-  const per = Math.ceil(N / NV);
-  const meshes = [], counts = [];
-  for (let v = 0; v < NV; v++) {
-    const n = Math.min(per, N - v * per);
-    counts.push(n);
-    meshes.push(new THREE.InstancedMesh(geo[v], mat[v], Math.max(n, 1)));
-  }
+    oakTx.colorSpace = THREE.SRGBColorSpace; oakTx.anisotropy = 4;
+  } catch (e) { console.warn('sin roble.png, usando copas volumétricas', e); }
+  const trunkG = new THREE.CylinderGeometry(0.22, 0.48, 4.2, 8); trunkG.translate(0, 2.1, 0);
+  const crownG = new THREE.IcosahedronGeometry(2.55, 2);
+  const crownG2 = crownG.clone(); crownG2.scale(0.82, 0.78, 0.9);
+  const crownG3 = crownG.clone(); crownG3.scale(0.72, 0.70, 0.78);
+  const trunkM = new THREE.MeshStandardMaterial({ color: 0x513522, roughness: 0.95, metalness: 0 });
+  const leafM = [0x1e4d28, 0x2d6834, 0x3d7e3e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92, metalness: 0, flatShading: true }));
+  const texturedM = oakTx ? new THREE.MeshLambertMaterial({ map: oakTx, alphaTest: 0.32, side: THREE.DoubleSide }) : leafM[2];
+  const trunks = new THREE.InstancedMesh(trunkG, trunkM, N);
+  const crowns = [new THREE.InstancedMesh(crownG, leafM[0], N), new THREE.InstancedMesh(crownG2, leafM[2], N), new THREE.InstancedMesh(crownG3, texturedM, N)];
   const d = new THREE.Object3D(), col = new THREE.Color();
-  const idx = new Array(NV).fill(0);
   for (let i = 0; i < N; i++) {
-    const t = T.t[i], w = lw(t[0], t[1]);
-    const sc = Math.max(0.35, (t[2] || 4) / 9);
-    d.position.set(w[0], 0, w[1]);
-    d.rotation.set(0, (i * 2.39996) % (Math.PI * 2), 0);
-    d.scale.setScalar(sc);
-    d.updateMatrix();
-    const v = i % NV;
-    if (v === 2 && oakTx) col.setHSL(0.26, 0.25, 0.85 + ((i * 7) % 10) * 0.015);
-    else {
-      const nm = (T.sp[t[3]] || '').toLowerCase();
-      if (/roble|guayacan/.test(nm)) col.setHex(0xe8c84a);
-      else if (/cerezo|flor|rosado|pomarroso/.test(nm)) col.setHex(0xe8a0c0);
-      else col.setHSL(0.29 + ((i * 13) % 10) * 0.004, 0.32, 0.82 + ((i * 7) % 10) * 0.02);
-    }
-    meshes[v].setMatrixAt(idx[v], d.matrix);
-    meshes[v].setColorAt(idx[v], col);
-    idx[v]++;
+    const t = T.t[i], w = lw(t[0], t[1]), h = Math.max(0.4, t[2] || 4), sc = Math.max(0.28, Math.min(2.7, h / 8.5)), r = (i * 2.39996) % (Math.PI * 2);
+    d.position.set(w[0], 0, w[1]); d.rotation.set(0, r, 0); d.scale.setScalar(sc); d.updateMatrix(); trunks.setMatrixAt(i, d.matrix);
+    d.position.set(w[0], 5.1 * sc, w[1]); d.scale.setScalar(sc); d.updateMatrix(); crowns[0].setMatrixAt(i, d.matrix);
+    d.position.set(w[0] + Math.sin(r) * 1.15 * sc, 6.4 * sc, w[1] + Math.cos(r) * 0.8 * sc); d.scale.setScalar(sc * 0.9); d.updateMatrix(); crowns[1].setMatrixAt(i, d.matrix);
+    d.position.set(w[0] - Math.sin(r) * 1.0 * sc, 7.8 * sc, w[1] - Math.cos(r) * 0.75 * sc); d.scale.setScalar(sc * 0.78); d.updateMatrix(); crowns[2].setMatrixAt(i, d.matrix);
+    col.setHSL(0.27 + ((i * 17) % 13) * 0.004, 0.38, 0.24 + ((i * 11) % 14) * 0.012);
+    crowns[0].setColorAt(i, col); col.offsetHSL(0.015, -0.04, 0.08); crowns[1].setColorAt(i, col); col.offsetHSL(-0.02, 0.02, 0.10); crowns[2].setColorAt(i, col);
   }
-  for (let v = 0; v < NV; v++) {
-    const m = meshes[v];
-    m.count = idx[v];
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-    m.castShadow = true;
-    m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: mat[v].map, alphaTest: 0.4 });
-    T3.scene.add(m);
-  }
+  for (const m of [trunks, ...crowns]) { m.count = N; m.instanceMatrix.needsUpdate = true; m.castShadow = true; m.receiveShadow = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; T3.scene.add(m); }
   T3.counts.t = N;
 }
+
 function triShape(THREE, pts) {
   const v = [];
   for (let i = 0; i < pts.length; i++) {
@@ -1277,7 +1254,7 @@ function buildReeds(THREE, W) {
   T3.scene.add(mesh);
   T3.counts.reeds = N;
 }
-function buildGrass(THREE, P, W) {
+async function buildGrass(THREE, P, W) {
   const cv = document.createElement('canvas');
   cv.width = 64; cv.height = 64;
   const g2 = cv.getContext('2d');
@@ -1296,8 +1273,16 @@ function buildGrass(THREE, P, W) {
     g2.quadraticCurveTo(x0 + wdt / 4, 64 - hgt * 0.6, x0 + wdt / 2, 64);
     g2.closePath(); g2.fill();
   }
-  const tx = new THREE.CanvasTexture(cv);
-  tx.colorSpace = THREE.SRGBColorSpace;
+  let tx;
+  try {
+    tx = await new THREE.TextureLoader().loadAsync('data3d/grass_albedo.png');
+    tx.colorSpace = THREE.SRGBColorSpace;
+    tx.anisotropy = 4;
+  } catch (e) {
+    tx = new THREE.CanvasTexture(cv);
+    tx.colorSpace = THREE.SRGBColorSpace;
+    console.warn('No cargó grass_albedo.png, usando atlas local', e);
+  }
   const spots = [];
   for (const p of P) {
     const v = [];
@@ -1318,9 +1303,9 @@ function buildGrass(THREE, P, W) {
       for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
         if (((v[i][1] > y) !== (v[j][1] > y)) && (x < (v[j][0] - v[i][0]) * (y - v[i][1]) / (v[j][1] - v[i][1]) + v[i][0])) inside = !inside;
       }
-      if (inside && spots.length < 25000) { spots.push([x, y]); n--; }
+      if (inside && spots.length < 40000) { spots.push([x, y]); n--; }
     }
-    if (spots.length >= 25000) break;
+    if (spots.length >= 40000) break;
   }
   if (W) {
     for (const w of W) {
@@ -1341,14 +1326,14 @@ function buildGrass(THREE, P, W) {
         }
         const L = Math.hypot(dx, dz) || 1;
         for (const ring of [5, 9, 14]) {
-          if (spots.length >= 25000) break;
+          if (spots.length >= 40000) break;
           const jx = ((i * 37 + ring * 11) % 40) / 10 - 2;
           const jz = ((i * 53 + ring * 7) % 40) / 10 - 2;
           spots.push([p[0] + dx / L * ring + jx, p[1] + dz / L * ring + jz]);
         }
-        if (spots.length >= 25000) break;
+        if (spots.length >= 40000) break;
       }
-      if (spots.length >= 25000) break;
+      if (spots.length >= 40000) break;
     }
   }
   if (!spots.length) return;
@@ -1386,7 +1371,7 @@ function buildGrass(THREE, P, W) {
   spots.forEach((s, i) => {
     d.position.set(s[0], 0.12, s[1]);
     d.rotation.set(0, ((i * 2.39996) % (Math.PI * 2)), 0);
-    d.scale.setScalar(0.8 + ((i * 13) % 10) * 0.06);
+    d.scale.setScalar(1.0 + ((i * 13) % 10) * 0.10);
     d.updateMatrix();
     mesh.setMatrixAt(i, d.matrix);
   });
@@ -1548,7 +1533,11 @@ function buildWater(THREE, W) {
       varying vec2 vUv; varying vec3 vWp; uniform float uTime;
       void main(){
         vUv = uv;
-        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vec3 p = position;
+        p.y += 0.18 * sin(position.x * 0.035 + uTime * 0.9)
+             + 0.11 * sin(position.z * 0.052 - uTime * 0.72)
+             + 0.06 * sin((position.x + position.z) * 0.081 + uTime * 0.48);
+        vec4 wp = modelMatrix * vec4(p, 1.0);
         vWp = wp.xyz;
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
@@ -1559,9 +1548,10 @@ function buildWater(THREE, W) {
       void main(){
         // Superficie limpia: variación suave de color, sin reflejos puntuales,
         // destellos ni ruido visual sobre el agua.
-        float wave = 0.5 + 0.10 * sin(vWp.x * 0.018 + uTime * 0.35)
-                           + 0.07 * sin(vWp.z * 0.023 - uTime * 0.28);
-        vec3 col = mix(uDeep, uShallow, clamp(wave, 0.18, 0.82));
+        float wave = 0.5 + 0.12 * sin(vWp.x * 0.018 + uTime * 0.35)
+                           + 0.08 * sin(vWp.z * 0.023 - uTime * 0.28);
+        vec3 col = mix(uDeep, uShallow, clamp(wave, 0.16, 0.84));
+        col += vec3(0.015, 0.028, 0.032) * (0.5 + 0.5 * sin(vWp.x * 0.006 - vWp.z * 0.004));
         gl_FragColor = vec4(col, 0.98);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
