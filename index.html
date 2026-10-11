@@ -1399,26 +1399,6 @@ async function buildGrass(THREE, P, W) {
   T3.scene.add(mesh);
   T3.counts.grass = N;
 }
-let CAR_PLAYING = true;
-let CAR_TIME = 1000;
-let CARS = null;
-let PROOF_CAR = null;
-function buildProofCar(THREE) {
-  if (PROOF_CAR || !T3) return;
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(8, 1.8, 4), new THREE.MeshBasicMaterial({ color: 0xffc400 }));
-  body.position.y = 2.0;
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.4, 3.2), new THREE.MeshBasicMaterial({ color: 0x164e63 }));
-  roof.position.set(-0.4, 3.55, 0);
-  const wheels = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.5, 4.4), new THREE.MeshBasicMaterial({ color: 0x111827 }));
-  wheels.position.y = 0.72;
-  g.add(body, roof, wheels);
-  g.position.set(...lw(6000, 3000), 0);
-  g.renderOrder = 50;
-  g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.renderOrder = 50; } });
-  T3.scene.add(g); PROOF_CAR = g;
-}
-
 const VEHICLE_DATA_URL = 'data3d/kennedy_vehiculos.json';
 const VEHICLE_DURATION = 1499;
 const VEHICLE_UNIQUE_COUNT = 4202;
@@ -1438,9 +1418,9 @@ async function buildCars(THREE, N) {
   const timeline = await loadRecordedVehicles();
   if (!T3.R || !T3.env) throw new Error('real3d.js no disponible');
   T3.fleet = T3.R.createFleet(T3, T3.env);
-  CARS = { timeline, clock: CAR_TIME, playing: CAR_PLAYING, step: -1, nextMap: null, lastAngle: new Map() };
+  CARS = { timeline, clock: 0, playing: true, step: -1, nextMap: null, lastAngle: new Map() };
   T3.counts.cars = VEHICLE_MAX_VISIBLE;
-  renderRecordedCars(CAR_TIME);
+  renderRecordedCars(0);
 }
 
 // El modelo del carro mira hacia +Z, y el angulo atan2(dx, dz) apunta +Z hacia donde avanza: los carros andan de frente.
