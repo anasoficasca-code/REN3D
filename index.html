@@ -98,7 +98,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v25</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v26</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -512,7 +512,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v25' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v25' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v25' : 'MODO: 🛰️ SATÉLITE · v25'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v26' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v26' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v26' : 'MODO: 🛰️ SATÉLITE · v26'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -596,7 +596,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v25 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v26 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -793,6 +793,9 @@ function flight(ms) {
     if (cam.position.y < 3) cam.position.y = 3;
     o.update();
     updateAves();
+    T3.waterU.value = performance.now() / 1000;
+    T3.sun.position.copy(o.target).add(T3.sunOff);
+    T3.sun.target.position.copy(o.target);
     T3.renderer.render(T3.scene, cam);
     requestAnimationFrame(flight); return;
   }
@@ -886,10 +889,34 @@ async function initTodo() {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
     $('todo3d').appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x9fc3e0);
+    scene.background = new THREE.Color(0x87b5dd);
     scene.fog = new THREE.FogExp2(0x9fc3e0, 0.00011);
+    const skyU = {
+      top: { value: new THREE.Color(0x2f6cb0) },
+      mid: { value: new THREE.Color(0x9fc3e0) },
+      bot: { value: new THREE.Color(0xdfe9ee) }
+    };
+    const sky = new THREE.Mesh(
+      new THREE.SphereGeometry(15000, 20, 12),
+      new THREE.ShaderMaterial({
+        uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
+        vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot;
+          void main(){
+            float h = normalize(vP).y;
+            vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.75, h)) : mix(bot, mid, smoothstep(-0.08, 0.12, h));
+            gl_FragColor = vec4(c, 1.0);
+          }`
+      })
+    );
+    sky.frustumCulled = false;
+    scene.add(sky);
     const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 40000);
     const tw = lw(7008, -326);
     camera.position.set(tw[0] + 380, 170, tw[1] + 480);
@@ -897,17 +924,25 @@ async function initTodo() {
     orbit.target.set(tw[0], 0, tw[1]);
     orbit.enableDamping = true; orbit.dampingFactor = 0.06;
     orbit.maxPolarAngle = Math.PI * 0.495; orbit.minDistance = 4; orbit.maxDistance = 9000;
-    const hemi = new THREE.HemisphereLight(0xbcd0ff, 0x2c3527, 0.95);
-    const sun = new THREE.DirectionalLight(0xfff1d6, 1.25);
+    const hemi = new THREE.HemisphereLight(0xbcd6ff, 0x3a422c, 0.85);
+    const sun = new THREE.DirectionalLight(0xfff1d6, 2.0);
     sun.position.set(4000, 5000, 2000);
-    scene.add(hemi, sun);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -900; sun.shadow.camera.right = 900;
+    sun.shadow.camera.top = 900; sun.shadow.camera.bottom = -900;
+    sun.shadow.camera.near = 100; sun.shadow.camera.far = 7000;
+    sun.shadow.bias = -0.0006; sun.shadow.normalBias = 1.5;
+    scene.add(hemi, sun, sun.target);
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(13000, 9500),
-      new THREE.MeshLambertMaterial({ color: 0x232d20 })
+      new THREE.MeshLambertMaterial({ color: 0x27311f })
     );
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
+    ground.receiveShadow = true;
     scene.add(ground);
-    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, night: false, anim: null, last: 0, counts: {} };
+    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
+      waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = await fetchProg('data3d/buildings.json', 'Edificios');
@@ -992,7 +1027,9 @@ function buildChunks(THREE, B) {
     g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
     g.setIndex(I);
     g.computeVertexNormals();
-    T3.scene.add(new THREE.Mesh(g, mat));
+    const bm = new THREE.Mesh(g, mat);
+    bm.castShadow = true; bm.receiveShadow = true;
+    T3.scene.add(bm);
   }
   T3.counts.b = total; T3.counts.skip = skipped;
 }
@@ -1079,6 +1116,9 @@ function buildTreesReal(THREE, T) {
   m1.instanceMatrix.needsUpdate = true;
   if (m0.instanceColor) m0.instanceColor.needsUpdate = true;
   if (m1.instanceColor) m1.instanceColor.needsUpdate = true;
+  m0.castShadow = true; m1.castShadow = true;
+  m0.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: mat[0].map, alphaTest: 0.4 });
+  m1.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: mat[1].map, alphaTest: 0.4 });
   T3.scene.add(m0, m1);
   T3.counts.t = N;
 }
@@ -1093,9 +1133,9 @@ function triShape(THREE, pts) {
   return THREE.ShapeUtils.triangulateShape(v, []);
 }
 function buildWater(THREE, W) {
-  const P = [], C = [], I = [];
+  const P = [], C = [], UV = [], I = [];
   let vc = 0;
-  const put = (x, z, y, c) => { P.push(x, y, z); C.push(c[0], c[1], c[2]); return vc++; };
+  const put = (x, z, y, c) => { P.push(x, y, z); C.push(c[0], c[1], c[2]); UV.push(x * 0.08, z * 0.08); return vc++; };
   for (const w of W) {
     const pts = w.pts, tipo = (w.tipo || '').toLowerCase();
     const c = /laguna|humedal/.test(tipo) ? [0.12, 0.49, 0.58] : [0.18, 0.59, 0.68];
@@ -1123,9 +1163,53 @@ function buildWater(THREE, W) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2));
   g.setIndex(I);
-  g.computeVertexNormals();
-  T3.scene.add(new THREE.Mesh(g, new THREE.MeshPhongMaterial({ vertexColors: true, transparent: true, opacity: 0.93, side: THREE.DoubleSide, shininess: 90, specular: 0x99ddff })));
+  const wmat = new THREE.ShaderMaterial({
+    uniforms: {
+      uTime: T3.waterU,
+      uSun: { value: new THREE.Vector3(0.45, 0.62, 0.35).normalize() },
+      uDeep: { value: new THREE.Color(0x0d4257) },
+      uShallow: { value: new THREE.Color(0x2fa0b0) },
+      uSky: { value: new THREE.Color(0xbfe0f2) }
+    },
+    transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
+    vertexShader: `
+      varying vec2 vUv; varying vec3 vWp; uniform float uTime;
+      void main(){
+        vUv = uv;
+        vec3 p = position;
+        float w = sin((uv.x + uv.y) * 22.0 + uTime * 1.7) * 0.5
+                + sin((uv.x - uv.y) * 13.0 - uTime * 1.1) * 0.5;
+        p.y += w * 0.22;
+        vec4 wp = modelMatrix * vec4(p, 1.0);
+        vWp = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }`,
+    fragmentShader: `
+      varying vec2 vUv; varying vec3 vWp;
+      uniform float uTime; uniform vec3 uSun, uDeep, uShallow, uSky;
+      void main(){
+        vec2 p = vUv * 90.0;
+        float nx = sin(p.x * 0.9 + uTime * 1.7) + sin((p.x + p.y) * 0.5 - uTime * 1.2) + sin(p.y * 1.3 + uTime * 2.1);
+        float ny = cos(p.y * 0.8 - uTime * 1.5) + cos((p.x - p.y) * 0.6 + uTime * 1.0) + cos(p.x * 1.1 - uTime * 1.9);
+        vec3 N = normalize(vec3(nx * 0.10, 1.0, ny * 0.10));
+        vec3 V = normalize(cameraPosition - vWp);
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+        vec3 col = mix(uDeep, uShallow, 0.5 + 0.25 * sin((p.x + p.y) * 0.12 + uTime * 0.7));
+        float glint = smoothstep(0.75, 1.0, sin((p.x * 1.7 - p.y * 1.3) + uTime * 2.4) * sin((p.y * 2.1 + p.x * 0.7) - uTime * 1.8));
+        col += glint * 0.16;
+        col = mix(col, uSky, fres * 0.72);
+        float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 70.0);
+        col += spec * vec3(1.0, 0.96, 0.88);
+        gl_FragColor = vec4(col, 0.93);
+      }`
+  });
+  const wmesh = new THREE.Mesh(g, wmat);
+  wmesh.receiveShadow = true;
+  wmesh.renderOrder = 4;
+  T3.scene.add(wmesh);
+  T3.waterMat = wmat;
 }
 function buildParks(THREE, P) {
   const gP = [], gC = [], gI = [];
@@ -1410,12 +1494,16 @@ function todoNight(on) {
   if (!T3) return;
   if (on) {
     T3.scene.background.set(0x05080e); T3.scene.fog.color.set(0x05080e);
-    T3.hemi.intensity = 0.25; T3.hemi.color.set(0x5a76a8);
-    T3.sun.intensity = 0.25; T3.sun.color.set(0x93b6e6);
+    T3.hemi.intensity = 0.22; T3.hemi.color.set(0x5a76a8);
+    T3.sun.intensity = 0.35; T3.sun.color.set(0x93b6e6);
+    T3.renderer.toneMappingExposure = 0.9;
+    if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); }
   } else {
-    T3.scene.background.set(0x9fc3e0); T3.scene.fog.color.set(0x9fc3e0);
-    T3.hemi.intensity = 0.95; T3.hemi.color.set(0xbcd0ff);
-    T3.sun.intensity = 1.25; T3.sun.color.set(0xfff1d6);
+    T3.scene.background.set(0x87b5dd); T3.scene.fog.color.set(0x9fc3e0);
+    T3.hemi.intensity = 0.85; T3.hemi.color.set(0xbcd6ff);
+    T3.sun.intensity = 2.0; T3.sun.color.set(0xfff1d6);
+    T3.renderer.toneMappingExposure = 1.12;
+    if (T3.skyU) { T3.skyU.top.value.set(0x2f6cb0); T3.skyU.mid.value.set(0x9fc3e0); T3.skyU.bot.value.set(0xdfe9ee); }
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
