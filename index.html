@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>REN3D • Kennedy 3D · Territorio Real</title>
 <link rel="icon" href="data:,">
-<link rel="preload" href="data3d/humedal.splat" as="fetch" crossorigin="anonymous">
+<link rel="preload" href="data3d/humedal-v2.splat" as="fetch" crossorigin="anonymous">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <link href="https://ajax.googleapis.com/ajax/libs/cesiumjs/1.105/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
@@ -96,7 +96,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v15</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v16</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -500,7 +500,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v15' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v15' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v15' : 'MODO: 🛰️ SATÉLITE · v15'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v16' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v16' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v16' : 'MODO: 🛰️ SATÉLITE · v16'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -578,7 +578,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v15 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v16 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1191,7 +1191,7 @@ function todoNight(on) {
 $('b-todo').onclick = async () => { setMode('todo'); };
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
-const SPLAT_URL = 'data3d/humedal.splat';
+const SPLAT_URL = 'data3d/humedal-v2.splat';
 const SPLAT_HOME = {
   up: [0.2066, -0.5341, -0.8198],
   pos: [2.576, 0.406, -0.023],
