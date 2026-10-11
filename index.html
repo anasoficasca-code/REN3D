@@ -1453,7 +1453,7 @@ async function buildCars(THREE, N) {
   T3.scene.add(bodies, cabins, wheels);
   CARS = { bodies, cabins, wheels, timeline, clock: 1000, step: -1, nextMap: null, dummy: new THREE.Object3D() };
   T3.counts.cars = VEHICLE_MAX_VISIBLE;
-  renderRecordedCars(0);
+  renderRecordedCars(1000);
 }
 
 function renderRecordedCars(time) {
