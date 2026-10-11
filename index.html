@@ -98,7 +98,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v30</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v31</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -512,7 +512,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v30' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v30' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v30' : 'MODO: 🛰️ SATÉLITE · v30'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v31' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v31' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v31' : 'MODO: 🛰️ SATÉLITE · v31'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -596,7 +596,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v30 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v31 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -969,7 +969,7 @@ async function initTodo() {
     buildChunks(THREE, B);
     $('lmsg').textContent = 'Cargando árboles del censo…';
     const T = await fetchProg('data3d/trees.json', 'Árboles');
-    buildTreesReal(THREE, T);
+    await buildTreesReal(THREE, T);
     $('lmsg').textContent = 'Cargando aguas, parques y vías…';
     const [W, P, N] = await Promise.all([
       fetch('data3d/water_bodies.json').then(r => r.json()),
@@ -1127,18 +1127,29 @@ function crossGeo(THREE, w, h) {
   g.computeVertexNormals();
   return g;
 }
-function buildTreesReal(THREE, T) {
+async function buildTreesReal(THREE, T) {
   const N = T.t.length;
-  const geo = [crossGeo(THREE, 8.5, 10), crossGeo(THREE, 8.5, 10)];
+  let oakTx = null;
+  try {
+    oakTx = await new THREE.TextureLoader().loadAsync('data3d/roble.png');
+    oakTx.colorSpace = THREE.SRGBColorSpace;
+  } catch (e) { console.warn('sin roble.png, solo procedurales', e); }
+  const geo = [crossGeo(THREE, 8.5, 10), crossGeo(THREE, 8.5, 10), crossGeo(THREE, 9.5, 11)];
   const mat = [
     new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 0), alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x1c2a14, emissiveIntensity: 0.55 }),
     new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 1), alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x1c2a14, emissiveIntensity: 0.55 })
   ];
-  const n0 = Math.ceil(N / 2), n1 = N - n0;
-  const m0 = new THREE.InstancedMesh(geo[0], mat[0], n0);
-  const m1 = new THREE.InstancedMesh(geo[1], mat[1], n1);
+  if (oakTx) mat.push(new THREE.MeshLambertMaterial({ map: oakTx, alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x111a0e, emissiveIntensity: 0.5 }));
+  const NV = mat.length;
+  const per = Math.ceil(N / NV);
+  const meshes = [], counts = [];
+  for (let v = 0; v < NV; v++) {
+    const n = Math.min(per, N - v * per);
+    counts.push(n);
+    meshes.push(new THREE.InstancedMesh(geo[v], mat[v], Math.max(n, 1)));
+  }
   const d = new THREE.Object3D(), col = new THREE.Color();
-  let c0 = 0, c1 = 0;
+  const idx = new Array(NV).fill(0);
   for (let i = 0; i < N; i++) {
     const t = T.t[i], w = lw(t[0], t[1]);
     const sc = Math.max(0.35, (t[2] || 4) / 9);
@@ -1146,21 +1157,27 @@ function buildTreesReal(THREE, T) {
     d.rotation.set(0, (i * 2.39996) % (Math.PI * 2), 0);
     d.scale.setScalar(sc);
     d.updateMatrix();
-    const nm = (T.sp[t[3]] || '').toLowerCase();
-    if (/roble|guayacan/.test(nm)) col.setHex(0xe8c84a);
-    else if (/cerezo|flor|rosado|pomarroso/.test(nm)) col.setHex(0xe8a0c0);
-    else col.setHSL(0.29 + ((i * 13) % 10) * 0.004, 0.32, 0.82 + ((i * 7) % 10) * 0.02);
-    if (i % 2 === 0) { m0.setMatrixAt(c0, d.matrix); m0.setColorAt(c0, col); c0++; }
-    else { m1.setMatrixAt(c1, d.matrix); m1.setColorAt(c1, col); c1++; }
+    const v = i % NV;
+    if (v === 2 && oakTx) col.setHSL(0.26, 0.25, 0.85 + ((i * 7) % 10) * 0.015);
+    else {
+      const nm = (T.sp[t[3]] || '').toLowerCase();
+      if (/roble|guayacan/.test(nm)) col.setHex(0xe8c84a);
+      else if (/cerezo|flor|rosado|pomarroso/.test(nm)) col.setHex(0xe8a0c0);
+      else col.setHSL(0.29 + ((i * 13) % 10) * 0.004, 0.32, 0.82 + ((i * 7) % 10) * 0.02);
+    }
+    meshes[v].setMatrixAt(idx[v], d.matrix);
+    meshes[v].setColorAt(idx[v], col);
+    idx[v]++;
   }
-  m0.instanceMatrix.needsUpdate = true;
-  m1.instanceMatrix.needsUpdate = true;
-  if (m0.instanceColor) m0.instanceColor.needsUpdate = true;
-  if (m1.instanceColor) m1.instanceColor.needsUpdate = true;
-  m0.castShadow = true; m1.castShadow = true;
-  m0.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: mat[0].map, alphaTest: 0.4 });
-  m1.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: mat[1].map, alphaTest: 0.4 });
-  T3.scene.add(m0, m1);
+  for (let v = 0; v < NV; v++) {
+    const m = meshes[v];
+    m.count = idx[v];
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    m.castShadow = true;
+    m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: mat[v].map, alphaTest: 0.4 });
+    T3.scene.add(m);
+  }
   T3.counts.t = N;
 }
 function triShape(THREE, pts) {
