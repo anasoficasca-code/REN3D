@@ -964,20 +964,20 @@ async function initTodo() {
     $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
     await new Promise(r => setTimeout(r, 30));
     buildChunks(THREE, B);
-    $('lmsg').textContent = 'Cargando árboles del censo…';
-    const T = await fetchProg('data3d/trees.json', 'Árboles');
-    await buildTreesReal(THREE, T);
-    $('lmsg').textContent = 'Cargando aguas, parques y vías…';
-    const [W, P, N] = await Promise.all([
+    $('lmsg').textContent = 'Cargando árboles, vías y tráfico…';
+    const [T, W, P, N] = await Promise.all([
+      fetchProg('data3d/trees.json', 'Árboles'),
       fetch('data3d/water_bodies.json').then(r => r.json()),
       fetch('data3d/parques.json').then(r => r.json()),
       fetch('data3d/net.json').then(r => r.json())
     ]);
+    // Prioridad visible: los carros aparecen antes de construir el arbolado pesado.
+    try { await buildCars(THREE, N); } catch (e) { console.warn('cars:', e); }
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
     try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
     try { await buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
-    try { await buildCars(THREE, N); } catch (e) { console.warn('cars:', e); }
+    await buildTreesReal(THREE, T);
     $('loader').classList.add('hidden');
     say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles + ' + T3.counts.cars.toLocaleString('es-CO') + ' carros · 24:59');
     return true;
@@ -1127,28 +1127,25 @@ function crossGeo(THREE, w, h) {
 async function buildTreesReal(THREE, T) {
   const N = T.t.length;
   let oakTx = null;
-  try {
-    oakTx = await new THREE.TextureLoader().loadAsync('data3d/roble.png');
-    oakTx.colorSpace = THREE.SRGBColorSpace; oakTx.anisotropy = 4;
-  } catch (e) { console.warn('sin roble.png, usando copas volumétricas', e); }
-  const trunkG = new THREE.CylinderGeometry(0.22, 0.48, 4.2, 8); trunkG.translate(0, 2.1, 0);
-  const crownG = new THREE.IcosahedronGeometry(2.55, 2);
-  const crownG2 = crownG.clone(); crownG2.scale(0.82, 0.78, 0.9);
+  try { oakTx = await new THREE.TextureLoader().loadAsync('data3d/roble.png'); oakTx.colorSpace = THREE.SRGBColorSpace; } catch (e) {}
+  // Silueta natural: tronco fino y copas anchas, sin apariencia de columna.
+  const trunkG = new THREE.CylinderGeometry(0.10, 0.24, 3.0, 8); trunkG.translate(0, 1.5, 0);
+  const crownG = new THREE.SphereGeometry(2.35, 12, 8);
+  const crownG2 = crownG.clone(); crownG2.scale(0.86, 0.76, 0.92);
   const crownG3 = crownG.clone(); crownG3.scale(0.72, 0.70, 0.78);
-  const trunkM = new THREE.MeshStandardMaterial({ color: 0x513522, roughness: 0.95, metalness: 0 });
-  const leafM = [0x1e4d28, 0x2d6834, 0x3d7e3e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92, metalness: 0, flatShading: true }));
-  const texturedM = oakTx ? new THREE.MeshLambertMaterial({ map: oakTx, alphaTest: 0.32, side: THREE.DoubleSide }) : leafM[2];
+  const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a2c1c, roughness: 0.98, metalness: 0 });
+  const leafM = [0x1b4825, 0x2d6733, 0x477f3d].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.88, metalness: 0 }));
   const trunks = new THREE.InstancedMesh(trunkG, trunkM, N);
-  const crowns = [new THREE.InstancedMesh(crownG, leafM[0], N), new THREE.InstancedMesh(crownG2, leafM[2], N), new THREE.InstancedMesh(crownG3, texturedM, N)];
+  const crowns = [new THREE.InstancedMesh(crownG, leafM[0], N), new THREE.InstancedMesh(crownG2, leafM[1], N), new THREE.InstancedMesh(crownG3, leafM[2], N)];
   const d = new THREE.Object3D(), col = new THREE.Color();
   for (let i = 0; i < N; i++) {
-    const t = T.t[i], w = lw(t[0], t[1]), h = Math.max(0.4, t[2] || 4), sc = Math.max(0.28, Math.min(2.7, h / 8.5)), r = (i * 2.39996) % (Math.PI * 2);
+    const t = T.t[i], w = lw(t[0], t[1]), h = Math.max(0.4, t[2] || 4), sc = Math.max(0.30, Math.min(2.0, h / 6.0)), r = (i * 2.39996) % (Math.PI * 2);
     d.position.set(w[0], 0, w[1]); d.rotation.set(0, r, 0); d.scale.setScalar(sc); d.updateMatrix(); trunks.setMatrixAt(i, d.matrix);
-    d.position.set(w[0], 5.1 * sc, w[1]); d.scale.setScalar(sc); d.updateMatrix(); crowns[0].setMatrixAt(i, d.matrix);
-    d.position.set(w[0] + Math.sin(r) * 1.15 * sc, 6.4 * sc, w[1] + Math.cos(r) * 0.8 * sc); d.scale.setScalar(sc * 0.9); d.updateMatrix(); crowns[1].setMatrixAt(i, d.matrix);
-    d.position.set(w[0] - Math.sin(r) * 1.0 * sc, 7.8 * sc, w[1] - Math.cos(r) * 0.75 * sc); d.scale.setScalar(sc * 0.78); d.updateMatrix(); crowns[2].setMatrixAt(i, d.matrix);
-    col.setHSL(0.27 + ((i * 17) % 13) * 0.004, 0.38, 0.24 + ((i * 11) % 14) * 0.012);
-    crowns[0].setColorAt(i, col); col.offsetHSL(0.015, -0.04, 0.08); crowns[1].setColorAt(i, col); col.offsetHSL(-0.02, 0.02, 0.10); crowns[2].setColorAt(i, col);
+    d.position.set(w[0], 2.7 * sc, w[1]); d.scale.setScalar(sc); d.updateMatrix(); crowns[0].setMatrixAt(i, d.matrix);
+    d.position.set(w[0] + Math.sin(r) * 0.75 * sc, 4.15 * sc, w[1] + Math.cos(r) * 0.6 * sc); d.scale.setScalar(sc * 0.86); d.updateMatrix(); crowns[1].setMatrixAt(i, d.matrix);
+    d.position.set(w[0] - Math.sin(r) * 0.58 * sc, 5.25 * sc, w[1] - Math.cos(r) * 0.55 * sc); d.scale.setScalar(sc * 0.72); d.updateMatrix(); crowns[2].setMatrixAt(i, d.matrix);
+    col.setHSL(0.27 + ((i * 17) % 13) * 0.004, 0.40, 0.24 + ((i * 11) % 14) * 0.012);
+    crowns[0].setColorAt(i, col); col.offsetHSL(0.012, -0.04, 0.08); crowns[1].setColorAt(i, col); col.offsetHSL(-0.018, 0.02, 0.08); crowns[2].setColorAt(i, col);
   }
   for (const m of [trunks, ...crowns]) { m.count = N; m.instanceMatrix.needsUpdate = true; m.castShadow = true; m.receiveShadow = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; T3.scene.add(m); }
   T3.counts.t = N;
@@ -1552,6 +1549,14 @@ function buildWater(THREE, W) {
                            + 0.08 * sin(vWp.z * 0.023 - uTime * 0.28);
         vec3 col = mix(uDeep, uShallow, clamp(wave, 0.16, 0.84));
         col += vec3(0.015, 0.028, 0.032) * (0.5 + 0.5 * sin(vWp.x * 0.006 - vWp.z * 0.004));
+        vec3 V = normalize(cameraPosition - vWp);
+        vec3 N = normalize(cross(dFdx(vWp), dFdy(vWp)));
+        if (N.y < 0.0) N = -N;
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
+        vec3 reflectedSky = mix(uSkyA, uSkyB, clamp(N.y, 0.0, 1.0));
+        float sunBroad = pow(max(dot(reflect(-V, N), normalize(uSun)), 0.0), 28.0);
+        col = mix(col, reflectedSky, fres * 0.22);
+        col += vec3(0.95, 0.90, 0.72) * sunBroad * 0.08;
         gl_FragColor = vec4(col, 0.98);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -1563,27 +1568,29 @@ function buildWater(THREE, W) {
   T3.scene.add(wmesh);
   T3.waterMat = wmat;
 }
-function buildParks(THREE, P) {
-  const gP = [], gC = [], gI = [];
-  let vc = 0;
+async function buildParks(THREE, P) {
+  const gP = [], gC = [], gU = [], gI = []; let vc = 0;
   for (const p of P) {
     const v = [];
     for (const q of p.pts) { const w = lw(q[0], q[1]); v.push(new THREE.Vector2(w[0], w[1])); }
-    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
-    if (v.length < 3) continue;
-    const hsh = (hashN(p.nombre || 'x') % 20 - 10) * 0.006;
-    const c = [0.16 + hsh, 0.4 + hsh, 0.19 + hsh];
+    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop(); if (v.length < 3) continue;
     const base = vc;
-    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(c[0], c[1], c[2]); vc++; }
+    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(1, 1, 1); gU.push(q.x / 18, q.y / 18); vc++; }
     for (const f of THREE.ShapeUtils.triangulateShape(v, [])) gI.push(base + f[0], base + f[2], base + f[1]);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3));
-  g.setIndex(gI);
-  g.computeVertexNormals();
-  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(gU, 2)); g.setAttribute('uv2', new THREE.Float32BufferAttribute(gU, 2)); g.setIndex(gI); g.computeVertexNormals();
+  const tl = new THREE.TextureLoader();
+  const load = (url, fallback) => tl.load(url, undefined, undefined, () => fallback);
+  const base = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_BaseColor.jpg', null);
+  const normal = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Normal.png', null);
+  const rough = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Roughness.jpg', null);
+  const ao = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_AmbientOcclusion.jpg', null);
+  for (const tx of [base, normal, rough, ao]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1.2, 1.2); tx.anisotropy = 4; }
+  if (base) base.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshStandardMaterial({ map: base, normalMap: normal, roughnessMap: rough, aoMap: ao, roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(g, mat); mesh.receiveShadow = true; T3.scene.add(mesh);
 }
+
 function buildRoads(THREE, N) {
   const SP = [], SI = [], AP = [], AI = [];
   const strip = (P, I, pts, wd, y) => {
