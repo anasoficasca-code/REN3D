@@ -977,27 +977,34 @@ async function initTodo() {
       fetch('data3d/net.json').then(r => r.json())
     ]);
     const realOK = !!(T3.R && T3.env);
-    if (realOK) {
-      $('lmsg').textContent = 'Cargando árboles reales 3D…';
-      try { T3.trees = await T3.R.buildTrees(T3, T, W, lw, T3.env); T3.counts.t = T.t.length; }
-      catch (e) { console.warn('arboles reales:', e); T3.trees = null; await buildTreesReal(THREE, T); }
-    } else await buildTreesReal(THREE, T);
+    // 1) lo liviano primero, para que el mundo aparezca ya: árboles de planos cruzados, agua, parques (suelo de pasto), vías y aves
+    const nAntes = T3.scene.children.length;
+    await buildTreesReal(THREE, T);
+    const arbolesLivianos = T3.scene.children.slice(nAntes);
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
-    let plantsOK = false;
-    if (realOK) {
-      try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); }
-      try { T3.plants = await T3.R.buildNearPlants(T3, W, lw, T3.env, P); plantsOK = true; } catch (e) { console.warn('pasto 3D:', e); }
-    }
-    // si el pasto/juncos 3D no cargaron, queda el pasto de tarjetas de respaldo
-    if (!plantsOK) {
+    $('loader').classList.add('hidden');
+    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles · cargando árboles reales y tráfico…', 5000);
+    // 2) lo pesado se carga después, en segundo plano y sin bloquear (si algo falla queda lo liviano)
+    const pastoRespaldo = () => {
       try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
       try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
-    }
-    try { await buildTraffic(THREE); } catch (e) { console.warn('traffic:', e); try { buildCars(THREE, N); } catch (e2) { console.warn('cars:', e2); } }
-    $('loader').classList.add('hidden');
-    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles' + (TRAF ? ' + ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)' : ''));
-    return true;
+    };
+    (async () => {
+      if (!realOK) { pastoRespaldo(); return; }
+      try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); }
+      try {
+        T3.trees = await T3.R.buildTrees(T3, T, W, lw, T3.env);
+        arbolesLivianos.forEach(m => T3.scene.remove(m));
+        say('🌳 Árboles reales 3D cargados', 3000);
+      } catch (e) { console.warn('arboles reales:', e); T3.trees = null; }
+      try { T3.plants = await T3.R.buildNearPlants(T3, W, lw, T3.env, P); }
+      catch (e) { console.warn('pasto 3D:', e); pastoRespaldo(); }
+    })();
+    (async () => {
+      try { await buildTraffic(THREE); say('🚗 ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)', 4000); }
+      catch (e) { console.warn('traffic:', e); try { buildCars(THREE, N); } catch (e2) { console.warn('cars:', e2); } }
+    })();    return true;
   } catch (e) {
     $('loader').classList.add('hidden');
     console.warn('TODO3D:', e);
