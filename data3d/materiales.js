@@ -39,9 +39,9 @@ function sinRepeticion(mat, macro, bright, sat) {
 export function crearMaterialesSuelo(renderer) {
   // mientras cargan las fotos se ve un color liso parecido
   const mk = (color, rough, macro, bright, sat) => { const m = new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, side: THREE.DoubleSide }); sinRepeticion(m, macro, bright, sat); return m; };
-  const M = { piso: mk(0x9a9a96, 0.96, 0.16, 1.9, 0.40), via: mk(0xc9c7c1, 0.93, 0.10, 1.2, 0.65), acera: mk(0xd2d0cb, 0.92, 0.12, 2.0, 0.5), pasto: mk(0x4f6a30, 0.99, 0.22, 1.28, 1.05) };
+  const M = { piso: mk(0x9a9a96, 0.96, 0.16, 1.9, 0.40), via: mk(0xc9c7c1, 0.93, 0.10, 0.55, 0.35), acera: mk(0xd2d0cb, 0.92, 0.12, 2.0, 0.5), pasto: mk(0x4f6a30, 0.99, 0.2, 1.0, 0.8) };
   M.acera.emissive.set(0x3a3935); // levanta las partes en sombra de aceras y taludes, que si no se ven casi negras
-  M.via.emissive.set(0x1e1e1c);
+  M.via.emissive.set(0x0c0c0b);
   const tl = new THREE.TextureLoader(), aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   const cargar = (url, srgb) => new Promise(res => tl.load(url, t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = aniso; if (srgb) t.colorSpace = THREE.SRGBColorSpace; res(t); }, undefined, () => res(null)));
   M.cargar = async () => {

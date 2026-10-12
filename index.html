@@ -869,7 +869,7 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, y - LC.y];
-window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; }, get peat() { return PEAT; } }; // acceso para pruebas
+window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; }, get peat() { return PEAT; }, get aves() { return AVES; } }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
 
@@ -996,7 +996,13 @@ async function initTodo() {
     if (!realOK) await buildTreesReal(THREE, T);
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     try { buildPeatones(THREE, N); } catch (e) { console.warn('peatones:', e); }
-    buildAves(THREE);
+    T3.avesU = { value: 0 }; T3.avesT = 0;
+    // aves 3D (patos, fochas, garzas) repartidas por todos los humedales; si el módulo falla queda el modelo sencillo anterior
+    import('./data3d/aves3d.js').then(m => {
+      const api = m.crearAves(T3, W, lw);
+      AVES = { grp: api.grp, nuevo: api };
+      if (!$('b-aves').classList.contains('on')) api.grp.visible = false;
+    }).catch(e => { console.warn('aves 3D:', e); buildAves(THREE); });
     $('loader').classList.add('hidden');
     say('🧱 TODO 3D listo · ' + B.length.toLocaleString('es-CO') + ' edificios · cargando árboles 3D y tráfico…', 5000);
     // 2) lo pesado se carga después, en segundo plano y sin bloquear (si algo falla queda lo liviano)
@@ -2119,6 +2125,7 @@ function updateAves() {
   const dt = Math.min(Math.max((now - (T3.avesT || now)), 0.001), 0.1);
   T3.avesT = now;
   T3.avesU.value = now;
+  if (AVES.nuevo) { AVES.nuevo.update(dt, now); return; }
   const d = AVES.dummy;
   for (let i = 0; i < AVES.n; i++) {
     const b = AVES.birds[i];

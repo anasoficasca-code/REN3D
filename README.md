@@ -55,5 +55,7 @@ La escena demo incluida es el castillo hiperrealista de tu foto, para que veas e
 - Agua: refleja el cielo con nubes (entorno makeEnv) y su oleaje no repite mosaico.
 - Arboles lejanos: nivel 2 = arbol 3D de bajos poligonos con color real de las hojas, moteado de follaje y viento; los arboles reales tambien se mecen.
 - Simulaciones: carros (trayectorias reales, barra de tiempo), peatones por las aceras (solo se dibujan cerca de la camara), viento en arboles y pasto, oleaje y nubes.
+- Aves 3D (data3d/aves3d.js): patos macho y hembra, fochas y garzas blancas posadas, mas garzas y patos en vuelo batiendo las alas; modelos de varias piezas con color por vertice, repartidos por todos los humedales y lagunas (no solo El Burro). Los patos nadan, se detienen y meten la cabeza al agua; las garzas caminan por la orilla.
+- Arboles lejanos: la copa de nivel 2 se deriva del volumen de hojas del modelo real de cada especie, asi la silueta coincide con la del arbol cercano.
 - `?liviano=1` abre el modo TODO 3D sin edificios ni sombras (equipos modestos o pruebas).
 - Para usar otra foto de ave, reemplaza los PNG de `data3d/aves/`.

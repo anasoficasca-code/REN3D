@@ -241,6 +241,34 @@ function materialArbolBajo(T3) {
   m.customProgramCacheKey = () => 'arbolbajo-v2';
   return m;
 }
+// copa de bajos polígonos DERIVADA del modelo real: se agrupan los puntos de las hojas del nivel 1 en celdas y cada celda ocupada se convierte en una masa
+// de follaje; así la silueta del árbol lejano coincide con la del árbol real de esa especie. Queda normalizada a 1 de alto y 1 de ancho.
+function geometriaCopaDeModelo(niveles, alto, ancho) {
+  const pts = [];
+  for (const p of niveles.L1) { if (!p.hoja) continue; const a = p.geo.attributes.position, st = Math.max(1, Math.floor(a.count / 5000)); for (let i = 0; i < a.count; i += st) pts.push(a.getX(i), a.getY(i), a.getZ(i)); }
+  if (pts.length < 90) return null;
+  const s = Math.max(alto, ancho) / 4.4, celdas = new Map();
+  for (let i = 0; i < pts.length; i += 3) { const k = Math.floor(pts[i] / s) + ',' + Math.floor(pts[i + 1] / s) + ',' + Math.floor(pts[i + 2] / s); let c = celdas.get(k); if (!c) celdas.set(k, c = { x: 0, y: 0, z: 0, n: 0 }); c.x += pts[i]; c.y += pts[i + 1]; c.z += pts[i + 2]; c.n++; }
+  const lista = [...celdas.values()].filter(c => c.n >= 10).sort((a, b) => b.n - a.n).slice(0, 11);
+  if (lista.length < 3) return null;
+  const nmax = lista[0].n, c0 = [0.09, 0.15, 0.055], c1 = [0.25, 0.36, 0.12], piezas = [];
+  const limpia = (g) => { if (g.index) g = g.toNonIndexed(); g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g; };
+  const pinta = (g, f) => { const p = g.attributes.position, c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const k = f(p.getY(i)); c[i * 3] = k[0]; c[i * 3 + 1] = k[1]; c[i * 3 + 2] = k[2]; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; };
+  let base = 1e9;
+  lista.forEach((c, mi) => {
+    const cx = c.x / c.n, cy = c.y / c.n, cz = c.z / c.n, r = s * (0.62 + 0.34 * c.n / nmax);
+    const g = limpia(new THREE.IcosahedronGeometry(r, 1)), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), h = Math.abs(Math.sin(vx * 91.7 + vy * 47.3 + vz * 131.1 + mi * 17.0) * 43758.5453) % 1, k = 1 + (h - 0.5) * 0.4; p.setXYZ(i, cx + vx * k, cy + vy * k * 0.85, cz + vz * k); }
+    base = Math.min(base, cy - r * 0.6);
+    piezas.push(pinta(g, (y) => { const t = Math.max(0, Math.min(1, (y / alto - 0.2) / 0.8)); return [c0[0] + (c1[0] - c0[0]) * t, c0[1] + (c1[1] - c0[1]) * t, c0[2] + (c1[2] - c0[2]) * t]; }));
+  });
+  const th = Math.max(0.15 * alto, Math.min(0.55 * alto, base + 0.08 * alto)), tr = limpia(new THREE.CylinderGeometry(0.014 * ancho, 0.028 * ancho, th, 6, 1));
+  tr.translate(0, th / 2, 0); piezas.unshift(pinta(tr, () => [0.2, 0.15, 0.1]));
+  const g = mergeVertices(mergeGeometries(piezas)), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, p.getX(i) / ancho, p.getY(i) / alto, p.getZ(i) / ancho);
+  g.computeVertexNormals();
+  return g;
+}
 export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   const stride = Math.max(1, Math.ceil(T.t.length / 130000)); // se muestran todos los arboles de los datos
   const X = [], Z = [], Hh = [], SP = [], pesoTot = ESPECIES_ARBOL.reduce((a, e) => a + e.peso, 0);
@@ -303,11 +331,11 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
     especies.push({ ...E, niveles, alto, ancho, sil, hojaRGB });
   }
   // L0 modelo real completo (cerca) · L1 modelo real reducido (medio) · L2 arbol 3D de bajos poligonos (lejos) · siluetas sólo más allá de R2 o si se llena el cupo
-  const CAP0 = 16, CAP2 = 12000, R0 = 40, R1 = 260, R2 = 1100, d = new THREE.Object3D(), col = new THREE.Color();
+  const CAP0 = 16, CAP2 = 9000, R0 = 40, R1 = 260, R2 = 1100, d = new THREE.Object3D(), col = new THREE.Color();
   const CAP1S = especies.map(e => e.base === 'arbolpeq' ? 90 : 210); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
   const TIPO_BAJO = especies.map(e => (e.base === 'arbolpeq' || e.base === 'island_tree_02') ? 1 : 0);
   const matBajo = materialArbolBajo(T3), REF = [0.17, 0.255, 0.0875]; // REF = verde medio del degradado de vértices
-  const bajos = especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
+  const bajos = especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaCopaDeModelo(e.niveles, e.alto, e.ancho) || geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
   const TINTE_BAJO = especies.map(e => e.hojaRGB.map((v, k) => Math.max(1.1, Math.min(3.4, 2.1 * v / REF[k])))); // lleva el verde de la copa al color real de las hojas de esa especie (el modelo real además brilla un poco por su textura emisiva)
   const lod = especies.map((e, si) => ({ L0: e.niveles.L0.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP0); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; T3.scene.add(m); return m; }),
     L1: e.niveles.L1.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP1S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; T3.scene.add(m); return m; }) }));
@@ -358,7 +386,7 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
 
 /* ------------------------------------------------------------------ pasto 3D verde, matas y plantas reales ------------------------------------------------------------------ */
 function geometriaPasto(sem, o) {
-  o = Object.assign({ blades: 18, hMin: 0.25, hMax: 0.55, radio: 0.17, ancho: 0.03, incl: [0.06, 0.26], base: [0.085, 0.16, 0.045], punta: [0.33, 0.45, 0.14] }, o || {}); // verdes apagados y naturales (los muy saturados parecen de videojuego)
+  o = Object.assign({ blades: 18, hMin: 0.25, hMax: 0.55, radio: 0.17, ancho: 0.03, incl: [0.06, 0.26], base: [0.11, 0.17, 0.06], punta: [0.26, 0.33, 0.12] }, o || {}); // verdes apagados y naturales (los muy saturados parecen de videojuego)
   const rnd = (i) => hash(sem * 1000 + i * 7 + 1), P = [], C = [], I = [];
   for (let b = 0; b < o.blades; b++) {
     const ang = rnd(b * 5) * Math.PI * 2, rad = Math.sqrt(rnd(b * 5 + 1)) * o.radio, alto = o.hMin + rnd(b * 5 + 2) * (o.hMax - o.hMin), inclina = (o.incl[0] + rnd(b * 5 + 3) * (o.incl[1] - o.incl[0])) * alto, dir = ang + (rnd(b * 5 + 4) - 0.5) * 1.4;
@@ -392,7 +420,7 @@ export async function buildNearPlants(T3, W, lw, env, Pq) {
         transformed.z += cos(uTime * 1.3 + ph) * 0.05 * position.y;
       #endif`);
   };
-  const pastos = [0, 1, 2, 3].map(s => geometriaPasto(s + 1)), juncos = [0, 1].map(s => geometriaPasto(40 + s, { blades: 16, hMin: 1.2, hMax: 2.3, radio: 0.24, ancho: 0.04, incl: [0.10, 0.30], base: [0.10, 0.19, 0.05], punta: [0.40, 0.45, 0.15] }));
+  const pastos = [0, 1, 2, 3].map(s => geometriaPasto(s + 1)), juncos = [0, 1].map(s => geometriaPasto(40 + s, { blades: 16, hMin: 1.2, hMax: 2.3, radio: 0.24, ancho: 0.04, incl: [0.10, 0.30], base: [0.12, 0.17, 0.06], punta: [0.3, 0.34, 0.13] }));
   const NP = pastos.length, NJ = juncos.length, NV = variantes.length, TIPOS = NP + NJ + NV;
   const sx = [], sz = [], tp = [], esc = [], rot = [];
   const poner = (x, z, i, modo) => { // modo: 0 pasto, 1 planta real, 2 junco
@@ -490,8 +518,8 @@ export function upgradeWater(T3, env) {
   };
   // agua azul-verdosa profunda que refleja el cielo y sus nubes (el reflejo crece al mirar de lado, como en el agua real)
   const cv = mesh.geometry.attributes.color;
-  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.035; cv.array[i + 1] = 0.115; cv.array[i + 2] = 0.140; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
-  mat.envMapIntensity = 0.95; mat.roughness = 0.03; mat.clearcoat = 0.35; mat.clearcoatRoughness = 0.04; mat.specularIntensity = 1; mat.normalScale.set(0.7, 0.7); mat.opacity = 0.97;
+  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.012; cv.array[i + 1] = 0.040; cv.array[i + 2] = 0.052; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
+  mat.envMapIntensity = 0.62; mat.roughness = 0.03; mat.clearcoat = 0.3; mat.clearcoatRoughness = 0.04; mat.specularIntensity = 1; mat.normalScale.set(0.7, 0.7); mat.opacity = 0.97;
   mesh.material = mat; T3.waterMat = mat; return true;
 }
 
