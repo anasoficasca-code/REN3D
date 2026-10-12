@@ -1733,26 +1733,28 @@ function buildWater(THREE, W) {
   T3.waterMesh = wmesh;
   T3.waterMat = wmat;
 }
-function buildParks(THREE, P) {
-  const gP = [], gC = [], gI = [];
-  let vc = 0;
+// Parques con la textura realista de pasto (Poliigon GrassPatchyGround 4585: color, normales, rugosidad y oclusion)
+async function buildParks(THREE, P) {
+  const gP = [], gC = [], gU = [], gI = []; let vc = 0;
   for (const p of P) {
     const v = [];
     for (const q of p.pts) { const w = lw(q[0], q[1]); v.push(new THREE.Vector2(w[0], w[1])); }
-    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
-    if (v.length < 3) continue;
-    const hsh = (hashN(p.nombre || 'x') % 20 - 10) * 0.006;
-    const c = [0.16 + hsh, 0.4 + hsh, 0.19 + hsh];
+    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop(); if (v.length < 3) continue;
     const base = vc;
-    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(c[0], c[1], c[2]); vc++; }
+    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(1, 1, 1); gU.push(q.x / 18, q.y / 18); vc++; }
     for (const f of THREE.ShapeUtils.triangulateShape(v, [])) gI.push(base + f[0], base + f[2], base + f[1]);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3));
-  g.setIndex(gI);
-  g.computeVertexNormals();
-  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(gU, 2)); g.setAttribute('uv2', new THREE.Float32BufferAttribute(gU, 2)); g.setIndex(gI); g.computeVertexNormals();
+  const tl = new THREE.TextureLoader();
+  const load = (url, fallback) => tl.load(url, undefined, undefined, () => fallback);
+  const base = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_BaseColor.jpg', null);
+  const normal = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Normal.png', null);
+  const rough = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Roughness.jpg', null);
+  const ao = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_AmbientOcclusion.jpg', null);
+  for (const tx of [base, normal, rough, ao]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1.2, 1.2); tx.anisotropy = 4; }
+  if (base) base.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshStandardMaterial({ color: 0x86a85d, map: base, normalMap: normal, roughnessMap: rough, aoMap: ao, roughness: 0.92, metalness: 0, emissive: 0x18250d, emissiveIntensity: 0.08, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(g, mat); mesh.receiveShadow = true; T3.scene.add(mesh);
 }
 function buildRoads(THREE, N) {
   const SP = [], SI = [], AP = [], AI = [];
