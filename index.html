@@ -80,11 +80,6 @@
     border-radius:6px;padding:3px 7px;font-size:10.5px;white-space:nowrap;color:#e0f2fe}
   @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
   #hud-r{display:none}
-  #trafficHud{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);z-index:18;width:min(560px,72vw);padding:10px 14px;background:rgba(7,13,22,.92);border:1px solid rgba(56,189,248,.45);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);color:#dbeafe;font:12px system-ui,sans-serif}
-  #trafficHud .trafficTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700}
-  #trafficPlay{padding:3px 10px;font-size:15px;line-height:1;border-radius:7px}
-  #trafficTime{width:100%;accent-color:#22d3ee;cursor:pointer}
-  @media(max-width:820px){#trafficHud{width:82vw;bottom:112px}}
 </style>
 </head>
 <body>
@@ -103,7 +98,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v31</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v32</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -125,12 +120,10 @@
   <span><kbd>Arrastre</kbd> mirar</span>
 </div>
 
-<div id="trafficHud"><div class="trafficTop"><span>🚗 Simulación de tráfico</span><b id="trafficLabel">16:40 / 24:59</b><button id="trafficPlay" type="button" class="on" aria-label="Reproducir simulación">▶</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
 <div class="hud" id="hud-c">
   <button id="b-foto" class="on">🏙️ Fotorrealista</button>
   <button id="b-sat">🛰️ Satélite</button>
   <button id="b-todo">🧱 TODO 3D</button>
-  <button id="b-play" class="on">⏸ Pausar carros</button>
   <button id="b-splat">🌀 Splat Humedal</button>
   <button id="b-hd">📦 HD</button>
   <button id="b-tour">▶ Tour Kennedy</button>
@@ -327,8 +320,9 @@ async function init3D() {
         vec3 V = vec3(0.0, 0.0, 1.0);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
         vec3 col = mix(uDeep, uShallow, 0.5 + 0.25*sin((p.x+p.y)*0.15 + uTime*0.7));
-        // Agua continua: sin destellos ni puntos blancos.
-        col = mix(col, uSky, fres*0.12);
+        col = mix(col, uSky, fres*0.75);
+        float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 60.0);
+        col += spec * vec3(1.0, 0.95, 0.85) * 0.9;
         vec2 e = min(vUv, 1.0 - vUv);
         float edge = smoothstep(0.0, 0.07, min(e.x, e.y));
         gl_FragColor = vec4(col, mix(0.35, 0.94, edge));
@@ -493,7 +487,7 @@ let idx = 0;
 
 /* ============ MODO FOTORREALISTA (Google 3D Tiles + CesiumJS) ============ */
 const GKEY = 'AIzaSyCF2MXjc0DYRFrHk7j_BCyxVpWOdYqDIC4';
-let mode = 'todo';
+let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
 let SPLAT = null;
@@ -515,7 +509,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v31' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v31' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v31' : 'MODO: 🛰️ SATÉLITE · v31'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v32' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v32' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v32' : 'MODO: 🛰️ SATÉLITE · v32'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -523,7 +517,7 @@ function setMode(m) {
     (async () => {
       const ok = await initTodo();
       if (!ok) setMode('sat');
-      else if (T3 && !T3.ready) { T3.ready = true; flyTrafficHome(true); say('🚗 Tráfico visible · 2.581 carros máximo · 24:59'); }
+      else if (T3 && !T3.ready) { T3.ready = true; flyTodo(1, true); say('🧱 Estás sobre el Lago Timiza · arrastra para orbitar, WASD para volar'); }
     })();
   }
   if (m === 'splat') {
@@ -599,7 +593,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v31 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v32 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -649,9 +643,8 @@ $('b-foto').onclick = () => {
 };
 $('b-sat').onclick = () => { setMode('sat'); say('🛰️ Modo satélite'); };
 initFoto();
-const initialParams = new URLSearchParams(location.search);
-if (initialParams.get('splat') === '1') setMode('splat');
-else if (initialParams.get('todo') === '1' || !initialParams.has('todo')) setMode('todo');
+if (new URLSearchParams(location.search).get('todo') === '1') setMode('todo');
+if (new URLSearchParams(location.search).get('splat') === '1') setMode('splat');
 function flyTo(i, z) {
   const p = POIS[i]; idx = i;
   if (mode === 'splat') {
@@ -797,7 +790,7 @@ function flight(ms) {
     if (cam.position.y < 3) cam.position.y = 3;
     o.update();
     updateAves();
-    updateCars(dt);
+    if (TRAF) updateTraffic(dt); else updateCars(dt);
     if (T3.R) { if (T3.trees) T3.trees.update(cam); if (T3.plants) T3.plants.update(cam); if (T3.waterBirds) T3.waterBirds.update(dt, cam); }
     T3.waterU.value = performance.now() / 1000;
     if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
@@ -866,7 +859,7 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, y - LC.y];
-window.REN3D = { get T3() { return T3; }, lw, get cars() { return CARS; } }; // acceso para pruebas
+window.REN3D = { get T3() { return T3; }, lw }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
 
@@ -896,9 +889,9 @@ async function initTodo() {
     const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
     REFL = null; // agua analítica, sin espejo físico (evita manchas negras)
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    const LIVIANO = initialParams.get('liviano') === '1'; // ?liviano=1: sin edificios ni sombras, para equipos modestos o pruebas
-    renderer.setPixelRatio(LIVIANO ? 0.75 : Math.min(devicePixelRatio, 1.25));
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
+    const LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // ?liviano=1: sin edificios ni sombras (equipos modestos o pruebas)
     renderer.shadowMap.enabled = !LIVIANO;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -916,24 +909,35 @@ async function initTodo() {
       uSunDir: { value: new THREE.Vector3(0.42, 0.62, 0.35).normalize() }
     };
     const sky = new THREE.Mesh(
-      new THREE.SphereGeometry(15000, 32, 20),
+      new THREE.SphereGeometry(15000, 20, 12),
       new THREE.ShaderMaterial({
         uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
-        vertexShader: `varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-        fragmentShader: `varying vec3 vP; uniform vec3 top,mid,bot,uSunDir; uniform float uTime,uCloud;
-          float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-          float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
-          float fbm(vec2 p){float v=0.0,a=0.5;for(int i=0;i<6;i++){v+=a*noise(p);p=p*2.02+7.1;a*=0.5;}return v;}
-          void main(){vec3 d=normalize(vP);float h=clamp(d.y,-0.1,1.0);vec3 c=mix(bot,mid,smoothstep(-0.08,0.25,h));c=mix(c,top,smoothstep(0.2,0.82,h));
-            vec2 uv=d.xz/(max(d.y,0.06)+0.24);float t=uTime*0.003;float n=fbm(uv*0.72+vec2(t,-t*0.55));float n2=fbm(uv*1.55+vec2(-t*0.7,t*0.35));float clouds=smoothstep(0.49,0.72,n*0.78+n2*0.22);
-            float horizon=smoothstep(0.02,0.3,d.y);vec3 cloudCol=mix(vec3(0.56,0.66,0.74),vec3(1.0,0.98,0.91),0.55+0.45*max(dot(d,normalize(uSunDir)),0.0));c=mix(c,cloudCol,clouds*horizon*uCloud*0.92);gl_FragColor=vec4(c,1.0);}`
+        vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot, uSunDir; uniform float uTime, uCloud;
+          float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+          float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+            return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+          float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++){ v += a * vnoise(p); p *= 2.03; a *= 0.5; } return v; }
+          void main(){
+            vec3 d = normalize(vP);
+            float h = d.y;
+            vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.75, h)) : mix(bot, mid, smoothstep(-0.08, 0.12, h));
+            if (d.y > 0.015) {
+              vec2 cuv = d.xz / (d.y + 0.28) * 0.75 + uTime * vec2(0.018, 0.007);
+              float cl = smoothstep(0.36, 0.66, fbm(cuv));
+              float sunAmt = max(dot(d, normalize(uSunDir)), 0.0);
+              vec3 cloudCol = mix(vec3(0.78, 0.83, 0.88), vec3(1.08, 1.02, 0.95), pow(sunAmt, 2.0));
+              c = mix(c, cloudCol, cl * smoothstep(0.015, 0.18, d.y) * uCloud);
+            }
+            gl_FragColor = vec4(c, 1.0);
+          }`
       })
     );
     sky.frustumCulled = false;
     scene.add(sky);
     const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 1, 40000);
-    const tw = lw(6000, 3000);
-    camera.position.set(tw[0] + 190, 125, tw[1] + 230);
+    const tw = lw(7008, -326);
+    camera.position.set(tw[0] + 380, 170, tw[1] + 480);
     const orbit = new OrbitControls(camera, renderer.domElement);
     orbit.target.set(tw[0], 0, tw[1]);
     orbit.enableDamping = true; orbit.dampingFactor = 0.06;
@@ -955,8 +959,8 @@ async function initTodo() {
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
     ground.receiveShadow = true;
     scene.add(ground);
-    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, sky, skyU, night: false, anim: null, last: 0, counts: {},
-      carPlaying: true, waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
+    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
+      waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
     try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); } catch (e) { console.warn('real3d:', e); T3.R = null; }
 
     if (!LIVIANO) {
@@ -966,28 +970,29 @@ async function initTodo() {
       await new Promise(r => setTimeout(r, 30));
       buildChunks(THREE, B);
     }
-    $('lmsg').textContent = 'Cargando árboles, vías y tráfico…';
-    const [T, W, P, N] = await Promise.all([
-      fetchProg('data3d/trees.json', 'Árboles'),
+    $('lmsg').textContent = 'Cargando árboles del censo…';
+    const T = await fetchProg('data3d/trees.json', 'Árboles');
+    // los arboles se construyen despues de cargar agua, parques y vias (data3d/real3d.js)
+    $('lmsg').textContent = 'Cargando aguas, parques y vías…';
+    const [W, P, N] = await Promise.all([
       fetch('data3d/water_bodies.json').then(r => r.json()),
       fetch('data3d/parques.json').then(r => r.json()),
       fetch('data3d/net.json').then(r => r.json())
     ]);
-    // Prioridad visible: los carros aparecen antes de construir el arbolado pesado.
-    buildProofCar(THREE);
-    try { await buildCars(THREE, N); if (PROOF_CAR) { T3.scene.remove(PROOF_CAR); PROOF_CAR = null; } say('🚗 ' + VEHICLE_MAX_VISIBLE.toLocaleString('es-CO') + ' carros cargados · Play activo'); } catch (e) { console.warn('cars:', e); T3.counts.cars = 0; say('⚠️ Error de carros: ' + String(e && e.message || e).slice(0, 100), 8000); }
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
-    try { if (AVES) AVES.birds.forEach(b => { if (b.kind === 'pato' || b.kind === 'tingua') b.sc = 0; }); } catch (e) {} // los patos y tinguas ahora son los reales de todos los humedales
+    try { if (AVES) AVES.birds.forEach(b => { if (b.kind === 'pato' || b.kind === 'tingua') b.sc = 0; }); } catch (e) {} // patos y tinguas reales en todos los humedales
     if (T3.R && T3.env) { try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); } }
     if (T3.R) T3.R.buildWaterBirds(T3, W, lw).then(a => { T3.waterBirds = a; }).catch(e => console.warn('aves de humedal:', e));
     // los juncos negros de buildReeds se reemplazaron por juncos 3D verdes en data3d/real3d.js
-    try { await buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
+    try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
     if (T3.R && T3.env) T3.R.buildNearPlants(T3, W, lw, T3.env, P).then(a => { T3.plants = a; }).catch(e => console.warn('pasto 3D:', e));
-    $('loader').classList.add('hidden');
-    say('🚗 TODO 3D listo · ' + (T3.counts.cars || 0).toLocaleString('es-CO') + ' carros · 24:59 · Árboles cargando en segundo plano');
-    if (T3.R && T3.env) T3.R.buildTrees(T3, T, W, lw, T3.env, P, N).then(a => { T3.trees = a; say('\u2705 \u00c1rboles reales 3D cargados \u00b7 carros en marcha'); }).catch(e => { console.warn('arboles reales:', e); buildTreesReal(THREE, T); });
+    T3.counts.t = T.t.length;
+    if (T3.R && T3.env) T3.R.buildTrees(T3, T, W, lw, T3.env, P, N).then(a => { T3.trees = a; }).catch(e => { console.warn('arboles reales:', e); buildTreesReal(THREE, T); });
     else buildTreesReal(THREE, T).catch(e => console.warn('trees:', e));
+    try { await buildTraffic(THREE); } catch (e) { console.warn('traffic:', e); try { buildCars(THREE, N); } catch (e2) { console.warn('cars:', e2); } }
+    $('loader').classList.add('hidden');
+    say('🧱 TODO 3D listo · ' + (T3.counts.b || 0).toLocaleString('es-CO') + ' edificios + ' + (T3.counts.t || 0).toLocaleString('es-CO') + ' árboles' + (TRAF ? ' + ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)' : ''));
     return true;
   } catch (e) {
     $('loader').classList.add('hidden');
@@ -1133,44 +1138,58 @@ function crossGeo(THREE, w, h) {
   return g;
 }
 async function buildTreesReal(THREE, T) {
-  const stride = Math.max(1, Math.ceil(T.t.length / 18000));
-  const ids = []; for (let i = 0; i < T.t.length; i += stride) ids.push(i);
-  const N = ids.length;
-  // Silueta natural: tronco fino y copas anchas, sin apariencia de columna.
-  const trunkG = new THREE.CylinderGeometry(0.10, 0.24, 3.0, 8); trunkG.translate(0, 1.5, 0);
-  const crownG = new THREE.SphereGeometry(2.35, 12, 8);
-  const crownG2 = crownG.clone(); crownG2.scale(0.86, 0.76, 0.92);
-  const crownG3 = crownG.clone(); crownG3.scale(0.72, 0.70, 0.78);
-  const trunkM = new THREE.MeshStandardMaterial({ color: 0x4a2c1c, roughness: 0.98, metalness: 0 });
-  const leafM = [0x1b4825, 0x2d6733, 0x477f3d].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.88, metalness: 0 }));
-  const trunks = new THREE.InstancedMesh(trunkG, trunkM, N);
-  const crowns = [new THREE.InstancedMesh(crownG, leafM[0], N), new THREE.InstancedMesh(crownG2, leafM[1], N), new THREE.InstancedMesh(crownG3, leafM[2], N)];
-  const d = new THREE.Object3D(), col = new THREE.Color();
-  for (let i = 0; i < N; i++) {
-    const t = T.t[ids[i]], w = lw(t[0], t[1]), h = Math.max(0.4, t[2] || 4), sc = Math.max(0.30, Math.min(2.0, h / 6.0)), r = (i * 2.39996) % (Math.PI * 2);
-    d.position.set(w[0], 0, w[1]); d.rotation.set(0, r, 0); d.scale.setScalar(sc); d.updateMatrix(); trunks.setMatrixAt(i, d.matrix);
-    d.position.set(w[0], 2.7 * sc, w[1]); d.scale.setScalar(sc); d.updateMatrix(); crowns[0].setMatrixAt(i, d.matrix);
-    d.position.set(w[0] + Math.sin(r) * 0.75 * sc, 4.15 * sc, w[1] + Math.cos(r) * 0.6 * sc); d.scale.setScalar(sc * 0.86); d.updateMatrix(); crowns[1].setMatrixAt(i, d.matrix);
-    d.position.set(w[0] - Math.sin(r) * 0.58 * sc, 5.25 * sc, w[1] - Math.cos(r) * 0.55 * sc); d.scale.setScalar(sc * 0.72); d.updateMatrix(); crowns[2].setMatrixAt(i, d.matrix);
-    col.setHSL(0.27 + ((i * 17) % 13) * 0.004, 0.40, 0.24 + ((i * 11) % 14) * 0.012);
-    crowns[0].setColorAt(i, col); col.offsetHSL(0.012, -0.04, 0.08); crowns[1].setColorAt(i, col); col.offsetHSL(-0.018, 0.02, 0.08); crowns[2].setColorAt(i, col);
-  }
-  for (const m of [trunks, ...crowns]) { m.count = N; m.instanceMatrix.needsUpdate = true; m.castShadow = true; m.receiveShadow = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; T3.scene.add(m); }
-  // Árbol hero 3D basado en el archivo SketchUp entregado; se añade solo en algunos
-  // puntos para conservar rendimiento y evitar que todo el bosque sea una columna.
+  const N = T.t.length;
+  let oakTx = null;
   try {
-    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-    const gltf = await new GLTFLoader().loadAsync('data3d/tree_skp.glb');
-    const step = Math.max(1, Math.floor(N / 36));
-    for (let i = 0; i < N; i += step) {
-      const t = T.t[i], w = lw(t[0], t[1]), h = Math.max(0.8, t[2] || 4), hero = gltf.scene.clone(true);
-      hero.position.set(w[0], 0, w[1]); hero.scale.setScalar(Math.min(2.2, h / 7)); hero.rotation.y = (i * 2.39996) % (Math.PI * 2);
-      hero.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); T3.scene.add(hero);
+    oakTx = await new THREE.TextureLoader().loadAsync('data3d/roble.png');
+    oakTx.colorSpace = THREE.SRGBColorSpace;
+  } catch (e) { console.warn('sin roble.png, solo procedurales', e); }
+  const geo = [crossGeo(THREE, 8.5, 10), crossGeo(THREE, 8.5, 10), crossGeo(THREE, 9.5, 11)];
+  const mat = [
+    new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 0), alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x1c2a14, emissiveIntensity: 0.55 }),
+    new THREE.MeshLambertMaterial({ map: treeTexture(THREE, 1), alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x1c2a14, emissiveIntensity: 0.55 })
+  ];
+  if (oakTx) mat.push(new THREE.MeshLambertMaterial({ map: oakTx, alphaTest: 0.4, side: THREE.DoubleSide, emissive: 0x111a0e, emissiveIntensity: 0.5 }));
+  const NV = mat.length;
+  const per = Math.ceil(N / NV);
+  const meshes = [], counts = [];
+  for (let v = 0; v < NV; v++) {
+    const n = Math.min(per, N - v * per);
+    counts.push(n);
+    meshes.push(new THREE.InstancedMesh(geo[v], mat[v], Math.max(n, 1)));
+  }
+  const d = new THREE.Object3D(), col = new THREE.Color();
+  const idx = new Array(NV).fill(0);
+  for (let i = 0; i < N; i++) {
+    const t = T.t[i], w = lw(t[0], t[1]);
+    const sc = Math.max(0.35, (t[2] || 4) / 9);
+    d.position.set(w[0], 0, w[1]);
+    d.rotation.set(0, (i * 2.39996) % (Math.PI * 2), 0);
+    d.scale.setScalar(sc);
+    d.updateMatrix();
+    const v = i % NV;
+    if (v === 2 && oakTx) col.setHSL(0.26, 0.25, 0.85 + ((i * 7) % 10) * 0.015);
+    else {
+      const nm = (T.sp[t[3]] || '').toLowerCase();
+      if (/roble|guayacan/.test(nm)) col.setHex(0xe8c84a);
+      else if (/cerezo|flor|rosado|pomarroso/.test(nm)) col.setHex(0xe8a0c0);
+      else col.setHSL(0.29 + ((i * 13) % 10) * 0.004, 0.32, 0.82 + ((i * 7) % 10) * 0.02);
     }
-  } catch (e) { console.warn('tree_skp.glb no disponible, se mantiene bosque volumétrico:', e); }
+    meshes[v].setMatrixAt(idx[v], d.matrix);
+    meshes[v].setColorAt(idx[v], col);
+    idx[v]++;
+  }
+  for (let v = 0; v < NV; v++) {
+    const m = meshes[v];
+    m.count = idx[v];
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    m.castShadow = true;
+    m.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: mat[v].map, alphaTest: 0.4 });
+    T3.scene.add(m);
+  }
   T3.counts.t = N;
 }
-
 function triShape(THREE, pts) {
   const v = [];
   for (let i = 0; i < pts.length; i++) {
@@ -1271,7 +1290,7 @@ function buildReeds(THREE, W) {
   T3.scene.add(mesh);
   T3.counts.reeds = N;
 }
-async function buildGrass(THREE, P, W) {
+function buildGrass(THREE, P, W) {
   const cv = document.createElement('canvas');
   cv.width = 64; cv.height = 64;
   const g2 = cv.getContext('2d');
@@ -1290,16 +1309,8 @@ async function buildGrass(THREE, P, W) {
     g2.quadraticCurveTo(x0 + wdt / 4, 64 - hgt * 0.6, x0 + wdt / 2, 64);
     g2.closePath(); g2.fill();
   }
-  let tx;
-  try {
-    tx = await new THREE.TextureLoader().loadAsync('data3d/grass_albedo.png');
-    tx.colorSpace = THREE.SRGBColorSpace;
-    tx.anisotropy = 4;
-  } catch (e) {
-    tx = new THREE.CanvasTexture(cv);
-    tx.colorSpace = THREE.SRGBColorSpace;
-    console.warn('No cargó grass_albedo.png, usando atlas local', e);
-  }
+  const tx = new THREE.CanvasTexture(cv);
+  tx.colorSpace = THREE.SRGBColorSpace;
   const spots = [];
   for (const p of P) {
     const v = [];
@@ -1320,9 +1331,9 @@ async function buildGrass(THREE, P, W) {
       for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
         if (((v[i][1] > y) !== (v[j][1] > y)) && (x < (v[j][0] - v[i][0]) * (y - v[i][1]) / (v[j][1] - v[i][1]) + v[i][0])) inside = !inside;
       }
-      if (inside && spots.length < 40000) { spots.push([x, y]); n--; }
+      if (inside && spots.length < 25000) { spots.push([x, y]); n--; }
     }
-    if (spots.length >= 40000) break;
+    if (spots.length >= 25000) break;
   }
   if (W) {
     for (const w of W) {
@@ -1343,14 +1354,14 @@ async function buildGrass(THREE, P, W) {
         }
         const L = Math.hypot(dx, dz) || 1;
         for (const ring of [5, 9, 14]) {
-          if (spots.length >= 40000) break;
+          if (spots.length >= 25000) break;
           const jx = ((i * 37 + ring * 11) % 40) / 10 - 2;
           const jz = ((i * 53 + ring * 7) % 40) / 10 - 2;
           spots.push([p[0] + dx / L * ring + jx, p[1] + dz / L * ring + jz]);
         }
-        if (spots.length >= 40000) break;
+        if (spots.length >= 25000) break;
       }
-      if (spots.length >= 40000) break;
+      if (spots.length >= 25000) break;
     }
   }
   T3.grassSpots = spots;
@@ -1390,7 +1401,7 @@ async function buildGrass(THREE, P, W) {
   spots.forEach((s, i) => {
     d.position.set(s[0], 0.12, s[1]);
     d.rotation.set(0, ((i * 2.39996) % (Math.PI * 2)), 0);
-    d.scale.setScalar(1.0 + ((i * 13) % 10) * 0.10);
+    d.scale.setScalar(0.8 + ((i * 13) % 10) * 0.06);
     d.updateMatrix();
     mesh.setMatrixAt(i, d.matrix);
   });
@@ -1399,86 +1410,214 @@ async function buildGrass(THREE, P, W) {
   T3.scene.add(mesh);
   T3.counts.grass = N;
 }
-let CAR_PLAYING = true;
-let CAR_TIME = 1000;
 let CARS = null;
-let PROOF_CAR = null;
-function buildProofCar(THREE) {
-  if (PROOF_CAR || !T3) return;
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(8, 1.8, 4), new THREE.MeshBasicMaterial({ color: 0xffc400 }));
-  body.position.y = 2.0;
-  const roof = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.4, 3.2), new THREE.MeshBasicMaterial({ color: 0x164e63 }));
-  roof.position.set(-0.4, 3.55, 0);
-  const wheels = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.5, 4.4), new THREE.MeshBasicMaterial({ color: 0x111827 }));
-  wheels.position.y = 0.72;
-  g.add(body, roof, wheels);
-  g.position.set(...lw(6000, 3000), 0);
-  g.renderOrder = 50;
-  g.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.renderOrder = 50; } });
-  T3.scene.add(g); PROOF_CAR = g;
-}
-
-const VEHICLE_DATA_URL = 'data3d/kennedy_vehiculos.json';
-const VEHICLE_DURATION = 1499;
-const VEHICLE_UNIQUE_COUNT = 4202;
-const VEHICLE_MAX_VISIBLE = 2581;
-
-async function loadRecordedVehicles() {
-  const r = await fetch(VEHICLE_DATA_URL);
-  if (!r.ok) throw new Error('No se pudo cargar ' + VEHICLE_DATA_URL);
-  const data = await r.json();
-  // Mismo formato y mismas trayectorias que modelamiento2/modulo-08-3d.js.
-  return data.map(([time, vehicles]) => ({
-    time,
-    vehicles: vehicles.map(([id, x, y]) => ({ id, x, y }))
-  }));
-}
-async function buildCars(THREE, N) {
-  const timeline = await loadRecordedVehicles();
-  if (!T3.R || !T3.env) throw new Error('real3d.js no disponible');
-  T3.fleet = T3.R.createFleet(T3, T3.env);
-  CARS = { timeline, clock: CAR_TIME, playing: CAR_PLAYING, step: -1, nextMap: null, lastAngle: new Map() };
-  T3.counts.cars = VEHICLE_MAX_VISIBLE;
-  renderRecordedCars(CAR_TIME);
-}
-
-// El modelo del carro mira hacia +Z, y el angulo atan2(dx, dz) apunta +Z hacia donde avanza: los carros andan de frente.
-function renderRecordedCars(time) {
-  if (!CARS || !CARS.timeline.length || !T3.fleet) return;
-  const tl = CARS.timeline;
-  while (CARS.step + 1 < tl.length - 1 && tl[CARS.step + 1].time <= time) CARS.step++;
-  if (CARS.step < 0) CARS.step = 0;
-  const a = tl[CARS.step], b = tl[Math.min(CARS.step + 1, tl.length - 1)];
-  if (CARS.nextMap === null || CARS.nextMapStep !== CARS.step) {
-    CARS.nextMap = new Map(b.vehicles.map(v => [v.id, v]));
-    CARS.nextMapStep = CARS.step;
-  }
-  const frac = b.time > a.time ? Math.max(0, Math.min(1, (time - a.time) / (b.time - a.time))) : 0;
-  const n = Math.min(a.vehicles.length, VEHICLE_MAX_VISIBLE), fl = T3.fleet;
-  fl.begin();
-  for (let i = 0; i < n; i++) {
-    const v = a.vehicles[i], nv = CARS.nextMap.get(v.id) || v;
-    const x = v.x + (nv.x - v.x) * frac, y = v.y + (nv.y - v.y) * frac, p = lw(x, y);
-    const dx = nv.x - v.x, dz = nv.y - v.y;
-    let hd = CARS.lastAngle.get(v.id);
-    if (Math.hypot(dx, dz) > 0.05) {
-      const t = Math.atan2(dx, dz);
-      if (hd === undefined) hd = t; else { let d = t - hd; d = Math.atan2(Math.sin(d), Math.cos(d)); hd += d * 0.45; }
-      CARS.lastAngle.set(v.id, hd);
+let TRAF = null;
+async function buildTraffic(THREE) {
+  $('lmsg').textContent = 'Cargando tráfico real (57 MB)…';
+  await new Promise(r => setTimeout(r, 30));
+  const raw = await fetchProg('data3d/kennedy_vehiculos.json', 'Tráfico');
+  const id2i = new Map();
+  const NS = raw.length;
+  const steps = new Array(NS);
+  let maxi = 0;
+  for (let s = 0; s < NS; s++) {
+    const vs = raw[s][1], n = vs.length;
+    const ids = new Int32Array(n), xs = new Float32Array(n), ys = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      const v = vs[k];
+      let ii = id2i.get(v[0]);
+      if (ii === undefined) { ii = id2i.size; id2i.set(v[0], ii); }
+      ids[k] = ii; xs[k] = v[1]; ys[k] = v[2];
     }
-    fl.add(p[0], p[1], hd ?? 0, parseInt(String(v.id).replace(/\D/g, ''), 10) || 0); // los ids son texto ("veh12"): se usa su numero para elegir estilo y color
+    steps[s] = { t: raw[s][0], ids, xs, ys };
+    if (n > maxi) maxi = n;
   }
-  fl.end(T3.camera.position.x, T3.camera.position.z);
+  const NV = id2i.size, dur = steps[NS - 1].t;
+  const chassisGeo = new THREE.BoxGeometry(4.5, 1.2, 2.2);
+  chassisGeo.translate(0, 0.6, 0);
+  const cabinGeo = new THREE.BoxGeometry(2.5, 1.5, 1.8);
+  cabinGeo.translate(-0.5, 2.0, 0);
+  const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 12);
+  wheelGeo.rotateX(Math.PI / 2);
+  const bodies = new THREE.InstancedMesh(chassisGeo, new THREE.MeshStandardMaterial({ metalness: 0.3, roughness: 0.4 }), maxi);
+  const cabins = new THREE.InstancedMesh(cabinGeo, new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.2, roughness: 0.6 }), maxi);
+  const wheels = new THREE.InstancedMesh(wheelGeo, new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.1, roughness: 0.8 }), maxi * 4);
+  bodies.castShadow = true;
+  bodies.frustumCulled = false; cabins.frustumCulled = false; wheels.frustumCulled = false;
+  bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  cabins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  wheels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const col = new THREE.Color();
+  const palette = [0xf2f3f5, 0xc0c4c9, 0x1c1e22, 0xb32026, 0x2456c8, 0xf2b705, 0x5a6270, 0x2e7d4f];
+  for (let i = 0; i < maxi; i++) {
+    col.setHex(palette[(i * 7 + 3) % palette.length]);
+    bodies.setColorAt(i, col);
+  }
+  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  T3.scene.add(bodies, cabins, wheels);
+  TRAF = { steps, NS, NV, dur, maxi, t: 0, bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
+  T3.counts.cars = NV;
+  updateTraffic(0);
 }
-
+function updateTraffic(dt) {
+  if (!TRAF) return;
+  TRAF.t += dt;
+  if (TRAF.t > TRAF.dur) TRAF.t -= (TRAF.dur + 1);
+  const k0 = Math.floor(TRAF.t) % TRAF.NS, k1 = (k0 + 1) % TRAF.NS;
+  const f = TRAF.t - Math.floor(TRAF.t);
+  const A = TRAF.steps[k0], B = TRAF.steps[k1];
+  const m = new Map();
+  for (let i = 0; i < B.ids.length; i++) m.set(B.ids[i], i);
+  const d = TRAF.dummy;
+  const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
+  let n = 0;
+  for (let i = 0; i < A.ids.length && n < TRAF.maxi; i++) {
+    const x0 = A.xs[i] - LC.x, y0 = A.ys[i] - LC.y;
+    const j = m.get(A.ids[i]);
+    let x1 = x0, y1 = y0;
+    if (j !== undefined) { x1 = B.xs[j] - LC.x; y1 = B.ys[j] - LC.y; }
+    const dx = x1 - x0, dy = y1 - y0;
+    if (dx * dx + dy * dy > 1e-6) TRAF.head[n] = Math.atan2(-dy, dx);
+    const hd = TRAF.head[n];
+    const px = x0 + dx * f, pz = y0 + dy * f;
+    d.position.set(px, 1.5, pz);
+    d.rotation.set(0, hd, 0);
+    d.scale.setScalar(1);
+    d.updateMatrix();
+    TRAF.bodies.setMatrixAt(n, d.matrix);
+    TRAF.cabins.setMatrixAt(n, d.matrix);
+    const ch = Math.cos(hd), sh = Math.sin(hd);
+    for (let w = 0; w < 4; w++) {
+      const lx = WO[w][0], lz = WO[w][1];
+      d.position.set(px + lx * ch + lz * sh, 1.5 + 0.42, pz - lx * sh + lz * ch);
+      d.rotation.set(0, hd, 0);
+      d.updateMatrix();
+      TRAF.wheels.setMatrixAt(n * 4 + w, d.matrix);
+    }
+    n++;
+  }
+  TRAF.bodies.count = n; TRAF.cabins.count = n; TRAF.wheels.count = n * 4;
+  TRAF.bodies.instanceMatrix.needsUpdate = true;
+  TRAF.cabins.instanceMatrix.needsUpdate = true;
+  TRAF.wheels.instanceMatrix.needsUpdate = true;
+}
+function buildCars(THREE, N) {
+  // Filter edges that go through water to avoid cars appearing in water
+  const paths = [], cums = [];
+  const waterLats = [4.6216, 4.6385, 4.6470]; // Water body latitudes from WATERS const
+  const waterLngs = [-74.1626, -74.1712, -74.1185];
+  const MX = (lng, lat) => 111320 * Math.cos(lat * Math.PI / 180);
+  const MY = 110540;
+  function inWater(lng, lat) {
+    for (let i = 0; i < waterLats.length; i++) {
+      const dx = (lng - waterLngs[i]) / ((210 / 2) / MX(waterLngs[i], waterLats[i])); // use first water body approx
+      const dy = (lat - waterLats[i]) / (135 / 2) / MY;
+      if (dx * dx + dy * dy < 1.2) return true;
+    }
+    return false;
+  }
+  for (const e of N.edges) {
+    const pts = e[1].map(p => {
+      const lng = p[0], lat = p[1];
+      // Skip points in water
+      if (inWater(lng, lat)) return null;
+      return lw(lng, lat);
+    }).filter(p => p !== null);
+    if (pts.length < 2) continue;
+    const cum = [0];
+    for (let i = 0; i < pts.length - 1; i++)
+      cum.push(cum[i] + Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]));
+    if (cum[cum.length - 1] < 40) continue;
+    paths.push(pts); cums.push(cum);
+  }
+  if (!paths.length) return;
+  const NC = Math.min(220, paths.length * 2); // Same car count as before, but realistic
+  // Realistic car geometry: chassis + cabin + wheels
+  const chassisGeo = new THREE.BoxGeometry(4.5, 1.2, 2.2);
+  chassisGeo.translate(0, 0.6, 0);
+  const cabinGeo = new THREE.BoxGeometry(2.5, 1.5, 1.8);
+  cabinGeo.translate(-0.5, 2.0, 0);
+  const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 12);
+  wheelGeo.rotateX(Math.PI / 2);
+  const bodyMat = new THREE.MeshStandardMaterial({ metalness: 0.3, roughness: 0.4 });
+  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.2, roughness: 0.6 });
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.1, roughness: 0.8 });
+  const nWheels = 4;
+  const bodies = new THREE.InstancedMesh(chassisGeo, bodyMat, NC);
+  const cabins = new THREE.InstancedMesh(cabinGeo, cabinMat, NC);
+  const wheels = new THREE.InstancedMesh(wheelGeo, wheelMat, NC * nWheels);
+  bodies.castShadow = true;
+  cabins.castShadow = true;
+  wheels.castShadow = true;
+  bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  cabins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  wheels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const cars = [];
+  const col = new THREE.Color();
+  for (let i = 0; i < NC; i++) {
+    const pi = (i * 7 + 3) % paths.length;
+    const total = cums[pi][cums[pi].length - 1];
+    cars.push({
+      pi, total,
+      dist: ((i * 977) % 1000) / 1000 * total,
+      speed: 9 + ((i * 31) % 80) / 10,
+      dir: (i % 2 === 0) ? 1 : -1,
+      lane: (i % 2 === 0) ? 1.9 : -1.9
+    });
+    col.setHSL(0.55 + ((i * 13) % 10) * 0.01, 0.5, 0.5);
+    bodies.setColorAt(i, col);
+    // Random car color variant
+    const hue = (0.5 + ((i * 7) % 10) * 0.02) % 1.0;
+    col.setHSL(hue, 0.4, 0.5);
+    cabins.setColorAt(i, col.clone());
+  }
+  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  if (cabins.instanceColor) cabins.instanceColor.needsUpdate = true;
+  T3.scene.add(bodies, cabins, wheels);
+  CARS = { bodies, cabins, wheels, cars, paths, cums, dummy: new THREE.Object3D() };
+  T3.counts.cars = NC;
+  updateCars(0.016);
+}
 function updateCars(dt) {
-  if (!CARS || !CARS.playing) return;
-  CARS.clock += dt;
-  if (CARS.clock >= VEHICLE_DURATION) { CARS.clock = 0; CARS.step = -1; CARS.nextMap = null; CARS.lastAngle.clear(); }
-  renderRecordedCars(CARS.clock);
+  if (!CARS) return;
+  const d = CARS.dummy;
+  const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
+  for (let i = 0; i < CARS.cars.length; i++) {
+    const c = CARS.cars[i];
+    c.dist += c.speed * c.dir * dt;
+    if (c.dist > c.total) c.dist -= c.total;
+    if (c.dist < 0) c.dist += c.total;
+    const pts = CARS.paths[c.pi], cum = CARS.cums[c.pi];
+    let s = 0;
+    while (s < cum.length - 2 && cum[s + 1] < c.dist) s++;
+    const a = pts[s], b = pts[s + 1];
+    const segL = (cum[s + 1] - cum[s]) || 1;
+    const k = (c.dist - cum[s]) / segL;
+    let dx = b[0] - a[0], dz = b[1] - a[1];
+    const L = Math.hypot(dx, dz) || 1;
+    dx /= L; dz /= L;
+    const px = a[0] + (b[0] - a[0]) * k + (-dz) * c.lane * c.dir;
+    const pz = a[1] + (b[1] - a[1]) * k + (dx) * c.lane * c.dir;
+    const hd = Math.atan2(-dz * c.dir, dx * c.dir);
+    d.position.set(px, 1.5, pz);
+    d.rotation.set(0, hd, 0);
+    d.scale.setScalar(1);
+    d.updateMatrix();
+    CARS.bodies.setMatrixAt(i, d.matrix);
+    CARS.cabins.setMatrixAt(i, d.matrix);
+    const ch = Math.cos(hd), sh = Math.sin(hd);
+    for (let w = 0; w < 4; w++) {
+      const lx = WO[w][0], lz = WO[w][1];
+      d.position.set(px + lx * ch + lz * sh, 1.5 + 0.42, pz - lx * sh + lz * ch);
+      d.rotation.set(0, hd, 0);
+      d.updateMatrix();
+      CARS.wheels.setMatrixAt(i * 4 + w, d.matrix);
+    }
+  }
+  CARS.bodies.instanceMatrix.needsUpdate = true;
+  CARS.cabins.instanceMatrix.needsUpdate = true;
+  CARS.wheels.instanceMatrix.needsUpdate = true;
 }
-
 function buildWater(THREE, W) {
   const P = [], C = [], UV = [], I = [];
   let vc = 0;
@@ -1530,11 +1669,7 @@ function buildWater(THREE, W) {
       varying vec2 vUv; varying vec3 vWp; uniform float uTime;
       void main(){
         vUv = uv;
-        vec3 p = position;
-        p.y += 0.18 * sin(position.x * 0.035 + uTime * 0.9)
-             + 0.11 * sin(position.z * 0.052 - uTime * 0.72)
-             + 0.06 * sin((position.x + position.z) * 0.081 + uTime * 0.48);
-        vec4 wp = modelMatrix * vec4(p, 1.0);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
         vWp = wp.xyz;
         gl_Position = projectionMatrix * viewMatrix * wp;
       }`,
@@ -1542,28 +1677,34 @@ function buildWater(THREE, W) {
       varying vec2 vUv; varying vec3 vWp;
       uniform float uTime, uCloud;
       uniform vec3 uSun, uDeep, uShallow, uSkyA, uSkyB;
+      float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
+      float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++){ v += a * vnoise(p); p *= 2.05; a *= 0.5; } return v; }
+      vec3 skyRef(vec3 d){
+        float h = clamp(d.y, 0.0, 1.0);
+        vec3 c = mix(uSkyA, uSkyB, smoothstep(0.0, 0.45, h));
+        vec2 cuv = d.xz / (h + 0.35) * 0.8 + uTime * vec2(0.004, 0.002);
+        float cl = smoothstep(0.52, 0.8, fbm(cuv));
+        c = mix(c, vec3(0.98, 0.99, 1.0), cl * 0.85 * uCloud);
+        return c;
+      }
       void main(){
-        // Superficie limpia: variación suave de color, sin reflejos puntuales,
-        // destellos ni ruido visual sobre el agua.
-        float wave = 0.5 + 0.11 * sin(vWp.x * 0.018 + uTime * 0.55)
-                           + 0.075 * sin(vWp.z * 0.023 - uTime * 0.42)
-                           + 0.045 * sin((vWp.x + vWp.z) * 0.041 + uTime * 0.31)
-                           + 0.025 * sin((vWp.x - vWp.z) * 0.083 - uTime * 0.24);
-        vec3 col = mix(uDeep, uShallow, clamp(wave, 0.12, 0.88));
-        col += vec3(0.015, 0.028, 0.032) * (0.5 + 0.5 * sin(vWp.x * 0.006 - vWp.z * 0.004));
+        vec2 p = vWp.xz * 0.55;
+        vec2 q = vec2(p.x * 0.6 + p.y * 1.4, p.x * 1.5 - p.y * 0.7);
+        float nx = sin(q.x * 1.1 + uTime * 2.0) + sin((q.x + q.y) * 0.6 - uTime * 1.4) + sin(q.y * 1.3 + uTime * 2.1) * 0.5;
+        float ny = cos(q.y * 1.0 - uTime * 1.8) + cos((q.x - q.y) * 0.7 + uTime * 1.2) + cos(q.x * 1.1 - uTime * 1.9) * 0.5;
+        vec3 N = normalize(vec3(nx * 0.16, 1.0, ny * 0.16));
         vec3 V = normalize(cameraPosition - vWp);
-        float e = 0.8;
-        float hL = 0.11*sin((vWp.x-e)*0.018+uTime*0.55)+0.045*sin(((vWp.x-e)+vWp.z)*0.041+uTime*0.31);
-        float hR = 0.11*sin((vWp.x+e)*0.018+uTime*0.55)+0.045*sin(((vWp.x+e)+vWp.z)*0.041+uTime*0.31);
-        float hD = 0.075*sin((vWp.z-e)*0.023-uTime*0.42)+0.045*sin((vWp.x+(vWp.z-e))*0.041+uTime*0.31);
-        float hU = 0.075*sin((vWp.z+e)*0.023-uTime*0.42)+0.045*sin((vWp.x+(vWp.z+e))*0.041+uTime*0.31);
-        vec3 N = normalize(vec3(-(hR-hL)/(2.0*e),1.0,-(hU-hD)/(2.0*e)));
-        float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
-        vec3 reflectedSky = mix(uSkyA, uSkyB, clamp(N.y, 0.0, 1.0));
-        float sunBroad = pow(max(dot(reflect(-V, N), normalize(uSun)), 0.0), 28.0);
-        col = mix(col, reflectedSky, fres * 0.22);
-        col += vec3(0.95, 0.90, 0.72) * sunBroad * 0.08;
-        gl_FragColor = vec4(col, 0.98);
+        float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+        vec3 base = mix(uDeep, uShallow, 0.5 + 0.25 * sin((p.x + p.y) * 0.15 + uTime * 0.8));
+        vec3 R = reflect(-V, N);
+        R.y = abs(R.y);
+        vec3 col = mix(base, skyRef(normalize(R)), clamp(fres * 0.5 + 0.06, 0.0, 1.0));
+        vec3 H = normalize(normalize(uSun) + V);
+        float spec = pow(max(dot(N, H), 0.0), 120.0);
+        col += spec * 1.1 * vec3(1.0, 0.97, 0.9);
+        gl_FragColor = vec4(col, 0.97);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`
@@ -1575,29 +1716,27 @@ function buildWater(THREE, W) {
   T3.waterMesh = wmesh;
   T3.waterMat = wmat;
 }
-async function buildParks(THREE, P) {
-  const gP = [], gC = [], gU = [], gI = []; let vc = 0;
+function buildParks(THREE, P) {
+  const gP = [], gC = [], gI = [];
+  let vc = 0;
   for (const p of P) {
     const v = [];
     for (const q of p.pts) { const w = lw(q[0], q[1]); v.push(new THREE.Vector2(w[0], w[1])); }
-    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop(); if (v.length < 3) continue;
+    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
+    if (v.length < 3) continue;
+    const hsh = (hashN(p.nombre || 'x') % 20 - 10) * 0.006;
+    const c = [0.16 + hsh, 0.4 + hsh, 0.19 + hsh];
     const base = vc;
-    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(1, 1, 1); gU.push(q.x / 18, q.y / 18); vc++; }
+    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(c[0], c[1], c[2]); vc++; }
     for (const f of THREE.ShapeUtils.triangulateShape(v, [])) gI.push(base + f[0], base + f[2], base + f[1]);
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(gU, 2)); g.setAttribute('uv2', new THREE.Float32BufferAttribute(gU, 2)); g.setIndex(gI); g.computeVertexNormals();
-  const tl = new THREE.TextureLoader();
-  const load = (url, fallback) => tl.load(url, undefined, undefined, () => fallback);
-  const base = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_BaseColor.jpg', null);
-  const normal = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Normal.png', null);
-  const rough = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Roughness.jpg', null);
-  const ao = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_AmbientOcclusion.jpg', null);
-  for (const tx of [base, normal, rough, ao]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1.2, 1.2); tx.anisotropy = 4; }
-  if (base) base.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshStandardMaterial({ color: 0x86a85d, map: base, normalMap: normal, roughnessMap: rough, aoMap: ao, roughness: 0.92, metalness: 0, emissive: 0x18250d, emissiveIntensity: 0.08, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(g, mat); mesh.receiveShadow = true; T3.scene.add(mesh);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3));
+  g.setIndex(gI);
+  g.computeVertexNormals();
+  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
 }
-
 function buildRoads(THREE, N) {
   const SP = [], SI = [], AP = [], AI = [];
   const strip = (P, I, pts, wd, y) => {
@@ -1626,16 +1765,6 @@ function buildRoads(THREE, N) {
     return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide }));
   };
   T3.scene.add(mk(SP, SI, 0xb4b9c0), mk(AP, AI, 0x8d939b));
-}
-function flyTrafficHome(instant) {
-  const target = new T3.THREE.Vector3(lw(6000, 3000)[0], 0, lw(6000, 3000)[1]);
-  const position = new T3.THREE.Vector3(target.x + 520, 330, target.z + 620);
-  if (instant) {
-    T3.camera.position.copy(position); T3.orbit.target.copy(target); T3.anim = null;
-  } else {
-    T3.anim = { t: 0, dur: 1.8, p0: T3.camera.position.clone(), c0: T3.orbit.target.clone(), p1: position, c1: target };
-  }
-  $('mission').textContent = '▶ Simulación de tráfico · 24:59';
 }
 function flyTodo(i, instant) {
   const p = POIS[i]; idx = i;
@@ -1886,9 +2015,6 @@ function todoNight(on) {
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
-$('b-play').onclick = () => { CAR_PLAYING = !CAR_PLAYING; buildProofCar(T3?.THREE); if (CARS) { CARS.playing = CAR_PLAYING; renderRecordedCars(CAR_TIME); } else if (T3) say('🚗 Vehículo de prueba visible; esperando trayectorias…'); $('b-play').textContent = CAR_PLAYING ? '⏸ Pausar carros' : '▶ Play carros'; $('b-play').classList.toggle('on', CAR_PLAYING); say(CAR_PLAYING ? '▶ Simulación de carros en marcha' : '⏸ Simulación pausada'); };
-$('trafficTime').oninput = e => { CAR_TIME=Number(e.target.value); CAR_PLAYING=true; if(CARS){ CARS.playing=true; CARS.clock=CAR_TIME; CARS.step=-1; CARS.nextMap=null; renderRecordedCars(CAR_TIME); } $('trafficPlay').textContent='⏸'; $('trafficPlay').classList.add('on'); $('b-play').textContent='⏸ Pausar carros'; $('b-play').classList.add('on'); };
-$('trafficPlay').onclick = () => { CAR_PLAYING=!CAR_PLAYING; buildProofCar(T3?.THREE); if(CARS) { CARS.playing=CAR_PLAYING; renderRecordedCars(CAR_TIME); } else if (T3) say('🚗 Vehículo de prueba visible; esperando trayectorias…'); $('trafficPlay').textContent=CAR_PLAYING?'⏸':'▶'; $('trafficPlay').classList.toggle('on',CAR_PLAYING); $('b-play').textContent=CAR_PLAYING?'⏸ Pausar carros':'▶ Play carros'; $('b-play').classList.toggle('on',CAR_PLAYING); say(CAR_PLAYING?'▶ Simulación de tráfico en marcha':'⏸ Simulación de tráfico pausada'); };
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {
