@@ -21,3 +21,7 @@ CARROS
 OTROS
   data3d/tree_skp.glb y roble.*: arbol entregado por el autor del proyecto.
   data3d/poliigon/*: texturas Poliigon GrassPatchyGround_4585 (segun su licencia).
+
+TEXTURAS DEL SUELO (data3d/textures)
+  via_*, piso_*, acera_*: Poly Haven (polyhaven.com), licencia CC0 - rough_concrete, granular_concrete, concrete_pavement (1k, color y normales).
+  pasto_*: Poliigon GrassPatchyGround_4585 reducida a 1024 px (segun su licencia).

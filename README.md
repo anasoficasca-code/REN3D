@@ -50,5 +50,10 @@ La escena demo incluida es el castillo hiperrealista de tu foto, para que veas e
 - Arboles: nivel 0 = modelo real completo, nivel 1 = modelo real reducido, nivel 2 = arbol 3D de bajos poligonos (tronco + copa con varias masas) hasta 1.100 m. Las siluetas planas solo quedan mas alla de ese rango. Si eal3d.js no carga, se usan los arboles de planos cruzados como respaldo.
 - El suelo de fondo usa una textura de concreto repetible generada por codigo (concreteTex en index.html).
 - Simulacion de carros: la flota de eal3d.js (cinco estilos, de frente) sigue las trayectorias de data3d/kennedy_vehiculos.json; arranca en marcha a las 16:40 y la barra de abajo permite pausar y mover el tiempo.
+- Suelo realista: data3d/materiales.js aplica fotos reales (concreto para piso, vias y aceras; pasto) con muestreo sin repeticion visible (baldosas desplazadas al azar y mezcladas + variacion de tono a gran escala), asi el suelo es continuo y no se ve el mosaico al alejarse. Texturas en data3d/textures/ (creditos en CREDITOS.txt).
+- Vias: cintas continuas con uniones en las curvas (sin cortes), calzada de concreto claro, acera con adoquin, talud y rayas centrales; major 15 m, mid 10 m, local 6 m.
+- Agua: refleja el cielo con nubes (entorno makeEnv) y su oleaje no repite mosaico.
+- Arboles lejanos: nivel 2 = arbol 3D de bajos poligonos con color real de las hojas, moteado de follaje y viento; los arboles reales tambien se mecen.
+- Simulaciones: carros (trayectorias reales, barra de tiempo), peatones por las aceras (solo se dibujan cerca de la camara), viento en arboles y pasto, oleaje y nubes.
 - `?liviano=1` abre el modo TODO 3D sin edificios ni sombras (equipos modestos o pruebas).
 - Para usar otra foto de ave, reemplaza los PNG de `data3d/aves/`.
