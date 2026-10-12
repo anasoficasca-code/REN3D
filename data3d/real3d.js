@@ -152,18 +152,49 @@ function dibujarSiluetas(T3, partes, alto, ancho) {
   r.setRenderTarget(rt); r.setClearColor(0x000000, 0); r.clear(); r.render(s, cam); r.setRenderTarget(rt0); r.setClearColor(c0, a0);
   return { tex: rt.texture, lado };
 }
-export async function buildTrees(T3, T, W, lw, env) {
-  const stride = Math.max(1, Math.ceil(T.t.length / 18000));
+export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
+  const stride = Math.max(1, Math.ceil(T.t.length / 130000)); // se muestran todos los arboles de los datos
   const X = [], Z = [], Hh = [], SP = [], pesoTot = ESPECIES_ARBOL.reduce((a, e) => a + e.peso, 0);
   const elegir = (r) => { r *= pesoTot; for (let k = 0; k < ESPECIES_ARBOL.length; k++) { r -= ESPECIES_ARBOL[k].peso; if (r < 0) return k; } return ESPECIES_ARBOL.length - 1; };
   for (let i = 0; i < T.t.length; i += stride) { const t = T.t[i], w = lw(t[0], t[1]); X.push(w[0]); Z.push(w[1]); Hh.push(Math.max(4, Math.min(16, t[2] || 6))); SP.push(elegir(hash(i * 3 + 1))); }
   const aguas = cuerposDeAgua(W, lw); let ribera = 0;
   for (const a of aguas) {
-    for (let i = 0; i < a.pts.length && ribera < 4200; i += 4) {
+    for (let i = 0; i < a.pts.length && ribera < 9000; i += 3) {
       const p = a.pts[i]; let dx, dz;
       if (a.cerrado) { dx = p[0] - a.cx; dz = p[1] - a.cz; } else { const q = a.pts[Math.min(i + 1, a.pts.length - 1)]; dx = -(q[1] - p[1]); dz = q[0] - p[0]; if ((i % 8) >= 4) { dx = -dx; dz = -dz; } }
       const L = Math.hypot(dx, dz) || 1, r = 6 + hash(i * 17 + 3) * 20;
-      if (hash(i * 29 + 7) < 0.75) { X.push(p[0] + dx / L * r + (hash(i * 5 + 1) - 0.5) * 6); Z.push(p[1] + dz / L * r + (hash(i * 11 + 9) - 0.5) * 6); Hh.push(5 + hash(i) * 7); SP.push(elegir(hash(i * 7 + 2))); ribera++; }
+      if (hash(i * 29 + 7) < 0.88) { X.push(p[0] + dx / L * r + (hash(i * 5 + 1) - 0.5) * 6); Z.push(p[1] + dz / L * r + (hash(i * 11 + 9) - 0.5) * 6); Hh.push(5 + hash(i) * 7); SP.push(elegir(hash(i * 7 + 2))); ribera++; }
+    }
+  }
+  // arboles dentro de las zonas verdes
+  let enParques = 0;
+  for (const p of (Pq || [])) {
+    if (enParques > 26000) break;
+    const v = []; for (const q of p.pts) { const w = lw(q[0], q[1]); v.push([w[0], w[1]]); }
+    if (v.length > 1 && Math.hypot(v[0][0] - v[v.length - 1][0], v[0][1] - v[v.length - 1][1]) < 0.01) v.pop();
+    if (v.length < 3) continue;
+    let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9, area = 0;
+    for (let i = 0; i < v.length; i++) { const a = v[i], b = v[(i + 1) % v.length]; x0 = Math.min(x0, a[0]); x1 = Math.max(x1, a[0]); z0 = Math.min(z0, a[1]); z1 = Math.max(z1, a[1]); area += a[0] * b[1] - b[0] * a[1]; }
+    area = Math.abs(area) / 2; const quiero = Math.min(900, Math.floor(area / 240)); let puestos = 0, intentos = 0;
+    while (puestos < quiero && intentos++ < quiero * 6) {
+      const x = x0 + hash(enParques * 7 + intentos) * (x1 - x0), z = z0 + hash(enParques * 11 + intentos * 3 + 1) * (z1 - z0);
+      if (estaDentro(x, z, v)) { X.push(x); Z.push(z); Hh.push(5 + hash(enParques * 13 + intentos) * 8); SP.push(elegir(hash(enParques * 17 + intentos * 5))); puestos++; enParques++; }
+    }
+  }
+  // arboles de calle: a lo largo de las vias, alternando lados, para que las calles no queden peladas
+  let deCalle = 0;
+  for (const [clase, pts] of ((Net && Net.edges) || [])) {
+    if (deCalle > 90000) break;
+    const medio = clase === 'major' ? 7 : clase === 'mid' ? 5.2 : 3.4, paso = clase === 'local' ? 26 : 20; let acum = paso * 0.5, lado = (deCalle & 1) ? 1 : -1;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue;
+      const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L; let t = paso - acum;
+      while (t < L) {
+        const k = (deCalle * 7 + i) * 31 + Math.floor(t * 3) + Math.floor(a[0]) % 97; // la semilla cambia con la posicion para no repetir el mismo "no" a lo largo del tramo
+        if (hash(k * 3 + 1) < 0.62) { const w = lw(a[0] + ux * t - uy * medio * lado, a[1] + uy * t + ux * medio * lado); X.push(w[0] + (hash(k) - 0.5) * 1.2); Z.push(w[1] + (hash(k + 5) - 0.5) * 1.2); Hh.push(5 + hash(k * 5 + 2) * 5); SP.push(elegir(hash(k * 11 + 3))); deCalle++; lado = -lado; }
+        t += paso * (0.8 + hash(k * 13 + 7) * 0.5);
+      }
+      acum = (acum + L) % paso;
     }
   }
   const N = X.length, ROT = new Float32Array(N); for (let i = 0; i < N; i++) ROT[i] = hash(i * 41 + 11) * Math.PI * 2;
@@ -186,12 +217,14 @@ export async function buildTrees(T3, T, W, lw, env) {
   lod.forEach(l => [...l.L0, ...l.L1].forEach(m => { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }));
   // lejos: tres planos cruzados con la silueta real de la especie
   const cruz = (lado) => { const ps = [0, Math.PI / 3, -Math.PI / 3].map(a => { const g = new THREE.PlaneGeometry(lado, lado); g.translate(0, lado / 2, 0); g.rotateY(a); return g; }); return mergeGeometries(ps); };
-  const lejos = especies.map(e => { const mat = new THREE.MeshBasicMaterial({ map: e.sil.tex, alphaTest: 0.42, side: THREE.DoubleSide }); const m = new THREE.InstancedMesh(cruz(e.sil.lado), mat, N); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
+  const lejos = especies.map((e, ei) => { const mat = new THREE.MeshBasicMaterial({ map: e.sil.tex, alphaTest: 0.42, side: THREE.DoubleSide }); const cap = SP.reduce((a, q) => a + (q === ei ? 1 : 0), 0) + 16; const m = new THREE.InstancedMesh(cruz(e.sil.lado), mat, cap); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
   const escala = (i) => { const e = especies[SP[i]]; return Math.min(Hh[i] / e.alto, e.ancho / e.ancho0 || Hh[i] / e.alto); };
   especies.forEach(e => { e.ancho0 = e.ancho; });
   const esc = (i) => { const e = especies[SP[i]]; return Math.min(Hh[i] / e.alto, ESPECIES_ARBOL[SP[i]].ancho / e.ancho); };
+  const FM = new Float32Array(N * 16), FC = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(esc(i)); d.updateMatrix(); FM.set(d.matrix.elements, i * 16); const tv = 0.88 + hash(i * 19) * 0.24; FC[i * 3] = tv; FC[i * 3 + 1] = tv; FC[i * 3 + 2] = tv; }
   const ult = { x: 1e9, z: 1e9, t: 0 }, cand = [];
-  const api = { N, ribera, especies: especies.map(e => e.base + ':' + e.niveles.L0.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0) + '/' + e.niveles.L1.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0)) };
+  const api = { N, ribera, enParques, deCalle, especies: especies.map(e => e.base + ':' + e.niveles.L0.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0) + '/' + e.niveles.L1.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0)) };
   api.update = (cam, force) => {
     const now = performance.now(), dx = cam.position.x - ult.x, dz = cam.position.z - ult.z;
     if (!force && dx * dx + dz * dz < 36 && now - ult.t < 1500) return;
@@ -210,9 +243,8 @@ export async function buildTrees(T3, T, W, lw, env) {
     const nf = lejos.map(() => 0);
     for (let i = 0; i < N; i++) {
       if (asignado[i]) continue;
-      const s = SP[i], e = especies[s], sc = esc(i) * (e.alto / e.sil.lado) ** 0 , tv = 0.88 + hash(i * 19) * 0.24;
-      d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv, tv);
-      const k = nf[s]++; lejos[s].setMatrixAt(k, d.matrix); lejos[s].setColorAt(k, col);
+      const s = SP[i], k = nf[s]++, ca = lejos[s].instanceColor.array;
+      lejos[s].instanceMatrix.array.set(FM.subarray(i * 16, i * 16 + 16), k * 16); ca[k * 3] = FC[i * 3]; ca[k * 3 + 1] = FC[i * 3 + 1]; ca[k * 3 + 2] = FC[i * 3 + 2];
     }
     lejos.forEach((m, s) => { m.count = nf[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
     api.stats = { cerca: n0.join('+'), medio: n1.join('+'), lejos: nf.join('+') };
@@ -345,10 +377,10 @@ export function upgradeWater(T3, env) {
         normal = normalize( tbn * mapN );
       #endif`);
   };
-  // base mucho mas oscura (se atenua el color por vertice) y reflejo del cielo mas fuerte para que se siga viendo su color
+  // agua apagada, no chillona: un solo color oscuro verdoso para todo el cuerpo de agua y casi sin reflejo del cielo
   const cv = mesh.geometry.attributes.color;
-  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i++) cv.array[i] *= 0.13; cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
-  mat.envMapIntensity = 0.85; mat.roughness = 0.03; mat.opacity = 0.98;
+  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.040; cv.array[i + 1] = 0.060; cv.array[i + 2] = 0.056; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
+  mat.envMapIntensity = 0.30; mat.roughness = 0.16; mat.clearcoat = 0; mat.specularIntensity = 0.5; mat.normalScale.set(0.55, 0.55); mat.opacity = 0.99;
   mesh.material = mat; T3.waterMat = mat; return true;
 }
 

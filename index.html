@@ -986,7 +986,7 @@ async function initTodo() {
     if (T3.R && T3.env) T3.R.buildNearPlants(T3, W, lw, T3.env, P).then(a => { T3.plants = a; }).catch(e => console.warn('pasto 3D:', e));
     $('loader').classList.add('hidden');
     say('🚗 TODO 3D listo · ' + (T3.counts.cars || 0).toLocaleString('es-CO') + ' carros · 24:59 · Árboles cargando en segundo plano');
-    if (T3.R && T3.env) T3.R.buildTrees(T3, T, W, lw, T3.env).then(a => { T3.trees = a; say('\u2705 \u00c1rboles reales 3D cargados \u00b7 carros en marcha'); }).catch(e => { console.warn('arboles reales:', e); buildTreesReal(THREE, T); });
+    if (T3.R && T3.env) T3.R.buildTrees(T3, T, W, lw, T3.env, P, N).then(a => { T3.trees = a; say('\u2705 \u00c1rboles reales 3D cargados \u00b7 carros en marcha'); }).catch(e => { console.warn('arboles reales:', e); buildTreesReal(THREE, T); });
     else buildTreesReal(THREE, T).catch(e => console.warn('trees:', e));
     return true;
   } catch (e) {
