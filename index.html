@@ -80,6 +80,12 @@
     border-radius:6px;padding:3px 7px;font-size:10.5px;white-space:nowrap;color:#e0f2fe}
   @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
   #hud-r{display:none}
+  #trafficHud{position:fixed;left:14px;bottom:64px;z-index:18;width:min(344px,44vw);padding:10px 14px;background:rgba(7,13,22,.92);border:1px solid rgba(56,189,248,.45);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);color:#e8eef7;display:none}
+  #trafficHud .trafficTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700;font-size:13px}
+  #trafficHud .trafficTop b{font-variant-numeric:tabular-nums;letter-spacing:.02em;white-space:nowrap}
+  #trafficHud .trafficTop span{flex:1;min-width:0}
+  #trafficPlay{padding:3px 10px;font-size:14px;line-height:1;border-radius:7px;cursor:pointer}
+  #trafficTime{width:100%;accent-color:#22d3ee;cursor:pointer}
 </style>
 </head>
 <body>
@@ -136,6 +142,7 @@
   <button id="b-pie">🚶 A pie</button>
 </div>
 
+<div id="trafficHud" role="group" aria-label="Simulación de tráfico"><div class="trafficTop"><span>Simulación de tráfico</span><b id="trafficLabel">16:40 / 24:59</b><button id="trafficPlay" type="button" aria-label="Reproducir simulación">▶</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
 <div id="toast"></div>
 
 <script type="module">
@@ -496,6 +503,7 @@ const SPLAT_HD = 'data3d/humedal-hd.splat';
 
 function setMode(m) {
   mode = m;
+  const hudT = $('trafficHud'); if (hudT) hudT.style.display = m === 'todo' ? 'block' : 'none'; // barra de la simulacion de carros
   try { if (tour) { clearInterval(tour); tour = null; const b = $('b-tour'); b.classList.remove('on'); b.textContent = '▶ Tour Kennedy'; } } catch (e) {}
   if (tourC) { clearInterval(tourC); tourC = null; }
   if (typeof tourT !== 'undefined' && tourT) { try { clearInterval(tourT); } catch (e) {} tourT = null; }
@@ -1455,14 +1463,15 @@ async function buildTraffic(THREE) {
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  TRAF = { steps, NS, NV, dur, maxi, t: Math.min(1000, dur - 5), /* arranca a las 16:40, cuando ya hay unos 2.000 carros en la calle */ bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
+  TRAF = { steps, NS, NV, dur, maxi, t: Math.min(1000, dur - 5), playing: false, /* arranca a las 16:40 en pausa, cuando ya hay unos 2.000 carros en la calle */ bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
   T3.counts.cars = NV;
   updateTraffic(0);
 }
 function updateTraffic(dt) {
   if (!TRAF) return;
-  TRAF.t += dt;
+  if (TRAF.playing) TRAF.t += dt;
   if (TRAF.t > TRAF.dur) TRAF.t -= (TRAF.dur + 1);
+  if (window.trafficUI) window.trafficUI(TRAF.t, TRAF.dur);
   const k0 = Math.floor(TRAF.t) % TRAF.NS, k1 = (k0 + 1) % TRAF.NS;
   const f = TRAF.t - Math.floor(TRAF.t);
   const A = TRAF.steps[k0], B = TRAF.steps[k1];
@@ -2023,6 +2032,14 @@ function todoNight(on) {
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
+{ // barra de abajo: play / pausa y tiempo de la simulacion de carros
+  const play = $('trafficPlay'), tiempo = $('trafficTime'), etiqueta = $('trafficLabel');
+  const fmt = (t) => { t = Math.max(0, Math.floor(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+  const pintarBoton = () => { const on = !!(TRAF && TRAF.playing); play.textContent = on ? '❚❚' : '▶'; play.classList.toggle('on', on); play.setAttribute('aria-label', on ? 'Pausar simulación' : 'Reproducir simulación'); };
+  window.trafficUI = (t, dur) => { tiempo.max = Math.floor(dur); if (document.activeElement !== tiempo) tiempo.value = Math.floor(t); etiqueta.textContent = fmt(t) + ' / ' + fmt(dur); };
+  play.onclick = () => { if (!TRAF) { say('Cargando las trayectorias de los carros...'); return; } TRAF.playing = !TRAF.playing; pintarBoton(); say(TRAF.playing ? 'Simulación de carros en marcha' : 'Simulación en pausa'); };
+  tiempo.oninput = (e) => { if (!TRAF) return; TRAF.t = Number(e.target.value); TRAF.playing = true; pintarBoton(); window.trafficUI(TRAF.t, TRAF.dur); };
+}
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {
