@@ -98,7 +98,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v31</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v32</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -320,9 +320,6 @@ async function init3D() {
         vec3 V = vec3(0.0, 0.0, 1.0);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 2.0);
         vec3 col = mix(uDeep, uShallow, 0.5 + 0.25*sin((p.x+p.y)*0.15 + uTime*0.7));
-        // brillo de ondulación
-        float glint = smoothstep(0.75, 1.0, sin((p.x*1.7 - p.y*1.3) + uTime*2.4) * sin((p.y*2.1 + p.x*0.7) - uTime*1.8));
-        col += glint * 0.18;
         col = mix(col, uSky, fres*0.75);
         float spec = pow(max(dot(reflect(-normalize(uSun), N), V), 0.0), 60.0);
         col += spec * vec3(1.0, 0.95, 0.85) * 0.9;
@@ -512,7 +509,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v31' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v31' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v31' : 'MODO: 🛰️ SATÉLITE · v31'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v32' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v32' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v32' : 'MODO: 🛰️ SATÉLITE · v32'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -596,7 +593,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v31 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v32 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -793,7 +790,7 @@ function flight(ms) {
     if (cam.position.y < 3) cam.position.y = 3;
     o.update();
     updateAves();
-    updateCars(dt);
+    if (TRAF) updateTraffic(dt); else updateCars(dt);
     T3.waterU.value = performance.now() / 1000;
     if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
     T3.sun.position.copy(o.target).add(T3.sunOff);
@@ -980,9 +977,9 @@ async function initTodo() {
     buildAves(THREE);
     try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
     try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
-    try { buildCars(THREE, N); } catch (e) { console.warn('cars:', e); }
+    try { await buildTraffic(THREE); } catch (e) { console.warn('traffic:', e); try { buildCars(THREE, N); } catch (e2) { console.warn('cars:', e2); } }
     $('loader').classList.add('hidden');
-    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles reales');
+    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles' + (TRAF ? ' + ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)' : ''));
     return true;
   } catch (e) {
     $('loader').classList.add('hidden');
@@ -1399,6 +1396,96 @@ function buildGrass(THREE, P, W) {
   T3.counts.grass = N;
 }
 let CARS = null;
+let TRAF = null;
+async function buildTraffic(THREE) {
+  $('lmsg').textContent = 'Cargando tráfico real (57 MB)…';
+  await new Promise(r => setTimeout(r, 30));
+  const raw = await fetchProg('data3d/kennedy_vehiculos.json', 'Tráfico');
+  const id2i = new Map();
+  const NS = raw.length;
+  const steps = new Array(NS);
+  let maxi = 0;
+  for (let s = 0; s < NS; s++) {
+    const vs = raw[s][1], n = vs.length;
+    const ids = new Int32Array(n), xs = new Float32Array(n), ys = new Float32Array(n);
+    for (let k = 0; k < n; k++) {
+      const v = vs[k];
+      let ii = id2i.get(v[0]);
+      if (ii === undefined) { ii = id2i.size; id2i.set(v[0], ii); }
+      ids[k] = ii; xs[k] = v[1]; ys[k] = v[2];
+    }
+    steps[s] = { t: raw[s][0], ids, xs, ys };
+    if (n > maxi) maxi = n;
+  }
+  const NV = id2i.size, dur = steps[NS - 1].t;
+  const chassisGeo = new THREE.BoxGeometry(4.5, 1.2, 2.2);
+  chassisGeo.translate(0, 0.6, 0);
+  const cabinGeo = new THREE.BoxGeometry(2.5, 1.5, 1.8);
+  cabinGeo.translate(-0.5, 2.0, 0);
+  const wheelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 12);
+  wheelGeo.rotateX(Math.PI / 2);
+  const bodies = new THREE.InstancedMesh(chassisGeo, new THREE.MeshStandardMaterial({ metalness: 0.3, roughness: 0.4 }), maxi);
+  const cabins = new THREE.InstancedMesh(cabinGeo, new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.2, roughness: 0.6 }), maxi);
+  const wheels = new THREE.InstancedMesh(wheelGeo, new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.1, roughness: 0.8 }), maxi * 4);
+  bodies.castShadow = true;
+  bodies.frustumCulled = false; cabins.frustumCulled = false; wheels.frustumCulled = false;
+  bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  cabins.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  wheels.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const col = new THREE.Color();
+  const palette = [0xf2f3f5, 0xc0c4c9, 0x1c1e22, 0xb32026, 0x2456c8, 0xf2b705, 0x5a6270, 0x2e7d4f];
+  for (let i = 0; i < maxi; i++) {
+    col.setHex(palette[(i * 7 + 3) % palette.length]);
+    bodies.setColorAt(i, col);
+  }
+  if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
+  T3.scene.add(bodies, cabins, wheels);
+  TRAF = { steps, NS, NV, dur, maxi, t: 0, bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
+  T3.counts.cars = NV;
+  updateTraffic(0);
+}
+function updateTraffic(dt) {
+  if (!TRAF) return;
+  TRAF.t += dt;
+  if (TRAF.t > TRAF.dur) TRAF.t -= (TRAF.dur + 1);
+  const k0 = Math.floor(TRAF.t) % TRAF.NS, k1 = (k0 + 1) % TRAF.NS;
+  const f = TRAF.t - Math.floor(TRAF.t);
+  const A = TRAF.steps[k0], B = TRAF.steps[k1];
+  const m = new Map();
+  for (let i = 0; i < B.ids.length; i++) m.set(B.ids[i], i);
+  const d = TRAF.dummy;
+  const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
+  let n = 0;
+  for (let i = 0; i < A.ids.length && n < TRAF.maxi; i++) {
+    const x0 = A.xs[i] - LC.x, y0 = A.ys[i] - LC.y;
+    const j = m.get(A.ids[i]);
+    let x1 = x0, y1 = y0;
+    if (j !== undefined) { x1 = B.xs[j] - LC.x; y1 = B.ys[j] - LC.y; }
+    const dx = x1 - x0, dy = y1 - y0;
+    if (dx * dx + dy * dy > 1e-6) TRAF.head[n] = Math.atan2(-dy, dx);
+    const hd = TRAF.head[n];
+    const px = x0 + dx * f, pz = y0 + dy * f;
+    d.position.set(px, 1.5, pz);
+    d.rotation.set(0, hd, 0);
+    d.scale.setScalar(1);
+    d.updateMatrix();
+    TRAF.bodies.setMatrixAt(n, d.matrix);
+    TRAF.cabins.setMatrixAt(n, d.matrix);
+    const ch = Math.cos(hd), sh = Math.sin(hd);
+    for (let w = 0; w < 4; w++) {
+      const lx = WO[w][0], lz = WO[w][1];
+      d.position.set(px + lx * ch + lz * sh, 1.5 + 0.42, pz - lx * sh + lz * ch);
+      d.rotation.set(0, hd, 0);
+      d.updateMatrix();
+      TRAF.wheels.setMatrixAt(n * 4 + w, d.matrix);
+    }
+    n++;
+  }
+  TRAF.bodies.count = n; TRAF.cabins.count = n; TRAF.wheels.count = n * 4;
+  TRAF.bodies.instanceMatrix.needsUpdate = true;
+  TRAF.cabins.instanceMatrix.needsUpdate = true;
+  TRAF.wheels.instanceMatrix.needsUpdate = true;
+}
 function buildCars(THREE, N) {
   // Filter edges that go through water to avoid cars appearing in water
   const paths = [], cums = [];
@@ -1601,8 +1688,7 @@ function buildWater(THREE, W) {
         vec3 col = mix(base, skyRef(normalize(R)), clamp(fres * 0.5 + 0.06, 0.0, 1.0));
         vec3 H = normalize(normalize(uSun) + V);
         float spec = pow(max(dot(N, H), 0.0), 120.0);
-        float glint = smoothstep(0.6, 1.0, sin(q.x * 2.2 + uTime * 2.8) * sin(q.y * 2.6 - uTime * 2.2));
-        col += (spec * 2.2 + glint * 0.12) * vec3(1.0, 0.97, 0.9);
+        col += spec * 1.1 * vec3(1.0, 0.97, 0.9);
         gl_FragColor = vec4(col, 0.97);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
