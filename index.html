@@ -80,12 +80,6 @@
     border-radius:6px;padding:3px 7px;font-size:10.5px;white-space:nowrap;color:#e0f2fe}
   @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
   #hud-r{display:none}
-  #trafficHud{position:fixed;left:14px;bottom:64px;z-index:18;width:min(344px,44vw);padding:10px 14px;background:rgba(7,13,22,.92);border:1px solid rgba(56,189,248,.45);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);color:#e8eef7;display:none}
-  #trafficHud .trafficTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700;font-size:13px}
-  #trafficHud .trafficTop b{font-variant-numeric:tabular-nums;letter-spacing:.02em;white-space:nowrap}
-  #trafficHud .trafficTop span{flex:1;min-width:0}
-  #trafficPlay{padding:3px 10px;font-size:14px;line-height:1;border-radius:7px;cursor:pointer}
-  #trafficTime{width:100%;accent-color:#22d3ee;cursor:pointer}
 </style>
 </head>
 <body>
@@ -103,7 +97,9 @@
 
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
-  <div id="modebadge">MODO: 🧱 TODO 3D · v32</div>
+  <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v32</div>
+  <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
 
@@ -125,16 +121,21 @@
 </div>
 
 <div class="hud" id="hud-c">
+  <button id="b-foto" class="on">🏙️ Fotorrealista</button>
+  <button id="b-sat">🛰️ Satélite</button>
   <button id="b-todo">🧱 TODO 3D</button>
-  <button id="b-splat">🌀 Splat Humedal HD</button>
+  <button id="b-splat">🌀 Splat Humedal</button>
   <button id="b-hd">📦 HD</button>
   <button id="b-tour">▶ Tour Kennedy</button>
+  <button id="b-next">Siguiente punto ➜</button>
+  <button id="b-trees" class="on">🌳 Árboles 3D</button>
+  <button id="b-water" class="on">🌊 Agua 3D</button>
+  <button id="b-aves" class="on">🦆 Aves</button>
+  <button id="b-night">🌙 Noche</button>
   <button id="b-home">🏠 Vista general</button>
-  <input type="range" id="sun-slider" min="0" max="1" step="0.01" value="0.5" style="width:200px; margin:10px 0;">
-  <span id="sun-value">0.5</span>
+  <button id="b-pie">🚶 A pie</button>
 </div>
 
-<div id="trafficHud" role="group" aria-label="Simulación de tráfico"><div class="trafficTop"><span>Simulación de tráfico</span><b id="trafficLabel">16:40 / 24:59</b><button id="trafficPlay" type="button" aria-label="Reproducir simulación">▶</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
 <div id="toast"></div>
 
 <script type="module">
@@ -495,7 +496,6 @@ const SPLAT_HD = 'data3d/humedal-hd.splat';
 
 function setMode(m) {
   mode = m;
-  const hudT = $('trafficHud'); if (hudT) hudT.style.display = m === 'todo' ? 'block' : 'none'; // barra de la simulacion de carros
   try { if (tour) { clearInterval(tour); tour = null; const b = $('b-tour'); b.classList.remove('on'); b.textContent = '▶ Tour Kennedy'; } } catch (e) {}
   if (tourC) { clearInterval(tourC); tourC = null; }
   if (typeof tourT !== 'undefined' && tourT) { try { clearInterval(tourT); } catch (e) {} tourT = null; }
@@ -509,14 +509,14 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'todo' ? 'MODO: 🧱 TODO 3D · v32' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v32' : '');
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v32' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v32' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v32' : 'MODO: 🛰️ SATÉLITE · v32'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
   if (m === 'todo') {
     (async () => {
       const ok = await initTodo();
-      if (!ok) ;
+      if (!ok) setMode('sat');
       else if (T3 && !T3.ready) { T3.ready = true; flyTodo(1, true); say('🧱 Estás sobre el Lago Timiza · arrastra para orbitar, WASD para volar'); }
     })();
   }
@@ -725,15 +725,25 @@ function flyPie() {
 }
 $('b-pie').onclick = flyPie;
 
-let sunIntensity = 0.5;
-$('sun-slider').oninput = e => {
-  sunIntensity = parseFloat(e.target.value);
-  $('sun-value').textContent = sunIntensity.toFixed(2);
-  const t = THREE.MathUtils.lerp(0, Math.PI, sunIntensity);
-  const h = Math.cos(t) * 2;
-  const k = Math.sin(t) * 2;
-  waterU.uSun.value.set(h, -0.35, k).normalize();
-  say('Posición solar actualizada: ' + (sunIntensity * 100).toFixed(0) + '%');
+let night = false;
+$('b-night').onclick = e => {
+  night = !night;
+  e.target.classList.toggle('on', night);
+  e.target.textContent = night ? '☀️ Día' : '🌙 Noche';
+  if (mode === 'todo') { todoNight(night); say(night ? '🌙 Noche TODO 3D' : '☀️ Día TODO 3D'); return; }
+  if (mode === 'splat' && SPLAT && SPLAT.canvas) { SPLAT.canvas.classList.toggle('splat-night', night); say(night ? '🌙 Noche en el humedal' : '☀️ Día en el humedal'); return; }
+  if (mode === 'foto') { $('cesium').classList.toggle('night', night); say(night ? '🌙 Noche fotorrealista' : '☀️ Día fotorrealista'); return; }
+  map.setPaintProperty('sat', 'raster-brightness-min', night ? -0.22 : 0);
+  map.setPaintProperty('sat', 'raster-brightness-max', night ? -0.28 : 1);
+  map.setPaintProperty('sat', 'raster-saturation', night ? -0.85 : -0.08);
+  map.setPaintProperty('edif', 'fill-extrusion-opacity', night ? 0.72 : 0.9);
+  map.setLight({ anchor: 'viewport', color: night ? '#93b6e6' : '#fff6e8',
+    intensity: night ? 0.22 : 0.42, position: [1.5, 200, 32] });
+  map.setPaintProperty('bg', 'background-color', night ? '#060a12' : '#8fb2cf');
+  $('grade').style.background = night
+    ? 'radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 40%,rgba(0,2,8,.85) 100%)'
+    : 'radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(2,6,12,.55) 100%)';
+  say(night ? '🌙 Modo nocturno' : '☀️ Modo día');
 };
 
 const k = {};
@@ -781,7 +791,6 @@ function flight(ms) {
     o.update();
     updateAves();
     if (TRAF) updateTraffic(dt); else updateCars(dt);
-    if (T3.R) { if (T3.trees) T3.trees.update(cam); if (T3.plants) T3.plants.update(cam); if (T3.waterBirds) T3.waterBirds.update(dt, cam); }
     T3.waterU.value = performance.now() / 1000;
     if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
     T3.sun.position.copy(o.target).add(T3.sunOff);
@@ -849,7 +858,6 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, y - LC.y];
-window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; } }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
 
@@ -881,8 +889,7 @@ async function initTodo() {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
-    const LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // ?liviano=1: sin edificios ni sombras (equipos modestos o pruebas)
-    renderer.shadowMap.enabled = !LIVIANO;
+    renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.12;
@@ -951,18 +958,15 @@ async function initTodo() {
     scene.add(ground);
     T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
-    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; }
 
-    if (!LIVIANO) {
-      $('lmsg').textContent = 'Cargando edificios (36 MB)…';
-      const B = await fetchProg('data3d/buildings.json', 'Edificios');
-      $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
-      await new Promise(r => setTimeout(r, 30));
-      buildChunks(THREE, B);
-    }
+    $('lmsg').textContent = 'Cargando edificios (36 MB)…';
+    const B = await fetchProg('data3d/buildings.json', 'Edificios');
+    $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
+    await new Promise(r => setTimeout(r, 30));
+    buildChunks(THREE, B);
     $('lmsg').textContent = 'Cargando árboles del censo…';
     const T = await fetchProg('data3d/trees.json', 'Árboles');
-    // los arboles se construyen despues de cargar agua, parques y vias (data3d/real3d.js)
+    await buildTreesReal(THREE, T);
     $('lmsg').textContent = 'Cargando aguas, parques y vías…';
     const [W, P, N] = await Promise.all([
       fetch('data3d/water_bodies.json').then(r => r.json()),
@@ -971,18 +975,11 @@ async function initTodo() {
     ]);
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
-    try { if (AVES) AVES.birds.forEach(b => { if (b.kind === 'pato' || b.kind === 'tingua') b.sc = 0; }); } catch (e) {} // patos y tinguas reales en todos los humedales
-    if (T3.R && T3.env) { try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); } }
-    if (T3.R) T3.R.buildWaterBirds(T3, W, lw).then(a => { T3.waterBirds = a; }).catch(e => console.warn('aves de humedal:', e));
-    // los juncos negros de buildReeds se reemplazaron por juncos 3D verdes en data3d/real3d.js
+    try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
     try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
-    if (T3.R && T3.env) T3.R.buildNearPlants(T3, W, lw, T3.env, P).then(a => { T3.plants = a; }).catch(e => console.warn('pasto 3D:', e));
-    T3.counts.t = T.t.length;
-    if (T3.R && T3.env) T3.R.buildTrees(T3, T, W, lw, T3.env, P, N).then(a => { T3.trees = a; }).catch(e => { console.warn('arboles reales:', e); buildTreesReal(THREE, T); });
-    else buildTreesReal(THREE, T).catch(e => console.warn('trees:', e));
     try { await buildTraffic(THREE); } catch (e) { console.warn('traffic:', e); try { buildCars(THREE, N); } catch (e2) { console.warn('cars:', e2); } }
     $('loader').classList.add('hidden');
-    say('🧱 TODO 3D listo · ' + (T3.counts.b || 0).toLocaleString('es-CO') + ' edificios + ' + (T3.counts.t || 0).toLocaleString('es-CO') + ' árboles' + (TRAF ? ' + ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)' : ''));
+    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles' + (TRAF ? ' + ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)' : ''));
     return true;
   } catch (e) {
     $('loader').classList.add('hidden');
@@ -1354,8 +1351,6 @@ function buildGrass(THREE, P, W) {
       if (spots.length >= 25000) break;
     }
   }
-  T3.grassSpots = spots;
-  return; // el pasto de tarjetas (se veia negro) se reemplazo por pasto 3D verde en data3d/real3d.js
   if (!spots.length) return;
   const p1 = new THREE.PlaneGeometry(1.3, 1.0);
   p1.translate(0, 0.5, 0);
@@ -1445,15 +1440,14 @@ async function buildTraffic(THREE) {
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  TRAF = { steps, NS, NV, dur, maxi, t: Math.min(1000, dur - 5), playing: false, /* arranca a las 16:40 en pausa, cuando ya hay unos 2.000 carros en la calle */ bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
+  TRAF = { steps, NS, NV, dur, maxi, t: 0, bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
   T3.counts.cars = NV;
   updateTraffic(0);
 }
 function updateTraffic(dt) {
   if (!TRAF) return;
-  if (TRAF.playing) TRAF.t += dt;
+  TRAF.t += dt;
   if (TRAF.t > TRAF.dur) TRAF.t -= (TRAF.dur + 1);
-  if (window.trafficUI) window.trafficUI(TRAF.t, TRAF.dur);
   const k0 = Math.floor(TRAF.t) % TRAF.NS, k1 = (k0 + 1) % TRAF.NS;
   const f = TRAF.t - Math.floor(TRAF.t);
   const A = TRAF.steps[k0], B = TRAF.steps[k1];
@@ -1462,8 +1456,6 @@ function updateTraffic(dt) {
   const d = TRAF.dummy;
   const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
   let n = 0;
-  const F = T3.fleet; // flota de carros reales (data3d/real3d.js): recibe las trayectorias de la simulacion
-  if (F) F.begin();
   for (let i = 0; i < A.ids.length && n < TRAF.maxi; i++) {
     const x0 = A.xs[i] - LC.x, y0 = A.ys[i] - LC.y;
     const j = m.get(A.ids[i]);
@@ -1473,11 +1465,6 @@ function updateTraffic(dt) {
     if (dx * dx + dy * dy > 1e-6) TRAF.head[n] = Math.atan2(-dy, dx);
     const hd = TRAF.head[n];
     const px = x0 + dx * f, pz = y0 + dy * f;
-    if (F) { // el modelo mira hacia +Z: el giro es atan2(dx, dz) y el carro avanza de frente
-      if (!TRAF.headF) TRAF.headF = new Float32Array(TRAF.maxi);
-      if (dx * dx + dy * dy > 1e-6) TRAF.headF[n] = Math.atan2(dx, dy);
-      F.add(px, pz, TRAF.headF[n], A.ids[i]); n++; continue;
-    }
     d.position.set(px, 1.5, pz);
     d.rotation.set(0, hd, 0);
     d.scale.setScalar(1);
@@ -1494,7 +1481,6 @@ function updateTraffic(dt) {
     }
     n++;
   }
-  if (F) { F.end(T3.camera.position.x, T3.camera.position.z); n = 0; } // las cajas del tráfico antiguo quedan ocultas
   TRAF.bodies.count = n; TRAF.cabins.count = n; TRAF.wheels.count = n * 4;
   TRAF.bodies.instanceMatrix.needsUpdate = true;
   TRAF.cabins.instanceMatrix.needsUpdate = true;
@@ -1712,31 +1698,28 @@ function buildWater(THREE, W) {
   wmesh.receiveShadow = false;
   wmesh.renderOrder = 4;
   T3.scene.add(wmesh);
-  T3.waterMesh = wmesh;
   T3.waterMat = wmat;
 }
-// Parques con la textura realista de pasto (Poliigon GrassPatchyGround 4585: color, normales, rugosidad y oclusion)
-async function buildParks(THREE, P) {
-  const gP = [], gC = [], gU = [], gI = []; let vc = 0;
+function buildParks(THREE, P) {
+  const gP = [], gC = [], gI = [];
+  let vc = 0;
   for (const p of P) {
     const v = [];
     for (const q of p.pts) { const w = lw(q[0], q[1]); v.push(new THREE.Vector2(w[0], w[1])); }
-    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop(); if (v.length < 3) continue;
+    if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
+    if (v.length < 3) continue;
+    const hsh = (hashN(p.nombre || 'x') % 20 - 10) * 0.006;
+    const c = [0.16 + hsh, 0.4 + hsh, 0.19 + hsh];
     const base = vc;
-    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(1, 1, 1); gU.push(q.x / 18, q.y / 18); vc++; }
+    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(c[0], c[1], c[2]); vc++; }
     for (const f of THREE.ShapeUtils.triangulateShape(v, [])) gI.push(base + f[0], base + f[2], base + f[1]);
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(gU, 2)); g.setAttribute('uv2', new THREE.Float32BufferAttribute(gU, 2)); g.setIndex(gI); g.computeVertexNormals();
-  const tl = new THREE.TextureLoader();
-  const load = (url, fallback) => tl.load(url, undefined, undefined, () => fallback);
-  const base = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_BaseColor.jpg', null);
-  const normal = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Normal.png', null);
-  const rough = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_Roughness.jpg', null);
-  const ao = load('data3d/poliigon/Poliigon_GrassPatchyGround_4585_AmbientOcclusion.jpg', null);
-  for (const tx of [base, normal, rough, ao]) { tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.repeat.set(1.2, 1.2); tx.anisotropy = 4; }
-  if (base) base.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshStandardMaterial({ color: 0x86a85d, map: base, normalMap: normal, roughnessMap: rough, aoMap: ao, roughness: 0.92, metalness: 0, emissive: 0x18250d, emissiveIntensity: 0.08, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(g, mat); mesh.receiveShadow = true; T3.scene.add(mesh);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3));
+  g.setIndex(gI);
+  g.computeVertexNormals();
+  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
 }
 function buildRoads(THREE, N) {
   const SP = [], SI = [], AP = [], AI = [];
@@ -2016,14 +1999,6 @@ function todoNight(on) {
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
-{ // barra de abajo: play / pausa y tiempo de la simulacion de carros
-  const play = $('trafficPlay'), tiempo = $('trafficTime'), etiqueta = $('trafficLabel');
-  const fmt = (t) => { t = Math.max(0, Math.floor(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
-  const pintarBoton = () => { const on = !!(TRAF && TRAF.playing); play.textContent = on ? '❚❚' : '▶'; play.classList.toggle('on', on); play.setAttribute('aria-label', on ? 'Pausar simulación' : 'Reproducir simulación'); };
-  window.trafficUI = (t, dur) => { tiempo.max = Math.floor(dur); if (document.activeElement !== tiempo) tiempo.value = Math.floor(t); etiqueta.textContent = fmt(t) + ' / ' + fmt(dur); };
-  play.onclick = () => { if (!TRAF) { say('Cargando las trayectorias de los carros...'); return; } TRAF.playing = !TRAF.playing; pintarBoton(); say(TRAF.playing ? 'Simulación de carros en marcha' : 'Simulación en pausa'); };
-  tiempo.oninput = (e) => { if (!TRAF) return; TRAF.t = Number(e.target.value); TRAF.playing = true; pintarBoton(); window.trafficUI(TRAF.t, TRAF.dur); };
-}
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {
