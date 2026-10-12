@@ -103,9 +103,7 @@
 
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
-  <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v32</div>
-  <div id="poi-list"></div>
+  <div id="modebadge">MODO: 🧱 TODO 3D · v32</div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
 
@@ -127,19 +125,13 @@
 </div>
 
 <div class="hud" id="hud-c">
-  <button id="b-foto" class="on">🏙️ Fotorrealista</button>
-  <button id="b-sat">🛰️ Satélite</button>
   <button id="b-todo">🧱 TODO 3D</button>
-  <button id="b-splat">🌀 Splat Humedal</button>
+  <button id="b-splat">🌀 Splat Humedal HD</button>
   <button id="b-hd">📦 HD</button>
   <button id="b-tour">▶ Tour Kennedy</button>
-  <button id="b-next">Siguiente punto ➜</button>
-  <button id="b-trees" class="on">🌳 Árboles 3D</button>
-  <button id="b-water" class="on">🌊 Agua 3D</button>
-  <button id="b-aves" class="on">🦆 Aves</button>
-  <button id="b-night">🌙 Noche</button>
   <button id="b-home">🏠 Vista general</button>
-  <button id="b-pie">🚶 A pie</button>
+  <input type="range" id="sun-slider" min="0" max="1" step="0.01" value="0.5" style="width:200px; margin:10px 0;">
+  <span id="sun-value">0.5</span>
 </div>
 
 <div id="trafficHud" role="group" aria-label="Simulación de tráfico"><div class="trafficTop"><span>Simulación de tráfico</span><b id="trafficLabel">16:40 / 24:59</b><button id="trafficPlay" type="button" aria-label="Reproducir simulación">▶</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
@@ -517,14 +509,14 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v32' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v32' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v32' : 'MODO: 🛰️ SATÉLITE · v32'));
+  if (mb) mb.textContent = m === 'todo' ? 'MODO: 🧱 TODO 3D · v32' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v32' : '');
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
   if (m === 'todo') {
     (async () => {
       const ok = await initTodo();
-      if (!ok) setMode('sat');
+      if (!ok) ;
       else if (T3 && !T3.ready) { T3.ready = true; flyTodo(1, true); say('🧱 Estás sobre el Lago Timiza · arrastra para orbitar, WASD para volar'); }
     })();
   }
@@ -733,25 +725,15 @@ function flyPie() {
 }
 $('b-pie').onclick = flyPie;
 
-let night = false;
-$('b-night').onclick = e => {
-  night = !night;
-  e.target.classList.toggle('on', night);
-  e.target.textContent = night ? '☀️ Día' : '🌙 Noche';
-  if (mode === 'todo') { todoNight(night); say(night ? '🌙 Noche TODO 3D' : '☀️ Día TODO 3D'); return; }
-  if (mode === 'splat' && SPLAT && SPLAT.canvas) { SPLAT.canvas.classList.toggle('splat-night', night); say(night ? '🌙 Noche en el humedal' : '☀️ Día en el humedal'); return; }
-  if (mode === 'foto') { $('cesium').classList.toggle('night', night); say(night ? '🌙 Noche fotorrealista' : '☀️ Día fotorrealista'); return; }
-  map.setPaintProperty('sat', 'raster-brightness-min', night ? -0.22 : 0);
-  map.setPaintProperty('sat', 'raster-brightness-max', night ? -0.28 : 1);
-  map.setPaintProperty('sat', 'raster-saturation', night ? -0.85 : -0.08);
-  map.setPaintProperty('edif', 'fill-extrusion-opacity', night ? 0.72 : 0.9);
-  map.setLight({ anchor: 'viewport', color: night ? '#93b6e6' : '#fff6e8',
-    intensity: night ? 0.22 : 0.42, position: [1.5, 200, 32] });
-  map.setPaintProperty('bg', 'background-color', night ? '#060a12' : '#8fb2cf');
-  $('grade').style.background = night
-    ? 'radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 40%,rgba(0,2,8,.85) 100%)'
-    : 'radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(2,6,12,.55) 100%)';
-  say(night ? '🌙 Modo nocturno' : '☀️ Modo día');
+let sunIntensity = 0.5;
+$('sun-slider').oninput = e => {
+  sunIntensity = parseFloat(e.target.value);
+  $('sun-value').textContent = sunIntensity.toFixed(2);
+  const t = THREE.MathUtils.lerp(0, Math.PI, sunIntensity);
+  const h = Math.cos(t) * 2;
+  const k = Math.sin(t) * 2;
+  waterU.uSun.value.set(h, -0.35, k).normalize();
+  say('Posición solar actualizada: ' + (sunIntensity * 100).toFixed(0) + '%');
 };
 
 const k = {};
