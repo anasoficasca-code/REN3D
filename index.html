@@ -80,6 +80,12 @@
     border-radius:6px;padding:3px 7px;font-size:10.5px;white-space:nowrap;color:#e0f2fe}
   @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
   #hud-r{display:none}
+  #trafficHud{position:fixed;left:14px;bottom:64px;z-index:18;width:min(344px,44vw);padding:10px 14px;background:rgba(7,13,22,.92);border:1px solid rgba(56,189,248,.45);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);color:#e8eef7;display:none}
+  #trafficHud .trafficTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700;font-size:13px}
+  #trafficHud .trafficTop b{font-variant-numeric:tabular-nums;letter-spacing:.02em;white-space:nowrap}
+  #trafficHud .trafficTop span{flex:1;min-width:0}
+  #trafficPlay{padding:3px 10px;font-size:14px;line-height:1;border-radius:7px;cursor:pointer}
+  #trafficTime{width:100%;accent-color:#22d3ee;cursor:pointer}
 </style>
 </head>
 <body>
@@ -136,6 +142,7 @@
   <button id="b-pie">🚶 A pie</button>
 </div>
 
+<div id="trafficHud" role="group" aria-label="Simulación de tráfico"><div class="trafficTop"><span>Simulación de tráfico</span><b id="trafficLabel">cargando…</b><button id="trafficPlay" type="button" aria-label="Reproducir simulación">❚❚</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
 <div id="toast"></div>
 
 <script type="module">
@@ -496,6 +503,7 @@ const SPLAT_HD = 'data3d/humedal-hd.splat';
 
 function setMode(m) {
   mode = m;
+  const hudT = $('trafficHud'); if (hudT) hudT.style.display = m === 'todo' ? 'block' : 'none'; // barra de la simulación de carros
   try { if (tour) { clearInterval(tour); tour = null; const b = $('b-tour'); b.classList.remove('on'); b.textContent = '▶ Tour Kennedy'; } } catch (e) {}
   if (tourC) { clearInterval(tourC); tourC = null; }
   if (typeof tourT !== 'undefined' && tourT) { try { clearInterval(tourT); } catch (e) {} tourT = null; }
@@ -860,6 +868,7 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, y - LC.y];
+window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; } }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
 
@@ -874,6 +883,7 @@ async function fetchProg(url, label) {
     if (done) break;
     chunks.push(value); got += value.length;
     $('lmsg').textContent = label + ' ' + Math.round(got / total * 100) + '% (' + (got / 1048576).toFixed(1) + ' MB)';
+    if (label === 'Tráfico' && window.trafficLoading) window.trafficLoading(Math.min(99, Math.round(got / total * 100)));
   }
   const buf = new Uint8Array(got); let o = 0;
   for (const c of chunks) { buf.set(c, o); o += c.length; }
@@ -951,17 +961,69 @@ async function initTodo() {
     sun.shadow.camera.near = 100; sun.shadow.camera.far = 7000;
     sun.shadow.bias = -0.0006; sun.shadow.normalBias = 1.5;
     scene.add(hemi, sun, sun.target);
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(13000, 9500),
-      new THREE.MeshLambertMaterial({ color: 0x5f6467 })
-    );
+    // suelo de fondo: concreto (losas de 8 m con juntas, granulado, manchas y fisuras), repetido con RepeatWrapping
+    const concreteTex = (() => {
+      const S = 512, cv = document.createElement('canvas');
+      cv.width = cv.height = S;
+      const g = cv.getContext('2d');
+      let s = 4242;
+      const R = () => (s = (s * 16807) % 2147483647) / 2147483647;
+      g.fillStyle = '#8f908d'; g.fillRect(0, 0, S, S);
+      const wrap = (fn) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) fn(ox, oy); };
+      for (let i = 0; i < 70; i++) { // manchas de humedad / suciedad
+        const x = R() * S, y = R() * S, r = 25 + R() * 80, dark = R() < 0.65;
+        wrap((ox, oy) => {
+          const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+          gr.addColorStop(0, dark ? 'rgba(60,62,62,0.20)' : 'rgba(200,200,196,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+          g.fillStyle = gr; g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
+        });
+      }
+      for (let i = 0; i < 26000; i++) { // granulado: agregado fino claro y oscuro
+        const x = R() * S, y = R() * S, v = 90 + R() * 120, a = 0.10 + R() * 0.28, sz = 0.6 + R() * 1.5;
+        g.fillStyle = 'rgba(' + v + ',' + v + ',' + (v - 4) + ',' + a + ')';
+        wrap((ox, oy) => g.fillRect(x + ox, y + oy, sz, sz));
+      }
+      g.lineCap = 'round'; g.strokeStyle = 'rgba(40,40,42,0.55)';
+      for (let i = 0; i < 9; i++) { // fisuras finas
+        let x = R() * S, y = R() * S, a = R() * 6.28;
+        g.lineWidth = 0.6 + R() * 0.7;
+        wrap((ox, oy) => {
+          let px = x + ox, py = y + oy, aa = a;
+          g.beginPath(); g.moveTo(px, py);
+          for (let k = 0; k < 14; k++) { aa += (R() - 0.5) * 1.0; px += Math.cos(aa) * (5 + R() * 9); py += Math.sin(aa) * (5 + R() * 9); g.lineTo(px, py); }
+          g.stroke();
+        });
+      }
+      for (let qx = 0; qx < 2; qx++) for (let qy = 0; qy < 2; qy++) { // 4 losas por baldosa, cada una con un tono un poco distinto
+        const v = (R() - 0.5) * 0.16; g.fillStyle = v > 0 ? 'rgba(235,235,230,' + v + ')' : 'rgba(30,30,32,' + (-v) + ')';
+        g.fillRect(qx * S / 2, qy * S / 2, S / 2, S / 2);
+      }
+      g.fillStyle = 'rgba(38,40,42,0.20)'; // juntas de dilatación finas y suaves
+      for (const k of [0, S / 2]) { g.fillRect(k - 1, 0, 2, S); g.fillRect(0, k - 1, S, 2); }
+      g.fillRect(S - 1, 0, 1, S); g.fillRect(0, S - 1, S, 1);
+      const tx = new THREE.CanvasTexture(cv);
+      tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+      tx.colorSpace = THREE.SRGBColorSpace;
+      tx.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      tx.repeat.set(13000 / 12, 9500 / 12); // cada baldosa = 12 m (losas de 6 m)
+      return tx;
+    })();
+    const groundMat = new THREE.MeshLambertMaterial({ map: concreteTex });
+    groundMat.onBeforeCompile = (sh) => { // segunda escala (sólo luminosidad) para que no se note la repetición desde lejos
+      sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+        #ifdef USE_MAP
+          float lumC = dot(texture2D(map, vMapUv * 0.071 + vec2(0.37, 0.12)).rgb, vec3(0.30, 0.59, 0.11)) / 0.60;
+          diffuseColor.rgb *= clamp(lumC, 0.82, 1.18);
+        #endif`);
+    };
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(13000, 9500), groundMat);
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
     ground.receiveShadow = true;
     scene.add(ground);
     T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; }
+    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = await fetchProg('data3d/buildings.json', 'Edificios');
@@ -978,13 +1040,12 @@ async function initTodo() {
     ]);
     const realOK = !!(T3.R && T3.env);
     // 1) lo liviano primero, para que el mundo aparezca ya: árboles de planos cruzados, agua, parques (suelo de pasto), vías y aves
-    const nAntes = T3.scene.children.length;
-    await buildTreesReal(THREE, T);
-    const arbolesLivianos = T3.scene.children.slice(nAntes);
+    // con los modelos reales NO se dibujan árboles de planos cruzados (se ven como imagen plana): sólo son el respaldo si fallan
+    if (!realOK) await buildTreesReal(THREE, T);
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
     $('loader').classList.add('hidden');
-    say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles · cargando árboles reales y tráfico…', 5000);
+    say('🧱 TODO 3D listo · ' + B.length.toLocaleString('es-CO') + ' edificios · cargando árboles 3D y tráfico…', 5000);
     // 2) lo pesado se carga después, en segundo plano y sin bloquear (si algo falla queda lo liviano)
     const pastoRespaldo = () => {
       try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
@@ -995,9 +1056,9 @@ async function initTodo() {
       try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); }
       try {
         T3.trees = await T3.R.buildTrees(T3, T, W, lw, T3.env);
-        arbolesLivianos.forEach(m => T3.scene.remove(m));
+        T3.counts.t = T.t.length;
         say('🌳 Árboles reales 3D cargados', 3000);
-      } catch (e) { console.warn('arboles reales:', e); T3.trees = null; }
+      } catch (e) { console.warn('arboles reales:', e); T3.trees = null; try { await buildTreesReal(THREE, T); } catch (e2) { console.warn('trees:', e2); } }
       try { T3.plants = await T3.R.buildNearPlants(T3, W, lw, T3.env, P); }
       catch (e) { console.warn('pasto 3D:', e); pastoRespaldo(); }
     })();
@@ -1464,14 +1525,17 @@ async function buildTraffic(THREE) {
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  TRAF = { steps, NS, NV, dur, maxi, t: 0, bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
+  // arranca a las 16:40 (ya hay unos 2.000 carros en la calle) y en marcha; la barra de abajo permite pausar y mover el tiempo
+  TRAF = { steps, NS, NV, dur, maxi, t: Math.min(1000, dur - 5), playing: true, bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
   T3.counts.cars = NV;
+  if (window.trafficPaint) window.trafficPaint();
   updateTraffic(0);
 }
 function updateTraffic(dt) {
   if (!TRAF) return;
-  TRAF.t += dt;
+  if (TRAF.playing) TRAF.t += dt;
   if (TRAF.t > TRAF.dur) TRAF.t -= (TRAF.dur + 1);
+  if (window.trafficUI) window.trafficUI(TRAF.t, TRAF.dur);
   const k0 = Math.floor(TRAF.t) % TRAF.NS, k1 = (k0 + 1) % TRAF.NS;
   const f = TRAF.t - Math.floor(TRAF.t);
   const A = TRAF.steps[k0], B = TRAF.steps[k1];
@@ -1480,6 +1544,8 @@ function updateTraffic(dt) {
   const d = TRAF.dummy;
   const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
   let n = 0;
+  const F = T3.fleet; // flota de carros reales (data3d/real3d.js): recibe las trayectorias de la simulación
+  if (F) F.begin();
   for (let i = 0; i < A.ids.length && n < TRAF.maxi; i++) {
     const x0 = A.xs[i] - LC.x, y0 = A.ys[i] - LC.y;
     const j = m.get(A.ids[i]);
@@ -1489,6 +1555,11 @@ function updateTraffic(dt) {
     if (dx * dx + dy * dy > 1e-6) TRAF.head[n] = Math.atan2(-dy, dx);
     const hd = TRAF.head[n];
     const px = x0 + dx * f, pz = y0 + dy * f;
+    if (F) { // el modelo mira hacia +Z: el giro es atan2(dx, dz) y el carro avanza de frente
+      if (!TRAF.headF) TRAF.headF = new Float32Array(TRAF.maxi);
+      if (dx * dx + dy * dy > 1e-6) TRAF.headF[n] = Math.atan2(dx, dy);
+      F.add(px, pz, TRAF.headF[n], A.ids[i]); n++; continue;
+    }
     d.position.set(px, 1.5, pz);
     d.rotation.set(0, hd, 0);
     d.scale.setScalar(1);
@@ -1505,6 +1576,7 @@ function updateTraffic(dt) {
     }
     n++;
   }
+  if (F) { F.end(T3.camera.position.x, T3.camera.position.z); n = 0; } // las cajas del tráfico antiguo quedan ocultas
   TRAF.bodies.count = n; TRAF.cabins.count = n; TRAF.wheels.count = n * 4;
   TRAF.bodies.instanceMatrix.needsUpdate = true;
   TRAF.cabins.instanceMatrix.needsUpdate = true;
@@ -2068,6 +2140,16 @@ function todoNight(on) {
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
+{ // barra de abajo: play / pausa y tiempo de la simulación de carros
+  const play = $('trafficPlay'), tiempo = $('trafficTime'), etiqueta = $('trafficLabel');
+  const fmt = (t) => { t = Math.max(0, Math.floor(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
+  const pintarBoton = () => { const on = !!(TRAF && TRAF.playing); play.textContent = on ? '❚❚' : '▶'; play.classList.toggle('on', on); play.setAttribute('aria-label', on ? 'Pausar simulación' : 'Reproducir simulación'); };
+  window.trafficPaint = pintarBoton;
+  window.trafficLoading = (pct) => { if (!TRAF) etiqueta.textContent = 'cargando ' + pct + '%'; };
+  window.trafficUI = (t, dur) => { tiempo.max = Math.floor(dur); if (document.activeElement !== tiempo) tiempo.value = Math.floor(t); etiqueta.textContent = fmt(t) + ' / ' + fmt(dur); };
+  play.onclick = () => { if (!TRAF) { say('Cargando las trayectorias de los carros...'); return; } TRAF.playing = !TRAF.playing; pintarBoton(); say(TRAF.playing ? 'Simulación de carros en marcha' : 'Simulación en pausa'); };
+  tiempo.oninput = (e) => { if (!TRAF) return; TRAF.t = Number(e.target.value); TRAF.playing = true; pintarBoton(); window.trafficUI(TRAF.t, TRAF.dur); };
+}
 
 /* ============ MODO SPLAT HUMEDAL (tu dron, gaussiano real) ============ */
 const SPLAT_HOME = {

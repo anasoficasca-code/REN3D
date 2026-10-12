@@ -47,5 +47,8 @@ La escena demo incluida es el castillo hiperrealista de tu foto, para que veas e
 - Los modelos estan en `data3d/models/` y los creditos en `data3d/CREDITOS.txt`.
 - El modo TODO 3D vuelve a cargar `real3d.js` (árboles 3D reales con LOD, pasto/juncos/plantas 3D y agua con mapa de normales). Si falla, usa los árboles de planos cruzados y el pasto de tarjetas como respaldo.
 - El suelo de los parques usa una textura de pasto repetible generada por código (`grassGroundTexture` en `index.html`), mezclada a dos escalas para que no se note el mosaico.
+- Arboles: nivel 0 = modelo real completo, nivel 1 = modelo real reducido, nivel 2 = arbol 3D de bajos poligonos (tronco + copa con varias masas) hasta 1.100 m. Las siluetas planas solo quedan mas alla de ese rango. Si eal3d.js no carga, se usan los arboles de planos cruzados como respaldo.
+- El suelo de fondo usa una textura de concreto repetible generada por codigo (concreteTex en index.html).
+- Simulacion de carros: la flota de eal3d.js (cinco estilos, de frente) sigue las trayectorias de data3d/kennedy_vehiculos.json; arranca en marcha a las 16:40 y la barra de abajo permite pausar y mover el tiempo.
 - `?liviano=1` abre el modo TODO 3D sin edificios ni sombras (equipos modestos o pruebas).
 - Para usar otra foto de ave, reemplaza los PNG de `data3d/aves/`.

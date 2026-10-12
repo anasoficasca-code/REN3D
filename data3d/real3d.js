@@ -3,7 +3,7 @@
 // distancia), pasto y arbustos reales 3D, agua con ondas reales y aves en todos los humedales. Creditos en data3d/CREDITOS.txt
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const gltfLoader = new GLTFLoader();
 const hash = (i) => { i = (i + 0x7ed55d16) + (i << 12); i = (i ^ 0xc761c23c) ^ (i >>> 19); i = (i + 0x165667b1) + (i << 5); i = (i + 0xd3a2646c) ^ (i << 9); i = (i + 0xfd7046c5) + (i << 3); i = (i ^ 0xb55a4f09) ^ (i >>> 16); return (i >>> 0) / 4294967296; };
@@ -152,6 +152,24 @@ function dibujarSiluetas(T3, partes, alto, ancho) {
   r.setRenderTarget(rt); r.setClearColor(0x000000, 0); r.clear(); r.render(s, cam); r.setRenderTarget(rt0); r.setClearColor(c0, a0);
   return { tex: rt.texture, lado };
 }
+// Arbol 3D de muy pocos triangulos (tronco + copa hecha con varias masas), de 1 m de alto y 1 m de ancho, con color por vertice.
+// Es 3D de verdad (volumen, no planos): se usa a media y larga distancia, donde el modelo real no cabe en la tarjeta grafica.
+function geometriaArbolBajo(tipo) {
+  const pintar = (g, c0, c1, y0, y1) => {
+    const p = g.attributes.position, c = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) { const t = Math.max(0, Math.min(1, (p.getY(i) - y0) / (y1 - y0))); c[i * 3] = c0[0] + (c1[0] - c0[0]) * t; c[i * 3 + 1] = c0[1] + (c1[1] - c0[1]) * t; c[i * 3 + 2] = c0[2] + (c1[2] - c0[2]) * t; }
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g;
+  };
+  const limpia = (g) => { if (g.index) g = g.toNonIndexed(); g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g; };
+  const tronco = limpia(new THREE.CylinderGeometry(0.035, 0.07, 0.46, 6, 1)); tronco.translate(0, 0.23, 0); pintar(tronco, [0.17, 0.13, 0.09], [0.22, 0.17, 0.12], 0, 0.46);
+  // copas irregulares: muchas masas de distinto tamaño que se solapan, para que la silueta no sea una bola
+  const masas = tipo === 0
+    ? [[0, 0.58, 0, 0.27, 1.05, 0.72, 1.0], [0.24, 0.50, 0.08, 0.2, 1, 0.75, 1], [-0.23, 0.52, -0.06, 0.21, 1, 0.75, 1], [0.08, 0.50, -0.24, 0.18, 1, 0.8, 1], [-0.1, 0.48, 0.24, 0.19, 1, 0.8, 1], [0.05, 0.78, -0.1, 0.19, 1, 0.8, 1], [-0.16, 0.74, 0.12, 0.15, 1, 0.8, 1], [0.2, 0.72, 0.16, 0.14, 1, 0.8, 1]]
+    : [[0, 0.5, 0, 0.21, 1, 1.4, 1], [0.01, 0.78, 0, 0.17, 1, 1.3, 1], [0.15, 0.4, 0.06, 0.14, 1, 1.25, 1], [-0.14, 0.44, -0.07, 0.14, 1, 1.25, 1], [0.04, 0.34, -0.15, 0.12, 1, 1.2, 1], [-0.05, 0.9, 0.04, 0.1, 1, 1.3, 1]];
+  const copas = masas.map(([x, y, z, r, sx, sy, sz]) => { const g = limpia(new THREE.IcosahedronGeometry(r, 1)); g.scale(sx, sy, sz); g.translate(x, y, z); return pintar(g, [0.06, 0.105, 0.04], [0.17, 0.25, 0.085], 0.25, 1.0); });
+  const g = mergeVertices(mergeGeometries([tronco, ...copas])); g.computeVertexNormals();
+  return g;
+}
 export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   const stride = Math.max(1, Math.ceil(T.t.length / 130000)); // se muestran todos los arboles de los datos
   const X = [], Z = [], Hh = [], SP = [], pesoTot = ESPECIES_ARBOL.reduce((a, e) => a + e.peso, 0);
@@ -211,7 +229,10 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
     const sil = dibujarSiluetas(T3, niveles.L0, alto, ancho);
     especies.push({ ...E, niveles, alto, ancho, sil });
   }
-  const CAP0 = 80, CAP1 = 1400, R0 = 55, R1 = 260, d = new THREE.Object3D(), col = new THREE.Color();
+  // L0 modelo real completo (cerca) · L1 modelo real reducido (medio) · L2 arbol 3D de bajos poligonos (lejos) · siluetas sólo más allá de R2 o si se llena el cupo
+  const CAP0 = 16, CAP1 = 130, CAP2 = 12000, R0 = 40, R1 = 160, R2 = 1100, d = new THREE.Object3D(), col = new THREE.Color();
+  const bajos = [0, 1].map(tipo => { const m = new THREE.InstancedMesh(geometriaArbolBajo(tipo), new THREE.MeshLambertMaterial({ vertexColors: true }), CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
+  const TIPO_BAJO = especies.map(e => (e.base === 'arbolpeq' || e.base === 'island_tree_02') ? 1 : 0);
   const lod = especies.map(e => ({ L0: e.niveles.L0.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP0); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; T3.scene.add(m); return m; }),
     L1: e.niveles.L1.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP1); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; T3.scene.add(m); return m; }) }));
   lod.forEach(l => [...l.L0, ...l.L1].forEach(m => { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }));
@@ -230,15 +251,21 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
     if (!force && dx * dx + dz * dz < 36 && now - ult.t < 1500) return;
     ult.x = cam.position.x; ult.z = cam.position.z; ult.t = now;
     cand.length = 0;
-    for (let i = 0; i < N; i++) { const ex = X[i] - ult.x, ez = Z[i] - ult.z, d2 = ex * ex + ez * ez; if (d2 < R1 * R1) cand.push([i, d2]); }
+    for (let i = 0; i < N; i++) { const ex = X[i] - ult.x, ez = Z[i] - ult.z, d2 = ex * ex + ez * ez; if (d2 < R2 * R2) cand.push([i, d2]); }
     cand.sort((a, b) => a[1] - b[1]);
-    const n0 = lod.map(() => 0), n1 = lod.map(() => 0), asignado = new Uint8Array(N);
+    const n0 = lod.map(() => 0), n1 = lod.map(() => 0), n2 = [0, 0], asignado = new Uint8Array(N);
+    let tot2 = 0;
     for (const [i, d2] of cand) {
       const s = SP[i], sc = esc(i), tv = 0.82 + hash(i * 19) * 0.34;
-      d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.94);
-      if (d2 < R0 * R0 && n0[s] < CAP0) { const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
-      else if (n1[s] < CAP1) { const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
+      if (d2 < R0 * R0 && n0[s] < CAP0) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.94); const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
+      else if (d2 < R1 * R1 && n1[s] < CAP1) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.94); const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
+      else if (tot2 < CAP2) { // arbol 3D de bajos poligonos con el mismo alto y ancho de copa que tendria el modelo real
+        const e = especies[s], tp = TIPO_BAJO[s], w = e.ancho * sc, h = e.alto * sc;
+        d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.set(w, h, w); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.92);
+        const k = n2[tp]++; bajos[tp].setMatrixAt(k, d.matrix); bajos[tp].setColorAt(k, col); tot2++; asignado[i] = 1;
+      }
     }
+    bajos.forEach((m, tp) => { m.count = n2[tp]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
     lod.forEach((l, s) => { l.L0.forEach(m => { m.count = n0[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }); l.L1.forEach(m => { m.count = n1[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }); });
     const nf = lejos.map(() => 0);
     for (let i = 0; i < N; i++) {
@@ -247,7 +274,7 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
       lejos[s].instanceMatrix.array.set(FM.subarray(i * 16, i * 16 + 16), k * 16); ca[k * 3] = FC[i * 3]; ca[k * 3 + 1] = FC[i * 3 + 1]; ca[k * 3 + 2] = FC[i * 3 + 2];
     }
     lejos.forEach((m, s) => { m.count = nf[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
-    api.stats = { cerca: n0.join('+'), medio: n1.join('+'), lejos: nf.join('+') };
+    api.stats = { cerca: n0.join('+'), medio: n1.join('+'), bajos: n2.join('+'), siluetas: nf.join('+') };
   };
   api.update({ position: new THREE.Vector3(1e8, 0, 1e8) }, true);
   return api;
