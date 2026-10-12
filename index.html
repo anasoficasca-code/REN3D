@@ -790,6 +790,8 @@ function flight(ms) {
     if (cam.position.y < 3) cam.position.y = 3;
     o.update();
     updateAves();
+    if (T3.trees) T3.trees.update(cam);
+    if (T3.plants) T3.plants.update(cam);
     if (TRAF) updateTraffic(dt); else updateCars(dt);
     T3.waterU.value = performance.now() / 1000;
     if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
@@ -958,6 +960,8 @@ async function initTodo() {
     scene.add(ground);
     T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
+    // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
+    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = await fetchProg('data3d/buildings.json', 'Edificios');
@@ -966,17 +970,30 @@ async function initTodo() {
     buildChunks(THREE, B);
     $('lmsg').textContent = 'Cargando árboles del censo…';
     const T = await fetchProg('data3d/trees.json', 'Árboles');
-    await buildTreesReal(THREE, T);
     $('lmsg').textContent = 'Cargando aguas, parques y vías…';
     const [W, P, N] = await Promise.all([
       fetch('data3d/water_bodies.json').then(r => r.json()),
       fetch('data3d/parques.json').then(r => r.json()),
       fetch('data3d/net.json').then(r => r.json())
     ]);
+    const realOK = !!(T3.R && T3.env);
+    if (realOK) {
+      $('lmsg').textContent = 'Cargando árboles reales 3D…';
+      try { T3.trees = await T3.R.buildTrees(T3, T, W, lw, T3.env); T3.counts.t = T.t.length; }
+      catch (e) { console.warn('arboles reales:', e); T3.trees = null; await buildTreesReal(THREE, T); }
+    } else await buildTreesReal(THREE, T);
     buildWater(THREE, W); buildParks(THREE, P); buildRoads(THREE, N);
     buildAves(THREE);
-    try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
-    try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
+    let plantsOK = false;
+    if (realOK) {
+      try { T3.R.upgradeWater(T3, T3.env); } catch (e) { console.warn('agua real:', e); }
+      try { T3.plants = await T3.R.buildNearPlants(T3, W, lw, T3.env, P); plantsOK = true; } catch (e) { console.warn('pasto 3D:', e); }
+    }
+    // si el pasto/juncos 3D no cargaron, queda el pasto de tarjetas de respaldo
+    if (!plantsOK) {
+      try { buildReeds(THREE, W); } catch (e) { console.warn('reeds:', e); }
+      try { buildGrass(THREE, P, W); } catch (e) { console.warn('grass:', e); }
+    }
     try { await buildTraffic(THREE); } catch (e) { console.warn('traffic:', e); try { buildCars(THREE, N); } catch (e2) { console.warn('cars:', e2); } }
     $('loader').classList.add('hidden');
     say('🧱 TODO 3D listo · ' + T3.counts.b.toLocaleString('es-CO') + ' edificios + ' + T3.counts.t.toLocaleString('es-CO') + ' árboles' + (TRAF ? ' + ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)' : ''));
@@ -1698,10 +1715,42 @@ function buildWater(THREE, W) {
   wmesh.receiveShadow = false;
   wmesh.renderOrder = 4;
   T3.scene.add(wmesh);
+  T3.waterMesh = wmesh;
   T3.waterMat = wmat;
 }
+// suelo de pasto repetible: base con manchas de verdes + miles de hojas finas (se dibujan con envoltura para que no se vea la costura)
+function grassGroundTexture(THREE) {
+  const S = 512, cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const g = cv.getContext('2d');
+  let s = 20260;
+  const R = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  g.fillStyle = '#4a7a2c'; g.fillRect(0, 0, S, S);
+  const wrap = (fn) => { for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) fn(ox, oy); };
+  for (let i = 0; i < 90; i++) { // manchas grandes: pasto más seco / más oscuro
+    const x = R() * S, y = R() * S, r = 30 + R() * 70, dry = R() < 0.3;
+    wrap((ox, oy) => {
+      const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+      gr.addColorStop(0, dry ? 'rgba(138,140,62,0.32)' : 'rgba(30,64,22,0.30)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
+    });
+  }
+  g.lineCap = 'round';
+  for (let i = 0; i < 9000; i++) { // hojas
+    const x = R() * S, y = R() * S, len = 5 + R() * 11, ang = -Math.PI / 2 + (R() - 0.5) * 1.5;
+    const dry = R() < 0.14, l = 22 + R() * 30;
+    g.strokeStyle = dry ? 'hsl(' + (52 + R() * 10) + ',42%,' + (38 + R() * 14) + '%)' : 'hsl(' + (72 + R() * 40) + ',' + (40 + R() * 25) + '%,' + l + '%)';
+    g.lineWidth = 0.8 + R() * 1.2;
+    wrap((ox, oy) => { g.beginPath(); g.moveTo(x + ox, y + oy); g.quadraticCurveTo(x + ox + Math.cos(ang) * len * 0.5, y + oy + Math.sin(ang) * len * 0.5, x + ox + Math.cos(ang) * len + (R() - 0.5) * 3, y + oy + Math.sin(ang) * len); g.stroke(); });
+  }
+  const tx = new THREE.CanvasTexture(cv);
+  tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+  tx.colorSpace = THREE.SRGBColorSpace;
+  tx.anisotropy = Math.min(8, T3.renderer.capabilities.getMaxAnisotropy());
+  return tx;
+}
 function buildParks(THREE, P) {
-  const gP = [], gC = [], gI = [];
+  const gP = [], gC = [], gI = [], gU = [];
   let vc = 0;
   for (const p of P) {
     const v = [];
@@ -1709,17 +1758,30 @@ function buildParks(THREE, P) {
     if (v.length > 1 && v[0].distanceTo(v[v.length - 1]) < 0.01) v.pop();
     if (v.length < 3) continue;
     const hsh = (hashN(p.nombre || 'x') % 20 - 10) * 0.006;
-    const c = [0.16 + hsh, 0.4 + hsh, 0.19 + hsh];
+    const c = [0.95 + hsh, 1.0 + hsh, 0.92 + hsh]; // tinte suave sobre la textura de pasto
     const base = vc;
-    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(c[0], c[1], c[2]); vc++; }
+    for (const q of v) { gP.push(q.x, 0.12, q.y); gC.push(c[0], c[1], c[2]); gU.push(q.x * 0.22, q.y * 0.22); vc++; }
     for (const f of THREE.ShapeUtils.triangulateShape(v, [])) gI.push(base + f[0], base + f[2], base + f[1]);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(gP, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(gC, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(gU, 2));
   g.setIndex(gI);
   g.computeVertexNormals();
-  T3.scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
+  const pmat = new THREE.MeshLambertMaterial({ map: grassGroundTexture(THREE), vertexColors: true });
+  // segunda escala (20 veces más grande, sólo su luminosidad) para que no se note la repetición del mosaico desde lejos
+  pmat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      #ifdef USE_MAP
+        float lumA = dot(texture2D(map, vMapUv * 0.137 + vec2(0.31, 0.57)).rgb, vec3(0.30, 0.59, 0.11)) / 0.33;
+        float lumB = dot(texture2D(map, vMapUv * 0.053 + vec2(0.73, 0.19)).rgb, vec3(0.30, 0.59, 0.11)) / 0.33;
+        diffuseColor.rgb *= clamp(0.5 * (lumA + lumB), 0.7, 1.4);
+      #endif`);
+  };
+  const pm = new THREE.Mesh(g, pmat);
+  pm.receiveShadow = true;
+  T3.scene.add(pm);
 }
 function buildRoads(THREE, N) {
   const SP = [], SI = [], AP = [], AI = [];
