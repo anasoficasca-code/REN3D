@@ -859,7 +859,7 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, y - LC.y];
-window.REN3D = { get T3() { return T3; }, lw }; // acceso para pruebas
+window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; } }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
 
@@ -961,7 +961,7 @@ async function initTodo() {
     scene.add(ground);
     T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600) };
-    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); } catch (e) { console.warn('real3d:', e); T3.R = null; }
+    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; }
 
     if (!LIVIANO) {
       $('lmsg').textContent = 'Cargando edificios (36 MB)…';
@@ -1455,7 +1455,7 @@ async function buildTraffic(THREE) {
   }
   if (bodies.instanceColor) bodies.instanceColor.needsUpdate = true;
   T3.scene.add(bodies, cabins, wheels);
-  TRAF = { steps, NS, NV, dur, maxi, t: 0, bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
+  TRAF = { steps, NS, NV, dur, maxi, t: Math.min(1000, dur - 5), /* arranca a las 16:40, cuando ya hay unos 2.000 carros en la calle */ bodies, cabins, wheels, dummy: new THREE.Object3D(), head: new Float32Array(maxi) };
   T3.counts.cars = NV;
   updateTraffic(0);
 }
@@ -1471,6 +1471,8 @@ function updateTraffic(dt) {
   const d = TRAF.dummy;
   const WO = [[1.45, 0.95], [1.45, -0.95], [-1.45, 0.95], [-1.45, -0.95]];
   let n = 0;
+  const F = T3.fleet; // flota de carros reales (data3d/real3d.js): recibe las trayectorias de la simulacion
+  if (F) F.begin();
   for (let i = 0; i < A.ids.length && n < TRAF.maxi; i++) {
     const x0 = A.xs[i] - LC.x, y0 = A.ys[i] - LC.y;
     const j = m.get(A.ids[i]);
@@ -1480,6 +1482,11 @@ function updateTraffic(dt) {
     if (dx * dx + dy * dy > 1e-6) TRAF.head[n] = Math.atan2(-dy, dx);
     const hd = TRAF.head[n];
     const px = x0 + dx * f, pz = y0 + dy * f;
+    if (F) { // el modelo mira hacia +Z: el giro es atan2(dx, dz) y el carro avanza de frente
+      if (!TRAF.headF) TRAF.headF = new Float32Array(TRAF.maxi);
+      if (dx * dx + dy * dy > 1e-6) TRAF.headF[n] = Math.atan2(dx, dy);
+      F.add(px, pz, TRAF.headF[n], A.ids[i]); n++; continue;
+    }
     d.position.set(px, 1.5, pz);
     d.rotation.set(0, hd, 0);
     d.scale.setScalar(1);
@@ -1496,6 +1503,7 @@ function updateTraffic(dt) {
     }
     n++;
   }
+  if (F) { F.end(T3.camera.position.x, T3.camera.position.z); n = 0; } // las cajas del tráfico antiguo quedan ocultas
   TRAF.bodies.count = n; TRAF.cabins.count = n; TRAF.wheels.count = n * 4;
   TRAF.bodies.instanceMatrix.needsUpdate = true;
   TRAF.cabins.instanceMatrix.needsUpdate = true;
