@@ -13,7 +13,7 @@ export function makeEnv(renderer) {
   const pm = new THREE.PMREMGenerator(renderer), s = new THREE.Scene();
   const sky = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
-    uniforms: { top: { value: new THREE.Color(0x255a98) }, mid: { value: new THREE.Color(0x6f98bd) }, bot: { value: new THREE.Color(0x9fb7c9) } },
+    uniforms: { top: { value: new THREE.Color(0x98a7b6) }, mid: { value: new THREE.Color(0xc4c9cd) }, bot: { value: new THREE.Color(0xdfdcd4) } },
     vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     // cielo con nubes: es lo que se refleja en el agua y en los carros
     fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot;
@@ -25,8 +25,8 @@ export function makeEnv(renderer) {
         vec3 c = mix(bot, mid, smoothstep(-0.1, 0.3, y)); c = mix(c, top, smoothstep(0.25, 0.9, y)); c = mix(c, vec3(0.25, 0.28, 0.25), smoothstep(-0.02, -0.25, y));
         if (y > 0.0) {
           vec2 cuv = d.xz / (y + 0.3) * 1.5 + vec2(3.1, 1.7);
-          float cl = smoothstep(0.42, 0.72, fb(cuv));
-          c = mix(c, vec3(1.0, 0.995, 0.98), cl * smoothstep(0.0, 0.16, y) * 0.92);
+          float cl = smoothstep(0.33, 0.6, fb(cuv));
+          c = mix(c, mix(vec3(0.66, 0.68, 0.72), vec3(0.96, 0.95, 0.93), fb(cuv * 1.7 + 3.0)), cl * smoothstep(0.0, 0.16, y) * 0.95);
         }
         gl_FragColor = vec4(c, 1.0);
       }`
@@ -251,7 +251,7 @@ function geometriaCopaDeModelo(niveles, alto, ancho) {
   for (let i = 0; i < pts.length; i += 3) { const k = Math.floor(pts[i] / s) + ',' + Math.floor(pts[i + 1] / s) + ',' + Math.floor(pts[i + 2] / s); let c = celdas.get(k); if (!c) celdas.set(k, c = { x: 0, y: 0, z: 0, n: 0 }); c.x += pts[i]; c.y += pts[i + 1]; c.z += pts[i + 2]; c.n++; }
   const lista = [...celdas.values()].filter(c => c.n >= 10).sort((a, b) => b.n - a.n).slice(0, 11);
   if (lista.length < 3) return null;
-  const nmax = lista[0].n, c0 = [0.09, 0.15, 0.055], c1 = [0.25, 0.36, 0.12], piezas = [];
+  const nmax = lista[0].n, c0 = [0.05, 0.10, 0.045], c1 = [0.17, 0.26, 0.095], piezas = [];
   const limpia = (g) => { if (g.index) g = g.toNonIndexed(); g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g; };
   const pinta = (g, f) => { const p = g.attributes.position, c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const k = f(p.getY(i)); c[i * 3] = k[0]; c[i * 3 + 1] = k[1]; c[i * 3 + 2] = k[2]; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; };
   let base = 1e9;
@@ -276,11 +276,14 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   for (let i = 0; i < T.t.length; i += stride) { const t = T.t[i], w = lw(t[0], t[1]); X.push(w[0]); Z.push(w[1]); Hh.push(Math.max(4, Math.min(16, t[2] || 6))); SP.push(elegir(hash(i * 3 + 1))); }
   const aguas = cuerposDeAgua(W, lw); let ribera = 0;
   for (const a of aguas) {
-    for (let i = 0; i < a.pts.length && ribera < 9000; i += 3) {
+    for (let i = 0; i < a.pts.length && ribera < 30000; i += 2) {
       const p = a.pts[i]; let dx, dz;
       if (a.cerrado) { dx = p[0] - a.cx; dz = p[1] - a.cz; } else { const q = a.pts[Math.min(i + 1, a.pts.length - 1)]; dx = -(q[1] - p[1]); dz = q[0] - p[0]; if ((i % 8) >= 4) { dx = -dx; dz = -dz; } }
-      const L = Math.hypot(dx, dz) || 1, r = 6 + hash(i * 17 + 3) * 20;
-      if (hash(i * 29 + 7) < 0.88) { X.push(p[0] + dx / L * r + (hash(i * 5 + 1) - 0.5) * 6); Z.push(p[1] + dz / L * r + (hash(i * 11 + 9) - 0.5) * 6); Hh.push(5 + hash(i) * 7); SP.push(elegir(hash(i * 7 + 2))); ribera++; }
+      const L = Math.hypot(dx, dz) || 1;
+      for (let fila = 0; fila < 3; fila++) { // bosque de ribera denso: tres filas de árboles que se van alejando de la orilla, con las copas tocándose
+        const sd = i * 17 + fila * 1013, r = 5 + fila * 8 + hash(sd + 3) * 12;
+        if (hash(sd + 7) < (fila === 0 ? 0.92 : 0.8)) { X.push(p[0] + dx / L * r + (hash(sd + 1) - 0.5) * 7); Z.push(p[1] + dz / L * r + (hash(sd + 9) - 0.5) * 7); Hh.push(7 + hash(sd + 5) * 8); SP.push(elegir(hash(sd + 2))); ribera++; }
+      }
     }
   }
   // arboles dentro de las zonas verdes
@@ -361,11 +364,11 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
     let tot2 = 0;
     for (const [i, d2] of cand) {
       const s = SP[i], sc = esc(i), tv = 0.82 + hash(i * 19) * 0.34;
-      if (d2 < R0 * R0 && n0[s] < CAP0) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.94); const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
-      else if (d2 < R1 * R1 && n1[s] < CAP1S[s]) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv, tv * (0.96 + hash(i) * 0.08), tv * 0.94); const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
+      if (d2 < R0 * R0 && n0[s] < CAP0) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv * 0.74, tv * 0.88 * (0.96 + hash(i) * 0.08), tv * 0.76); const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
+      else if (d2 < R1 * R1 && n1[s] < CAP1S[s]) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv * 0.74, tv * 0.88 * (0.96 + hash(i) * 0.08), tv * 0.76); const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
       else if (tot2 < CAP2) { // arbol 3D de bajos poligonos con el mismo alto y ancho de copa que tendria el modelo real
         const e = especies[s], w = e.ancho * sc, h = e.alto * sc, ti = TINTE_BAJO[s], hv = 0.96 + hash(i) * 0.08;
-        d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.set(w, h, w); d.updateMatrix(); col.setRGB(tv * ti[0], tv * hv * ti[1], tv * 0.94 * ti[2]);
+        d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.set(w, h, w); d.updateMatrix(); col.setRGB(tv * ti[0] * 0.74, tv * hv * ti[1] * 0.9, tv * 0.94 * ti[2] * 0.78);
         const k = n2[s]++; bajos[s].setMatrixAt(k, d.matrix); bajos[s].setColorAt(k, col); tot2++; asignado[i] = 1;
       }
     }
@@ -518,8 +521,9 @@ export function upgradeWater(T3, env) {
   };
   // agua azul-verdosa profunda que refleja el cielo y sus nubes (el reflejo crece al mirar de lado, como en el agua real)
   const cv = mesh.geometry.attributes.color;
-  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.012; cv.array[i + 1] = 0.040; cv.array[i + 2] = 0.052; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
-  mat.envMapIntensity = 0.62; mat.roughness = 0.03; mat.clearcoat = 0.3; mat.clearcoatRoughness = 0.04; mat.specularIntensity = 1; mat.normalScale.set(0.7, 0.7); mat.opacity = 0.97;
+  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.006; cv.array[i + 1] = 0.012; cv.array[i + 2] = 0.011; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
+  // río en calma como espejo oscuro (verde-pardo profundo) que refleja el cielo gris: oleaje muy suave, reflejo fuerte de lado y tenue de frente
+  mat.envMapIntensity = 0.82; mat.roughness = 0.0; mat.clearcoat = 0.5; mat.clearcoatRoughness = 0.0; mat.specularIntensity = 1; mat.normalScale.set(0.22, 0.22); mat.opacity = 0.985;
   mesh.material = mat; T3.waterMat = mat; return true;
 }
 

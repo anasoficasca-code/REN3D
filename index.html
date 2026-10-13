@@ -905,17 +905,18 @@ async function initTodo() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
+    renderer.toneMappingExposure = 1.02;
     $('todo3d').appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87b5dd);
-    scene.fog = new THREE.FogExp2(0x9fc3e0, 0.00011);
+    // ambiente de mañana nublada con bruma en el horizonte (referencia: foto aérea del río con cielo gris y bosque verde oscuro)
+    scene.background = new THREE.Color(0xd6d6d2);
+    scene.fog = new THREE.FogExp2(0xd3d3cf, 0.00018);
     const skyU = {
-      top: { value: new THREE.Color(0x2f6cb0) },
-      mid: { value: new THREE.Color(0x9fc3e0) },
-      bot: { value: new THREE.Color(0xdfe9ee) },
+      top: { value: new THREE.Color(0x98a7b6) },
+      mid: { value: new THREE.Color(0xc4c9cd) },
+      bot: { value: new THREE.Color(0xdfdcd4) },
       uTime: { value: 0 },
-      uCloud: { value: 0.9 },
+      uCloud: { value: 1.0 },
       uSunDir: { value: new THREE.Vector3(0.42, 0.62, 0.35).normalize() }
     };
     const sky = new THREE.Mesh(
@@ -934,9 +935,9 @@ async function initTodo() {
             vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.75, h)) : mix(bot, mid, smoothstep(-0.08, 0.12, h));
             if (d.y > 0.015) {
               vec2 cuv = d.xz / (d.y + 0.28) * 0.75 + uTime * vec2(0.018, 0.007);
-              float cl = smoothstep(0.36, 0.66, fbm(cuv));
+              float cl = smoothstep(0.31, 0.6, fbm(cuv));
               float sunAmt = max(dot(d, normalize(uSunDir)), 0.0);
-              vec3 cloudCol = mix(vec3(0.78, 0.83, 0.88), vec3(1.08, 1.02, 0.95), pow(sunAmt, 2.0));
+              vec3 cloudCol = mix(vec3(0.60, 0.63, 0.68), vec3(1.0, 0.97, 0.92), pow(sunAmt, 2.0));
               c = mix(c, cloudCol, cl * smoothstep(0.015, 0.18, d.y) * uCloud);
             }
             gl_FragColor = vec4(c, 1.0);
@@ -952,8 +953,8 @@ async function initTodo() {
     orbit.target.set(tw[0], 0, tw[1]);
     orbit.enableDamping = true; orbit.dampingFactor = 0.06;
     orbit.maxPolarAngle = Math.PI * 0.495; orbit.minDistance = 4; orbit.maxDistance = 9000;
-    const hemi = new THREE.HemisphereLight(0xbcd6ff, 0x3a422c, 0.85);
-    const sun = new THREE.DirectionalLight(0xfff1d6, 2.0);
+    const hemi = new THREE.HemisphereLight(0xc9d3dd, 0x4a5038, 0.95);
+    const sun = new THREE.DirectionalLight(0xfff0dc, 1.55);
     sun.position.set(4000, 5000, 2000);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -2154,12 +2155,11 @@ function todoNight(on) {
     if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); T3.skyU.uCloud.value = 0.18; }
     if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); }
   } else {
-    T3.scene.background.set(0x87b5dd); T3.scene.fog.color.set(0x9fc3e0);
-    T3.hemi.intensity = 0.85; T3.hemi.color.set(0xbcd6ff);
-    T3.sun.intensity = 2.0; T3.sun.color.set(0xfff1d6);
-    T3.renderer.toneMappingExposure = 1.12;
-    if (T3.skyU) { T3.skyU.top.value.set(0x2f6cb0); T3.skyU.mid.value.set(0x9fc3e0); T3.skyU.bot.value.set(0xdfe9ee); T3.skyU.uCloud.value = 0.9; }
-    if (T3.skyU) { T3.skyU.top.value.set(0x2f6cb0); T3.skyU.mid.value.set(0x9fc3e0); T3.skyU.bot.value.set(0xdfe9ee); }
+    T3.scene.background.set(0xd6d6d2); T3.scene.fog.color.set(0xd3d3cf);
+    T3.hemi.intensity = 0.95; T3.hemi.color.set(0xc9d3dd);
+    T3.sun.intensity = 1.55; T3.sun.color.set(0xfff0dc);
+    T3.renderer.toneMappingExposure = 1.02;
+    if (T3.skyU) { T3.skyU.top.value.set(0x98a7b6); T3.skyU.mid.value.set(0xc4c9cd); T3.skyU.bot.value.set(0xdfdcd4); T3.skyU.uCloud.value = 1.0; }
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };

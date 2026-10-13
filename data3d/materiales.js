@@ -39,7 +39,7 @@ function sinRepeticion(mat, macro, bright, sat) {
 export function crearMaterialesSuelo(renderer) {
   // mientras cargan las fotos se ve un color liso parecido
   const mk = (color, rough, macro, bright, sat) => { const m = new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, side: THREE.DoubleSide }); sinRepeticion(m, macro, bright, sat); return m; };
-  const M = { piso: mk(0x9a9a96, 0.96, 0.16, 1.9, 0.40), via: mk(0xc9c7c1, 0.93, 0.10, 0.55, 0.35), acera: mk(0xd2d0cb, 0.92, 0.12, 2.0, 0.5), pasto: mk(0x4f6a30, 0.99, 0.2, 1.0, 0.8) };
+  const M = { piso: mk(0x9a9a96, 0.96, 0.16, 1.9, 0.40), via: mk(0xc9c7c1, 0.93, 0.10, 0.55, 0.35), acera: mk(0xd2d0cb, 0.92, 0.12, 2.0, 0.5), pasto: mk(0x4f6a30, 0.99, 0.2, 1.1, 0.92) };
   M.acera.emissive.set(0x3a3935); // levanta las partes en sombra de aceras y taludes, que si no se ven casi negras
   M.via.emissive.set(0x0c0c0b);
   const tl = new THREE.TextureLoader(), aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
@@ -48,7 +48,7 @@ export function crearMaterialesSuelo(renderer) {
     const lista = [['piso', 'piso', 0.9], ['via', 'via', 0.8], ['acera', 'acera', 0.9], ['pasto', 'pasto', 0.7]];
     await Promise.all(lista.map(async ([k, f, ns]) => {
       const [c, n] = await Promise.all([cargar(`data3d/textures/${f}_color.jpg`, true), cargar(`data3d/textures/${f}_normal.jpg`, false)]);
-      if (c) { M[k].map = c; M[k].color.set(0xffffff); }
+      if (c) { M[k].map = c; M[k].color.set(k === 'piso' ? 0xcdd4c0 : 0xffffff); } // el piso lejano lleva un tinte verdoso de tierra para fundirse con la bruma del horizonte
       if (n) { M[k].normalMap = n; M[k].normalScale.set(ns, ns); }
       M[k].needsUpdate = true;
     }));
