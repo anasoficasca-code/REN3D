@@ -1073,6 +1073,22 @@ function buildChunks(THREE, B) {
     total++;
   }
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true });
+  // ventanas y pisos en las fachadas (se dibujan por código sobre las paredes, se desvanecen con la distancia): los edificios dejan de ser cajas lisas
+  mat.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'varying vec3 vWp;\nfloat hVn(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      { vec3 fn = normalize(cross(dFdx(vWp), dFdy(vWp)));
+        float pared = 1.0 - smoothstep(0.12, 0.35, abs(fn.y));
+        float vis = pared * (1.0 - smoothstep(130.0, 420.0, length(cameraPosition - vWp))) * step(3.6, vWp.y);
+        vec2 gp = vec2(dot(vWp.xz, vec2(-fn.z, fn.x)) / 3.2, vWp.y / 3.1);
+        vec2 ce = floor(gp), f = fract(gp);
+        float ven = smoothstep(0.12, 0.2, f.x) * (1.0 - smoothstep(0.76, 0.84, f.x)) * smoothstep(0.2, 0.28, f.y) * (1.0 - smoothstep(0.74, 0.82, f.y));
+        float rr = hVn(ce + floor(vWp.y * 0.01));
+        vec3 vidrio = mix(vec3(0.05, 0.075, 0.11), vec3(0.2, 0.28, 0.37), rr * 0.55);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vidrio, ven * vis * 0.88);
+        diffuseColor.rgb *= 1.0 - 0.1 * vis * (1.0 - smoothstep(0.0, 0.07, f.y)); } // línea oscura de cada losa`);
+  };
+  mat.customProgramCacheKey = () => 'edificios-ventanas-v1';
   for (const list of cells.values()) {
     const P = [], C = [], I = [];
     let vc = 0;
@@ -1711,8 +1727,8 @@ function buildWater(THREE, W) {
     uniforms: {
       uTime: T3.waterU,
       uSun: { value: new THREE.Vector3(0.45, 0.62, 0.35).normalize() },
-      uDeep: { value: new THREE.Color(0x06222a) },
-      uShallow: { value: new THREE.Color(0x24655c) },
+      uDeep: { value: new THREE.Color(0x03141a) },
+      uShallow: { value: new THREE.Color(0x144640) },
       uSkyA: { value: new THREE.Color(0x4b86c2) },
       uSkyB: { value: new THREE.Color(0x9cc6e8) },
       uCloud: { value: 0.45 }

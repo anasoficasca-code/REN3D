@@ -26,7 +26,7 @@ const CSS = `
 #pjMsg{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);z-index:31;display:none;background:rgba(7,18,26,.9);border:1px solid rgba(253,224,71,.6);border-radius:14px;padding:10px 20px;font:700 16px system-ui,sans-serif;color:#fef9c3;pointer-events:none;text-align:center}
 body.pj .hud,body.pj #trafficHud,body.pj #toast{display:none!important}
 body.pj #pjHud.on,body.pj #pjSalir.on{display:block}
-body.pj.pjvr #pjHud,body.pj.pjvr #pjSalir,body.pj.pjvr #pjMsg{display:none!important}
+body.pj.pjcb #pjHud,body.pj.pjcb #pjSalir,body.pj.pjcb #pjMsg{display:none!important}
 `;
 
 const giro = (a, b) => { let x = b - a; while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
@@ -50,6 +50,7 @@ export function crearPajaro(ctx) {
       <button data-m="cardboard">📱 Celular + visor Cardboard<small>Pantalla dividida para visores de celular; mueves la cabeza y el celular lo detecta</small></button>
       <button data-m="pantalla">💻 En pantalla (mouse y teclado)<small>Para probar el juego en el computador</small></button>
     </div>
+    <label style="display:block;font-size:12.5px;color:#cbd5e1;margin:2px 0"><input type="checkbox" id="pjEsp"> Mostrar en esta pantalla lo mismo que ves en las gafas (en las Quest solas déjalo apagado para ir más fluido)</label>
     <div id="pjEstado"></div>
     <details><summary>¿Cómo se maneja?</summary><ul>
       <li><b>Gafas VR:</b> vuelas hacia donde miras. Gatillo = acelerar · botón lateral (grip) = frenar · palanca izquierda/derecha = girar · ¡mueve los brazos como alas para impulsarte!</li>
@@ -80,7 +81,7 @@ export function crearPajaro(ctx) {
   // ---------------------------------------------------------------- menú y arranque
   const estado = (t) => { $('pjEstado').textContent = t || ''; };
   async function abrirMenu() {
-    menu.style.display = 'flex'; estado('');
+    menu.style.display = 'flex'; estado(''); pjEsp.checked = espejo;
     try {
       if (navigator.xr && await navigator.xr.isSessionSupported('immersive-vr')) $('pjXr').textContent = '✔ Tu navegador reconoce gafas VR (WebXR). Para ir fluido se carga la versión ligera (si ya abriste el mundo completo y va lento, recarga la página y entra directo por aquí).';
       else $('pjXr').textContent = navigator.xr ? 'WebXR sin gafas conectadas: conecta las gafas (Quest Link / SteamVR) o abre esta página en el navegador de las gafas.' : 'Este navegador no tiene WebXR: abre la página en el navegador de las gafas (Quest: Meta Browser) o en Chrome/Edge con las gafas conectadas.';
@@ -129,7 +130,7 @@ export function crearPajaro(ctx) {
   function crearAlas() {
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
     const g = alaGeo();
-    const mk = (lado) => { const piv = new THREE.Group(); const m = new THREE.Mesh(g, mat); if (lado < 0) m.scale.x = -1; m.frustumCulled = false; piv.add(m); piv.position.set(lado * 0.28, -0.5, -0.85); return piv; };
+    const mk = (lado) => { const piv = new THREE.Group(); const m = new THREE.Mesh(g, mat); if (lado < 0) m.scale.x = -1; m.frustumCulled = false; piv.add(m); piv.scale.setScalar(0.55); piv.position.set(lado * 0.3, -0.62, -0.9); return piv; };
     alaI = mk(-1); alaD = mk(1);
   }
   function crearHudPlano() {
@@ -221,7 +222,7 @@ export function crearPajaro(ctx) {
   // ---------------------------------------------------------------- mensajes y HUD
   function mensaje(t, seg) {
     sim.msgTxt = t; sim.msgHasta = performance.now() + (seg || 3000);
-    if (modo === 'pantalla') { msgEl.textContent = t; msgEl.style.display = 'block'; setTimeout(() => { if (performance.now() >= sim.msgHasta - 50) msgEl.style.display = 'none'; }, (seg || 3000) + 60); }
+    if (modo !== 'cardboard') { msgEl.textContent = t; msgEl.style.display = 'block'; setTimeout(() => { if (performance.now() >= sim.msgHasta - 50) msgEl.style.display = 'none'; }, (seg || 3000) + 60); }
   }
   const fmt = (s) => String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(Math.floor(s % 60)).padStart(2, '0');
   function objetivo() { // a dónde apuntar la flecha: el nido si ya llevas 3 peces, si no el pez más cercano
@@ -236,9 +237,10 @@ export function crearPajaro(ctx) {
     camaraDir(dir);
     if (o) { rel = giro(Math.atan2(dir.x, dir.z), Math.atan2(o.x - p.x, o.z - p.z)); dist = Math.hypot(o.x - p.x, o.z - p.z); }
     const pez = '🐟'.repeat(sim.llevando) + '·'.repeat(3 - sim.llevando);
-    if (modo === 'pantalla') {
+    if (modo !== 'cardboard') {
       hud.innerHTML = `<div class="n">${sim.puntos} pts</div><div>Peces entregados: <b>${sim.entregados}/10</b> · Llevas: ${pez}</div><div>⏱ ${fmt(sim.tiempo)} · Altura ${Math.round(p.y)} m · ${Math.round(vel * 3.6)} km/h</div>` + (o ? `<div style="margin-top:4px">${o.txt}: <span class="arrow" style="transform:rotate(${-rel}rad)">➤</span> ${Math.round(dist)} m</div>` : '') + `<div style="color:#5eead4">Aros: ${sim.aros} · mejor puntaje ${sim.mejor}</div>`;
-    } else if (hudCv) {
+    }
+    if (modo !== 'pantalla' && hudCv) {
       const g = hudCv.getContext('2d'), W = hudCv.width, H = hudCv.height;
       g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(7,22,30,.78)'; g.strokeStyle = 'rgba(74,222,128,.8)'; g.lineWidth = 4;
       g.beginPath(); if (g.roundRect) g.roundRect(4, 4, W - 8, H - 8, 26); else g.rect(4, 4, W - 8, H - 8); g.fill(); g.stroke();
@@ -381,11 +383,28 @@ export function crearPajaro(ctx) {
     ctx.sim(dt, rig.position);
     tHud -= dt; if (tHud <= 0) { tHud = 0.2; pintarHud(); }
     if (modo === 'cardboard' && efecto) efecto.render(T3.scene, cam); else T3.renderer.render(T3.scene, cam);
+    if (modo === 'vr' && espejo) renderEspejo();
+  }
+
+  // ---------------------------------------------------------------- espejo: lo que ves en las gafas también se dibuja en la pantalla del computador
+  let espejo = !/OculusBrowser|Quest/i.test(navigator.userAgent), camEsp = null, nEsp = 0; // en las Quest solas no hay pantalla de PC: se apaga para ganar velocidad
+  function renderEspejo() {
+    if ((nEsp++ & 1) || !T3) return; // se refresca cada 2 cuadros
+    const r = T3.renderer, cam = T3.camera, w = r.domElement.width, h = r.domElement.height;
+    try {
+      if (!camEsp) camEsp = new THREE.PerspectiveCamera(75, 1, 0.5, 30000);
+      cam.matrixWorld.decompose(camEsp.position, camEsp.quaternion, tmp2.set(1, 1, 1));
+      camEsp.aspect = w / h; camEsp.updateProjectionMatrix(); camEsp.updateMatrixWorld(true);
+      const xrOn = r.xr.enabled; r.xr.enabled = false;
+      const rt = r.getRenderTarget(); r.setRenderTarget(null); r.setScissorTest(false); r.setViewport(0, 0, w / r.getPixelRatio(), h / r.getPixelRatio());
+      r.render(T3.scene, camEsp);
+      r.xr.enabled = xrOn; r.setRenderTarget(rt);
+    } catch (e) { espejo = false; console.warn('espejo en pantalla:', e); try { r.xr.enabled = true; } catch (e2) { /* ok */ } }
   }
 
   // ---------------------------------------------------------------- entrar / salir
   async function comenzar(m) {
-    T3 = ctx.T3(); modo = m;
+    T3 = ctx.T3(); modo = m; espejo = pjEsp.checked;
     const r = T3.renderer, cam = T3.camera;
     Object.assign(guardado, { pos: cam.position.clone(), tgt: T3.orbit.target.clone(), near: cam.near, far: cam.far, sombra: T3.sun.castShadow, pr: r.getPixelRatio(), quat: cam.quaternion.clone() });
     try {
@@ -400,7 +419,7 @@ export function crearPajaro(ctx) {
       try {
         if (!navigator.xr) throw new Error('Este navegador no tiene WebXR');
         r.xr.setReferenceSpaceType('local'); r.xr.enabled = true;
-        try { r.xr.setFramebufferScaleFactor(0.85); } catch (e) { /* ok */ }
+        try { r.xr.setFramebufferScaleFactor(1.0); } catch (e) { /* ok */ }
         sesionXR = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
         await r.xr.setSession(sesionXR); try { r.xr.setFoveation(1); } catch (e) { /* ok */ }
         sesionXR.addEventListener('end', () => { if (activo) salir(); });
@@ -410,7 +429,7 @@ export function crearPajaro(ctx) {
           c.addEventListener('selectstart', () => { xrAcelera++; }); c.addEventListener('selectend', () => { xrAcelera = Math.max(0, xrAcelera - 1); });
           c.addEventListener('squeezestart', () => { xrFrena++; }); c.addEventListener('squeezeend', () => { xrFrena = Math.max(0, xrFrena - 1); });
         }
-        document.body.classList.add('pjvr');
+        document.body.classList.add('pjvr'); r.setPixelRatio(1);
       } catch (e) {
         console.warn('WebXR:', e); abortar(); menu.style.display = 'flex'; estado('No se pudo entrar en VR: ' + (e && e.message || e) + '. Revisa que las gafas estén conectadas y que la página esté en https.'); return;
       }
@@ -423,7 +442,7 @@ export function crearPajaro(ctx) {
       cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
     }
     activo = true; document.body.classList.add('pj');
-    hud.classList.toggle('on', m === 'pantalla'); btnSalir.classList.toggle('on', m !== 'vr');
+    document.body.classList.toggle('pjcb', m === 'cardboard'); hud.classList.toggle('on', m !== 'cardboard'); btnSalir.classList.toggle('on', true);
     ultimo = 0; iniciarAudio();
     r.setAnimationLoop(bucle);
     mensaje('🐦 ¡Vuela! Atrapa peces que saltan en el agua', 4000);
@@ -446,7 +465,7 @@ export function crearPajaro(ctx) {
     try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* ok */ }
     try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { /* ok */ }
     try { if (audio) { audio.close(); audio = null; vientoG = null; } } catch (e) { /* ok */ }
-    document.body.classList.remove('pj', 'pjvr'); hud.classList.remove('on'); btnSalir.classList.remove('on'); msgEl.style.display = 'none';
+    document.body.classList.remove('pj', 'pjvr', 'pjcb'); hud.classList.remove('on'); btnSalir.classList.remove('on'); msgEl.style.display = 'none';
     xrAcelera = 0; xrFrena = 0; ctrlY = [null, null]; acelera = false; frena = false;
   }
   function salir() { if (!activo) return; activo = false; restaurar(); modo = null; ctx.say('Saliste del modo pájaro', 2500); }
@@ -455,5 +474,5 @@ export function crearPajaro(ctx) {
   addEventListener('touchstart', onTouchStart, { passive: true }); addEventListener('touchend', onTouchEnd, { passive: true });
   document.addEventListener('click', (e) => { if (e.target && e.target.tagName === 'CANVAS') onClickCanvas(); });
   addEventListener('resize', () => { if (activo && efecto) { efecto.setSize(innerWidth, innerHeight); T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); } });
-  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, get debug() { return { sim, peces, nido, rig, vel }; } };
+  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, peces, nido, rig, vel, ver: (y, p) => { yaw = y; pit = p; } }; } };
 }

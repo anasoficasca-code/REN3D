@@ -335,9 +335,9 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   }
   // L0 modelo real completo (cerca) · L1 modelo real reducido (medio) · L2 arbol 3D de bajos poligonos (lejos) · siluetas sólo más allá de R2 o si se llena el cupo
   // la versión ligera (gafas VR, celulares: T3.liviano) usa menos árboles detallados y copas más simples; la completa muestra más modelos reales
-  const LV = !!T3.liviano, CAP2 = LV ? 3500 : 11000, R0 = LV ? 25 : 55, R1 = LV ? 140 : 300, R2 = LV ? 700 : 1300, d = new THREE.Object3D(), col = new THREE.Color();
-  const CAP0S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 3 : 8) : (LV ? 6 : 20)); // el arbolpeq tiene 83.000 triángulos en el nivel 0
-  const CAP1S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 16 : 90) : (LV ? 40 : 220)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
+  const LV = !!T3.liviano, CAP2 = LV ? 4000 : 6500, R0 = LV ? 25 : 45, R1 = LV ? 260 : 620, R2 = LV ? 900 : 1500, d = new THREE.Object3D(), col = new THREE.Color();
+  const CAP0S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 3 : 6) : (LV ? 6 : 14)); // el arbolpeq tiene 83.000 triángulos en el nivel 0
+  const CAP1S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 30 : 110) : (LV ? 160 : 650)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
   const TIPO_BAJO = especies.map(e => (e.base === 'arbolpeq' || e.base === 'island_tree_02') ? 1 : 0);
   const matBajo = materialArbolBajo(T3), REF = [0.17, 0.255, 0.0875]; // REF = verde medio del degradado de vértices
   const bajos = especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaCopaDeModelo(e.niveles, e.alto, e.ancho, LV ? 0 : 1) || geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
@@ -523,9 +523,9 @@ export function upgradeWater(T3, env) {
   };
   // agua azul-verdosa profunda que refleja el cielo y sus nubes (el reflejo crece al mirar de lado, como en el agua real)
   const cv = mesh.geometry.attributes.color;
-  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.012; cv.array[i + 1] = 0.03; cv.array[i + 2] = 0.03; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
+  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.004; cv.array[i + 1] = 0.011; cv.array[i + 2] = 0.011; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
   // río en calma como espejo oscuro (verde-pardo profundo) que refleja el cielo gris: oleaje muy suave, reflejo fuerte de lado y tenue de frente
-  mat.envMapIntensity = 0.95; mat.roughness = 0.0; mat.clearcoat = 0.5; mat.clearcoatRoughness = 0.0; mat.specularIntensity = 1; mat.normalScale.set(0.22, 0.22); mat.opacity = 0.985;
+  mat.envMapIntensity = 0.55; mat.roughness = 0.0; mat.clearcoat = 0.5; mat.clearcoatRoughness = 0.0; mat.specularIntensity = 1; mat.normalScale.set(0.22, 0.22); mat.opacity = 0.985;
   mesh.material = mat; T3.waterMat = mat; return true;
 }
 
