@@ -39,6 +39,7 @@ const DATOS = [
   'Un humedal sano tiene agua limpia, juncos, árboles en la orilla y muchas aves.'
 ];
 
+const ESQUEST = /OculusBrowser|Quest|Pico/i.test(navigator.userAgent); // gafas independientes (sin PC)
 export function crearPajaro(ctx) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const div = (id, html, cls) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; e.innerHTML = html || ''; document.body.appendChild(e); return e; };
@@ -83,7 +84,7 @@ export function crearPajaro(ctx) {
   async function abrirMenu() {
     menu.style.display = 'flex'; estado(''); pjEsp.checked = espejo;
     try {
-      if (navigator.xr && await navigator.xr.isSessionSupported('immersive-vr')) $('pjXr').textContent = '✔ Tu navegador reconoce gafas VR (WebXR). Para ir fluido se carga la versión ligera (si ya abriste el mundo completo y va lento, recarga la página y entra directo por aquí).';
+      if (navigator.xr && await navigator.xr.isSessionSupported('immersive-vr')) $('pjXr').textContent = '✔ Tu navegador reconoce gafas VR (WebXR). ' + (ESQUEST ? 'Se carga la versión media (con edificios). Para el máximo realismo conecta las gafas al PC (Quest Link) y abre la página en Chrome o Edge.' : 'Se carga la versión completa, con edificios, sombras y tráfico.') + '';
       else $('pjXr').textContent = navigator.xr ? 'WebXR sin gafas conectadas: conecta las gafas (Quest Link / SteamVR) o abre esta página en el navegador de las gafas.' : 'Este navegador no tiene WebXR: abre la página en el navegador de las gafas (Quest: Meta Browser) o en Chrome/Edge con las gafas conectadas.';
     } catch (e) { /* sin WebXR */ }
   }
@@ -99,11 +100,12 @@ export function crearPajaro(ctx) {
     $('pjGo').onclick = () => { listo.style.display = 'none'; res(); };
   });
   async function elegir(m) {
-    const liviano = m !== 'pantalla'; // gafas y celular: sin edificios, sombras ni tráfico, para ir fluido
+    // celular: versión ligera. Quest sola: versión media (con edificios, sin sombras ni tráfico). Gafas conectadas al PC (Link/SteamVR): versión completa
+    const nivel = m === 'cardboard' ? 'ligero' : (m === 'vr' && ESQUEST) ? 'medio' : 'completo';
     let cargo = false;
     if (!ctx.listo()) {
-      cargo = true; estado('Cargando el mundo' + (liviano ? ' (versión ligera para VR)' : '') + '… puede tardar un poco');
-      try { await ctx.cargar(liviano); } catch (e) { estado('No se pudo cargar el mundo: ' + (e && e.message || e)); return; }
+      cargo = true; estado('Cargando el mundo' + (nivel === 'completo' ? '' : nivel === 'medio' ? ' (versión media para las gafas)' : ' (versión ligera)') + '… puede tardar un poco');
+      try { await ctx.cargar(nivel); } catch (e) { estado('No se pudo cargar el mundo: ' + (e && e.message || e)); return; }
     }
     if (!ctx.listo()) { estado('El mundo 3D no cargó.'); return; }
     menu.style.display = 'none';
@@ -387,7 +389,7 @@ export function crearPajaro(ctx) {
   }
 
   // ---------------------------------------------------------------- espejo: lo que ves en las gafas también se dibuja en la pantalla del computador
-  let espejo = !/OculusBrowser|Quest/i.test(navigator.userAgent), camEsp = null, nEsp = 0; // en las Quest solas no hay pantalla de PC: se apaga para ganar velocidad
+  let espejo = !ESQUEST, camEsp = null, nEsp = 0; // en las Quest solas no hay pantalla de PC: se apaga para ganar velocidad
   function renderEspejo() {
     if ((nEsp++ & 1) || !T3) return; // se refresca cada 2 cuadros
     const r = T3.renderer, cam = T3.camera, w = r.domElement.width, h = r.domElement.height;
@@ -409,7 +411,7 @@ export function crearPajaro(ctx) {
     Object.assign(guardado, { pos: cam.position.clone(), tgt: T3.orbit.target.clone(), near: cam.near, far: cam.far, sombra: T3.sun.castShadow, pr: r.getPixelRatio(), quat: cam.quaternion.clone() });
     try {
       T3.orbit.enabled = false; cam.near = 0.5; cam.far = 30000; cam.updateProjectionMatrix();
-      if (m !== 'pantalla') T3.sun.castShadow = false; // sin sombras: ganas muchos cuadros por segundo
+      if (m === 'cardboard' || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (con PC conectado sí hay sombras)
       T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
       if (!alaI) { crearAlas(); crearHudPlano(); }
       cam.add(alaI, alaD, hudPlano); hudPlano.visible = m !== 'pantalla'; // el HUD dentro de la escena es para gafas y Cardboard
@@ -419,9 +421,10 @@ export function crearPajaro(ctx) {
       try {
         if (!navigator.xr) throw new Error('Este navegador no tiene WebXR');
         r.xr.setReferenceSpaceType('local'); r.xr.enabled = true;
-        try { r.xr.setFramebufferScaleFactor(1.0); } catch (e) { /* ok */ }
+        try { r.xr.setFramebufferScaleFactor(ESQUEST ? 1.2 : 1.6); } catch (e) { /* ok */ } // más resolución = menos borroso
         sesionXR = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
-        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(1); } catch (e) { /* ok */ }
+        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(ESQUEST ? 0.5 : 0); } catch (e) { /* ok */ }
+        try { if (sesionXR.supportedFrameRates && sesionXR.supportedFrameRates.includes(90)) await sesionXR.updateTargetFrameRate(90); } catch (e) { /* ok */ }
         sesionXR.addEventListener('end', () => { if (activo) salir(); });
         for (let i = 0; i < 2; i++) { // manos: esferas luminosas y gatillo/grip
           const c = r.xr.getController(i); rig.add(c);

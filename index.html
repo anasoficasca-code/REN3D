@@ -871,6 +871,7 @@ function tick() {
 }
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 let LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // sin edificios, sombras ni tráfico (gafas VR, celulares, equipos modestos)
+let MEDIO = false; // con LIVIANO: conserva los edificios (Quest sola)
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
   fondo: 0xa9cbe6, niebla: 0xc9dcea, densNiebla: 0.00011,
   top: 0x2f78cf, mid: 0x78b3e6, bot: 0xd9e6ec, nubes: 0.5,
@@ -991,7 +992,7 @@ async function initTodo() {
     try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
-    const B = LIVIANO ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
+    const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
     $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
     await new Promise(r => setTimeout(r, 30));
     buildChunks(THREE, B);
@@ -2215,8 +2216,9 @@ $('b-pajaro').onclick = async () => {
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),
-        cargar: async (liviano) => {
-          if (liviano) LIVIANO = true; // si el mundo aún no está cargado, se carga la versión ligera
+        cargar: async (nivel) => {
+          if (nivel !== 'completo') LIVIANO = true; // si el mundo aún no está cargado, se carga la versión ligera o media
+          if (nivel === 'medio') MEDIO = true;
           if (mode !== 'todo' || !T3) setMode('todo');
           await esperarHasta(() => T3 && T3.ready && AVES && AVES.nuevo, 600000);
           await esperarHasta(() => !!T3.trees || T3.trees === null, 120000).catch(() => {});
