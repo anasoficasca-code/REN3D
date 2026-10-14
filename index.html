@@ -877,7 +877,7 @@ if (/OculusBrowser|Quest|Pico/i.test(navigator.userAgent)) { LIVIANO = true; MED
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
   fondo: 0xa9cbe6, niebla: 0xc9dcea, densNiebla: 0.00011,
   top: 0x2f78cf, mid: 0x78b3e6, bot: 0xd9e6ec, nubes: 0.5,
-  hemiCielo: 0xcfe4ff, hemiSuelo: 0x6b6a45, hemi: 1.15,
+  hemiCielo: 0xcfe4ff, hemiSuelo: 0x6b6a45, hemi: 0.9,
   solColor: 0xfff0d2, sol: 2.5, exposicion: 1.05
 };
 const LC = { x: 5341.33, y: 3161.9 };
@@ -915,7 +915,7 @@ async function initTodo() {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
-    renderer.shadowMap.enabled = !LIVIANO;
+    renderer.shadowMap.enabled = !LIVIANO || MEDIO; // MEDIO (Quest sola) también lleva sombras
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = DIA.exposicion;
@@ -971,12 +971,12 @@ async function initTodo() {
     const hemi = new THREE.HemisphereLight(DIA.hemiCielo, DIA.hemiSuelo, DIA.hemi);
     const sun = new THREE.DirectionalLight(DIA.solColor, DIA.sol);
     sun.position.set(4000, 5000, 2000);
-    sun.castShadow = !LIVIANO;
-    sun.shadow.mapSize.set(4096, 4096); // sombras nítidas alrededor del pájaro (el sol sigue a la cámara)
-    sun.shadow.camera.left = -600; sun.shadow.camera.right = 600;
-    sun.shadow.camera.top = 600; sun.shadow.camera.bottom = -600;
+    sun.castShadow = !LIVIANO || MEDIO;
+    sun.shadow.mapSize.set(MEDIO ? 2048 : 4096, MEDIO ? 2048 : 4096); // sombras nítidas alrededor del pájaro (el sol sigue a la cámara)
+    const SR = MEDIO ? 320 : 600; sun.shadow.camera.left = -SR; sun.shadow.camera.right = SR;
+    sun.shadow.camera.top = SR; sun.shadow.camera.bottom = -SR;
     sun.shadow.camera.near = 100; sun.shadow.camera.far = 7000;
-    sun.shadow.bias = -0.0006; sun.shadow.normalBias = 1.5;
+    sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.5; sun.shadow.radius = 2.5; // sombra pegada al objeto y con borde suave
     scene.add(hemi, sun, sun.target);
     // suelo de fondo: concreto fotográfico (data3d/textures) sin repetición visible; UV en metros del mundo / 7 m
     let suelo = null;
@@ -1075,28 +1075,8 @@ function buildChunks(THREE, B) {
     cells.get(k).push(bi);
     total++;
   }
-  // material físico: el vidrio de las ventanas es liso y refleja el cielo (como en un render); las paredes son mates con un reflejo suave del ambiente
+  // material físico mate, sin ventanas dibujadas: paredes lisas con un reflejo suave del ambiente
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true, roughness: 0.86, metalness: 0, envMap: T3.env || null, envMapIntensity: 0.55 });
-  // ventanas y pisos en las fachadas (se dibujan por código sobre las paredes, se desvanecen con la distancia): los edificios dejan de ser cajas lisas
-  mat.onBeforeCompile = (sh) => {
-    sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
-    sh.fragmentShader = 'varying vec3 vWp;\nfloat hVn(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      float vGl = 0.0;
-      { vec3 fn = normalize(cross(dFdx(vWp), dFdy(vWp)));
-        float pared = 1.0 - smoothstep(0.12, 0.35, abs(fn.y));
-        float vis = pared * (1.0 - smoothstep(130.0, 420.0, length(cameraPosition - vWp))) * step(3.6, vWp.y);
-        vec2 gp = vec2(dot(vWp.xz, vec2(-fn.z, fn.x)) / 3.2, vWp.y / 3.1);
-        vec2 ce = floor(gp), f = fract(gp);
-        float ven = smoothstep(0.12, 0.2, f.x) * (1.0 - smoothstep(0.76, 0.84, f.x)) * smoothstep(0.2, 0.28, f.y) * (1.0 - smoothstep(0.74, 0.82, f.y));
-        float rr = hVn(ce + floor(vWp.y * 0.01));
-        vec3 vidrio = mix(vec3(0.05, 0.075, 0.11), vec3(0.2, 0.28, 0.37), rr * 0.55);
-        diffuseColor.rgb = mix(diffuseColor.rgb, vidrio, ven * vis * 0.88);
-        vGl = ven * vis;
-        diffuseColor.rgb *= 1.0 - 0.1 * vis * (1.0 - smoothstep(0.0, 0.07, f.y)); } // línea oscura de cada losa`)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.06, vGl);')
-      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.55, vGl);');
-  };
-  mat.customProgramCacheKey = () => 'edificios-ventanas-v2';
   for (const list of cells.values()) {
     const P = [], C = [], I = [];
     let vc = 0;

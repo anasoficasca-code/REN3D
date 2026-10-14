@@ -411,7 +411,7 @@ export function crearPajaro(ctx) {
     Object.assign(guardado, { pos: cam.position.clone(), tgt: T3.orbit.target.clone(), near: cam.near, far: cam.far, sombra: T3.sun.castShadow, pr: r.getPixelRatio(), quat: cam.quaternion.clone() });
     try {
       T3.orbit.enabled = false; cam.near = 0.5; cam.far = 30000; cam.updateProjectionMatrix();
-      if (m === 'cardboard' || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (con PC conectado sí hay sombras)
+      if (m === 'cardboard') T3.sun.castShadow = false; // celular: sin sombras para ir fluido (Quest y PC sí llevan sombras)
       T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
       if (!alaI) { crearAlas(); crearHudPlano(); }
       cam.add(alaI, alaD, hudPlano); hudPlano.visible = m !== 'pantalla'; // el HUD dentro de la escena es para gafas y Cardboard

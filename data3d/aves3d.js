@@ -196,16 +196,16 @@ export function crearAves(T3, W, lw) {
   const pescadoras = (c, n, radio) => { for (let i = 0; i < n; i++) agregar(T.garzaVuelo, c, c.cx, c.cz, { vuelo: true, pesca: true, est: 'orbita', t: 2 + R() * 22, ca: R() * 6.28, cr: radio * (0.45 + R() * 0.7), alt: 26 + R() * 30, dir: R() < 0.5 ? 1 : -1, vel: 9 + R() * 3, fr: 2.1 + R() * 0.5, yv: 30, dx: 0, dz: 0, pit: 0, rol: 0 }); };
   cuerpos.forEach((c) => {
     if (c.burro) { // Humedal El Burro: muchísimas más aves, de varias especies que sí viven allí
-      nadadores(c, 'macho', 28, 3, 0.3, 0.35);   // pato canadiense / cuaquero (macho)
-      nadadores(c, 'hembra', 24, 3, 0.3, 0.35);  // hembras
-      nadadores(c, 'turrio', 20, 3, 0.25, 0.3);  // pato turrio
+      nadadores(c, 'macho', 70, 3, 0.3, 0.35);   // pato canadiense / cuaquero (macho)
+      nadadores(c, 'hembra', 60, 3, 0.3, 0.35);  // hembras
+      nadadores(c, 'turrio', 45, 3, 0.25, 0.3);  // pato turrio
       nadadores(c, 'focha', 36, 2.5, 0.25, 0.3); // focha americana
       nadadores(c, 'tingua', 34, 2, 0.25, 0.3);  // tingua de pico rojo
       zancudas(c, 'garza', 22, 8);               // garza real en las orillas
       zancudas(c, 'garzaGanado', 16, 6);         // garza del ganado
       return;
     }
-    const nPatos = Math.max(4, Math.min(34, Math.round(c.area / 2200))), nFocha = Math.max(2, Math.min(14, Math.round(c.area / 5500))), nGarza = Math.max(1, Math.min(8, Math.round(c.area / 9000)));
+    const nPatos = Math.max(4, Math.min(70, Math.round(c.area / 1100))), nFocha = Math.max(2, Math.min(14, Math.round(c.area / 5500))), nGarza = Math.max(1, Math.min(8, Math.round(c.area / 9000)));
     for (let i = 0; i < nPatos; i++) { const p = punto(c, 3); if (p) { agregar(i % 3 === 2 ? 1 : 0, c, p[0], p[1], { vel: 0.3 + R() * 0.35 }); totalNad++; } }
     nadadores(c, 'focha', nFocha, 2.5, 0.25, 0.3);
     nadadores(c, 'tingua', Math.max(1, Math.round(c.area / 11000)), 2, 0.25, 0.3);
@@ -219,14 +219,14 @@ export function crearAves(T3, W, lw) {
       pescadoras(c, 16, radio); // garzas que llegan al agua, atrapan un pez y se lo llevan
       for (let f = 0; f < 3; f++) { // tres bandadas de patos
         const ca0 = R() * 6.28, dir = R() < 0.5 ? 1 : -1;
-        for (let i = 0; i < 6; i++) agregar(T.patoVuelo, c, c.cx, c.cz, { vuelo: true, ca: ca0 + i * 0.035, cr: radio * (0.7 + 0.15 * f) + (i % 2) * 6, alt: 36 + f * 9 + (i % 3) * 3, dir, vel: 12 + R() * 1.2, fr: 7 + R() * 1.2 });
+        for (let i = 0; i < 10; i++) agregar(T.patoVuelo, c, c.cx, c.cz, { vuelo: true, ca: ca0 + i * 0.035, cr: radio * (0.7 + 0.15 * f) + (i % 2) * 6, alt: 36 + f * 9 + (i % 3) * 3, dir, vel: 12 + R() * 1.2, fr: 7 + R() * 1.2 });
       }
       for (let i = 0; i < 10; i++) agregar(T.gaviota, c, c.cx, c.cz, { vuelo: true, ca: R() * 6.28, cr: radio * (0.6 + R() * 0.6), alt: 45 + R() * 40, dir: R() < 0.5 ? 1 : -1, vel: 8 + R() * 3, fr: 3.6 + R() * 0.8 });
       return;
     }
     pescadoras(c, 4, radio);
     const ca0 = R() * 6.28, dir = R() < 0.5 ? 1 : -1; // bandada de patos: varios con casi la misma órbita
-    for (let i = 0; i < 6; i++) agregar(T.patoVuelo, c, c.cx, c.cz, { vuelo: true, ca: ca0 + i * 0.035, cr: radio * 0.85 + (i % 2) * 6, alt: 40 + (i % 3) * 3, dir, vel: 12 + R() * 1.2, fr: 7 + R() * 1.2 });
+    for (let i = 0; i < 10; i++) agregar(T.patoVuelo, c, c.cx, c.cz, { vuelo: true, ca: ca0 + i * 0.035, cr: radio * 0.85 + (i % 2) * 6, alt: 40 + (i % 3) * 3, dir, vel: 12 + R() * 1.2, fr: 7 + R() * 1.2 });
   });
 
   // mallas instanciadas (una por tipo)
