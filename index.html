@@ -127,13 +127,13 @@
 </div>
 
 <div class="hud" id="hud-c">
-  <button id="b-foto" class="on">🏙️ Fotorrealista</button>
-  <button id="b-sat">🛰️ Satélite</button>
+  <button id="b-foto" hidden style="display:none" class="on">🏙️ Fotorrealista</button>
+  <button id="b-sat" hidden style="display:none">🛰️ Satélite</button>
   <button id="b-todo">🧱 TODO 3D</button>
-  <button id="b-splat">🌀 Splat Humedal</button>
-  <button id="b-hd">📦 HD</button>
-  <button id="b-tour">▶ Tour Kennedy</button>
-  <button id="b-next">Siguiente punto ➜</button>
+  <button id="b-splat" hidden style="display:none">🌀 Splat Humedal</button>
+  <button id="b-hd" hidden style="display:none">📦 HD</button>
+  <button id="b-tour" hidden style="display:none">▶ Tour Kennedy</button>
+  <button id="b-next" hidden style="display:none">Siguiente punto ➜</button>
   <button id="b-trees" class="on">🌳 Árboles 3D</button>
   <button id="b-water" class="on">🌊 Agua 3D</button>
   <button id="b-aves" class="on">🦆 Aves</button>
@@ -652,8 +652,9 @@ $('b-foto').onclick = () => {
   setMode('foto');
 };
 $('b-sat').onclick = () => { setMode('sat'); say('🛰️ Modo satélite'); };
-initFoto();
-if (new URLSearchParams(location.search).get('todo') === '1') setMode('todo');
+// solo quedan TODO 3D y Modo Pájaro · VR: ya no se carga Cesium/fotorrealista, se abre directo el TODO 3D
+setMode('todo');
+if (false) initFoto();
 if (new URLSearchParams(location.search).get('splat') === '1') setMode('splat');
 function flyTo(i, z) {
   const p = POIS[i]; idx = i;
@@ -872,6 +873,7 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 let LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // sin edificios, sombras ni tráfico (gafas VR, celulares, equipos modestos)
 let MEDIO = false; // con LIVIANO: conserva los edificios (Quest sola)
+if (/OculusBrowser|Quest|Pico/i.test(navigator.userAgent)) { LIVIANO = true; MEDIO = true; } // gafas independientes: el mundo abre directo en versión media
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
   fondo: 0xa9cbe6, niebla: 0xc9dcea, densNiebla: 0.00011,
   top: 0x2f78cf, mid: 0x78b3e6, bot: 0xd9e6ec, nubes: 0.5,
