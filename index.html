@@ -972,9 +972,9 @@ async function initTodo() {
     const sun = new THREE.DirectionalLight(DIA.solColor, DIA.sol);
     sun.position.set(4000, 5000, 2000);
     sun.castShadow = !LIVIANO;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -900; sun.shadow.camera.right = 900;
-    sun.shadow.camera.top = 900; sun.shadow.camera.bottom = -900;
+    sun.shadow.mapSize.set(4096, 4096); // sombras nítidas alrededor del pájaro (el sol sigue a la cámara)
+    sun.shadow.camera.left = -600; sun.shadow.camera.right = 600;
+    sun.shadow.camera.top = 600; sun.shadow.camera.bottom = -600;
     sun.shadow.camera.near = 100; sun.shadow.camera.far = 7000;
     sun.shadow.bias = -0.0006; sun.shadow.normalBias = 1.5;
     scene.add(hemi, sun, sun.target);
@@ -1075,11 +1075,13 @@ function buildChunks(THREE, B) {
     cells.get(k).push(bi);
     total++;
   }
-  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true });
+  // material físico: el vidrio de las ventanas es liso y refleja el cielo (como en un render); las paredes son mates con un reflejo suave del ambiente
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true, roughness: 0.86, metalness: 0, envMap: T3.env || null, envMapIntensity: 0.55 });
   // ventanas y pisos en las fachadas (se dibujan por código sobre las paredes, se desvanecen con la distancia): los edificios dejan de ser cajas lisas
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = 'varying vec3 vWp;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWp = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = 'varying vec3 vWp;\nfloat hVn(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      float vGl = 0.0;
       { vec3 fn = normalize(cross(dFdx(vWp), dFdy(vWp)));
         float pared = 1.0 - smoothstep(0.12, 0.35, abs(fn.y));
         float vis = pared * (1.0 - smoothstep(130.0, 420.0, length(cameraPosition - vWp))) * step(3.6, vWp.y);
@@ -1089,9 +1091,12 @@ function buildChunks(THREE, B) {
         float rr = hVn(ce + floor(vWp.y * 0.01));
         vec3 vidrio = mix(vec3(0.05, 0.075, 0.11), vec3(0.2, 0.28, 0.37), rr * 0.55);
         diffuseColor.rgb = mix(diffuseColor.rgb, vidrio, ven * vis * 0.88);
-        diffuseColor.rgb *= 1.0 - 0.1 * vis * (1.0 - smoothstep(0.0, 0.07, f.y)); } // línea oscura de cada losa`);
+        vGl = ven * vis;
+        diffuseColor.rgb *= 1.0 - 0.1 * vis * (1.0 - smoothstep(0.0, 0.07, f.y)); } // línea oscura de cada losa`)
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.06, vGl);')
+      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = mix(metalnessFactor, 0.55, vGl);');
   };
-  mat.customProgramCacheKey = () => 'edificios-ventanas-v1';
+  mat.customProgramCacheKey = () => 'edificios-ventanas-v2';
   for (const list of cells.values()) {
     const P = [], C = [], I = [];
     let vc = 0;
