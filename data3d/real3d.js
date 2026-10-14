@@ -13,7 +13,7 @@ export function makeEnv(renderer) {
   const pm = new THREE.PMREMGenerator(renderer), s = new THREE.Scene();
   const sky = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false,
-    uniforms: { top: { value: new THREE.Color(0x98a7b6) }, mid: { value: new THREE.Color(0xc4c9cd) }, bot: { value: new THREE.Color(0xdfdcd4) } },
+    uniforms: { top: { value: new THREE.Color(0x2f78cf) }, mid: { value: new THREE.Color(0x78b3e6) }, bot: { value: new THREE.Color(0xd9e6ec) } },
     vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
     // cielo con nubes: es lo que se refleja en el agua y en los carros
     fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot;
@@ -25,8 +25,8 @@ export function makeEnv(renderer) {
         vec3 c = mix(bot, mid, smoothstep(-0.1, 0.3, y)); c = mix(c, top, smoothstep(0.25, 0.9, y)); c = mix(c, vec3(0.25, 0.28, 0.25), smoothstep(-0.02, -0.25, y));
         if (y > 0.0) {
           vec2 cuv = d.xz / (y + 0.3) * 1.5 + vec2(3.1, 1.7);
-          float cl = smoothstep(0.33, 0.6, fb(cuv));
-          c = mix(c, mix(vec3(0.66, 0.68, 0.72), vec3(0.96, 0.95, 0.93), fb(cuv * 1.7 + 3.0)), cl * smoothstep(0.0, 0.16, y) * 0.95);
+          float cl = smoothstep(0.52, 0.76, fb(cuv));
+          c = mix(c, mix(vec3(0.82, 0.86, 0.92), vec3(1.0, 0.99, 0.96), fb(cuv * 1.7 + 3.0)), cl * smoothstep(0.0, 0.16, y) * 0.9);
         }
         gl_FragColor = vec4(c, 1.0);
       }`
@@ -243,7 +243,7 @@ function materialArbolBajo(T3) {
 }
 // copa de bajos polígonos DERIVADA del modelo real: se agrupan los puntos de las hojas del nivel 1 en celdas y cada celda ocupada se convierte en una masa
 // de follaje; así la silueta del árbol lejano coincide con la del árbol real de esa especie. Queda normalizada a 1 de alto y 1 de ancho.
-function geometriaCopaDeModelo(niveles, alto, ancho) {
+function geometriaCopaDeModelo(niveles, alto, ancho, detalle = 1) {
   const pts = [];
   for (const p of niveles.L1) { if (!p.hoja) continue; const a = p.geo.attributes.position, st = Math.max(1, Math.floor(a.count / 5000)); for (let i = 0; i < a.count; i += st) pts.push(a.getX(i), a.getY(i), a.getZ(i)); }
   if (pts.length < 90) return null;
@@ -251,13 +251,13 @@ function geometriaCopaDeModelo(niveles, alto, ancho) {
   for (let i = 0; i < pts.length; i += 3) { const k = Math.floor(pts[i] / s) + ',' + Math.floor(pts[i + 1] / s) + ',' + Math.floor(pts[i + 2] / s); let c = celdas.get(k); if (!c) celdas.set(k, c = { x: 0, y: 0, z: 0, n: 0 }); c.x += pts[i]; c.y += pts[i + 1]; c.z += pts[i + 2]; c.n++; }
   const lista = [...celdas.values()].filter(c => c.n >= 10).sort((a, b) => b.n - a.n).slice(0, 11);
   if (lista.length < 3) return null;
-  const nmax = lista[0].n, c0 = [0.05, 0.10, 0.045], c1 = [0.17, 0.26, 0.095], piezas = [];
+  const nmax = lista[0].n, c0 = [0.07, 0.13, 0.05], c1 = [0.22, 0.32, 0.11], piezas = [];
   const limpia = (g) => { if (g.index) g = g.toNonIndexed(); g.deleteAttribute('uv'); g.deleteAttribute('normal'); return g; };
   const pinta = (g, f) => { const p = g.attributes.position, c = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const k = f(p.getY(i)); c[i * 3] = k[0]; c[i * 3 + 1] = k[1]; c[i * 3 + 2] = k[2]; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); return g; };
   let base = 1e9;
   lista.forEach((c, mi) => {
     const cx = c.x / c.n, cy = c.y / c.n, cz = c.z / c.n, r = s * (0.62 + 0.34 * c.n / nmax);
-    const g = limpia(new THREE.IcosahedronGeometry(r, 1)), p = g.attributes.position;
+    const g = limpia(new THREE.IcosahedronGeometry(r, detalle)), p = g.attributes.position;
     for (let i = 0; i < p.count; i++) { const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i), h = Math.abs(Math.sin(vx * 91.7 + vy * 47.3 + vz * 131.1 + mi * 17.0) * 43758.5453) % 1, k = 1 + (h - 0.5) * 0.4; p.setXYZ(i, cx + vx * k, cy + vy * k * 0.85, cz + vz * k); }
     base = Math.min(base, cy - r * 0.6);
     piezas.push(pinta(g, (y) => { const t = Math.max(0, Math.min(1, (y / alto - 0.2) / 0.8)); return [c0[0] + (c1[0] - c0[0]) * t, c0[1] + (c1[1] - c0[1]) * t, c0[2] + (c1[2] - c0[2]) * t]; }));
@@ -334,13 +334,15 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
     especies.push({ ...E, niveles, alto, ancho, sil, hojaRGB });
   }
   // L0 modelo real completo (cerca) · L1 modelo real reducido (medio) · L2 arbol 3D de bajos poligonos (lejos) · siluetas sólo más allá de R2 o si se llena el cupo
-  const CAP0 = 16, CAP2 = 9000, R0 = 40, R1 = 260, R2 = 1100, d = new THREE.Object3D(), col = new THREE.Color();
-  const CAP1S = especies.map(e => e.base === 'arbolpeq' ? 90 : 210); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
+  // la versión ligera (gafas VR, celulares: T3.liviano) usa menos árboles detallados y copas más simples; la completa muestra más modelos reales
+  const LV = !!T3.liviano, CAP2 = LV ? 3500 : 11000, R0 = LV ? 25 : 55, R1 = LV ? 140 : 300, R2 = LV ? 700 : 1300, d = new THREE.Object3D(), col = new THREE.Color();
+  const CAP0S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 3 : 8) : (LV ? 6 : 20)); // el arbolpeq tiene 83.000 triángulos en el nivel 0
+  const CAP1S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 16 : 90) : (LV ? 40 : 220)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
   const TIPO_BAJO = especies.map(e => (e.base === 'arbolpeq' || e.base === 'island_tree_02') ? 1 : 0);
   const matBajo = materialArbolBajo(T3), REF = [0.17, 0.255, 0.0875]; // REF = verde medio del degradado de vértices
-  const bajos = especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaCopaDeModelo(e.niveles, e.alto, e.ancho) || geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
+  const bajos = especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaCopaDeModelo(e.niveles, e.alto, e.ancho, LV ? 0 : 1) || geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
   const TINTE_BAJO = especies.map(e => e.hojaRGB.map((v, k) => Math.max(1.1, Math.min(3.4, 2.1 * v / REF[k])))); // lleva el verde de la copa al color real de las hojas de esa especie (el modelo real además brilla un poco por su textura emisiva)
-  const lod = especies.map((e, si) => ({ L0: e.niveles.L0.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP0); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; T3.scene.add(m); return m; }),
+  const lod = especies.map((e, si) => ({ L0: e.niveles.L0.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP0S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; T3.scene.add(m); return m; }),
     L1: e.niveles.L1.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP1S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; T3.scene.add(m); return m; }) }));
   lod.forEach(l => [...l.L0, ...l.L1].forEach(m => { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }));
   // lejos: tres planos cruzados con la silueta real de la especie
@@ -364,11 +366,11 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
     let tot2 = 0;
     for (const [i, d2] of cand) {
       const s = SP[i], sc = esc(i), tv = 0.82 + hash(i * 19) * 0.34;
-      if (d2 < R0 * R0 && n0[s] < CAP0) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv * 0.74, tv * 0.88 * (0.96 + hash(i) * 0.08), tv * 0.76); const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
+      if (d2 < R0 * R0 && n0[s] < CAP0S[s]) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv * 0.74, tv * 0.88 * (0.96 + hash(i) * 0.08), tv * 0.76); const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
       else if (d2 < R1 * R1 && n1[s] < CAP1S[s]) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv * 0.74, tv * 0.88 * (0.96 + hash(i) * 0.08), tv * 0.76); const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
       else if (tot2 < CAP2) { // arbol 3D de bajos poligonos con el mismo alto y ancho de copa que tendria el modelo real
         const e = especies[s], w = e.ancho * sc, h = e.alto * sc, ti = TINTE_BAJO[s], hv = 0.96 + hash(i) * 0.08;
-        d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.set(w, h, w); d.updateMatrix(); col.setRGB(tv * ti[0] * 0.74, tv * hv * ti[1] * 0.9, tv * 0.94 * ti[2] * 0.78);
+        d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.set(w, h, w); d.updateMatrix(); col.setRGB(tv * ti[0] * 0.86, tv * hv * ti[1] * 1.0, tv * 0.94 * ti[2] * 0.86);
         const k = n2[s]++; bajos[s].setMatrixAt(k, d.matrix); bajos[s].setColorAt(k, col); tot2++; asignado[i] = 1;
       }
     }
@@ -521,9 +523,9 @@ export function upgradeWater(T3, env) {
   };
   // agua azul-verdosa profunda que refleja el cielo y sus nubes (el reflejo crece al mirar de lado, como en el agua real)
   const cv = mesh.geometry.attributes.color;
-  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.006; cv.array[i + 1] = 0.012; cv.array[i + 2] = 0.011; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
+  if (cv && !mesh.geometry.userData.oscura) { for (let i = 0; i < cv.array.length; i += 3) { cv.array[i] = 0.012; cv.array[i + 1] = 0.03; cv.array[i + 2] = 0.03; } cv.needsUpdate = true; mesh.geometry.userData.oscura = true; }
   // río en calma como espejo oscuro (verde-pardo profundo) que refleja el cielo gris: oleaje muy suave, reflejo fuerte de lado y tenue de frente
-  mat.envMapIntensity = 0.82; mat.roughness = 0.0; mat.clearcoat = 0.5; mat.clearcoatRoughness = 0.0; mat.specularIntensity = 1; mat.normalScale.set(0.22, 0.22); mat.opacity = 0.985;
+  mat.envMapIntensity = 0.95; mat.roughness = 0.0; mat.clearcoat = 0.5; mat.clearcoatRoughness = 0.0; mat.specularIntensity = 1; mat.normalScale.set(0.22, 0.22); mat.opacity = 0.985;
   mesh.material = mat; T3.waterMat = mat; return true;
 }
 

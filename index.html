@@ -140,6 +140,7 @@
   <button id="b-night">🌙 Noche</button>
   <button id="b-home">🏠 Vista general</button>
   <button id="b-pie">🚶 A pie</button>
+  <button id="b-pajaro" style="border-color:#4ade80;background:linear-gradient(135deg,rgba(22,101,52,.8),rgba(3,105,161,.7))">🐦 Modo Pájaro · VR</button>
 </div>
 
 <div id="trafficHud" role="group" aria-label="Simulación de tráfico"><div class="trafficTop"><span>Simulación de tráfico</span><b id="trafficLabel">cargando…</b><button id="trafficPlay" type="button" aria-label="Reproducir simulación">❚❚</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
@@ -498,6 +499,7 @@ let mode = 'foto';
 let viewer = null, fotoOK = false, fotoFailed = false, tourC = null;
 let T3 = null, tourT = null;
 let SPLAT = null;
+let PAJARO = null; // modo pájaro (juego de vuelo y realidad virtual), se crea al pulsar el botón
 const SPLAT_URL = 'data3d/humedal-v3.splat';
 const SPLAT_HD = 'data3d/humedal-hd.splat';
 
@@ -766,6 +768,7 @@ addEventListener('keypress', e => {
 
 let acc = 0;
 function flight(ms) {
+  if (PAJARO && PAJARO.activo) { requestAnimationFrame(flight); return; } // el modo pájaro dibuja con su propio bucle (también el de WebXR)
   if (mode === 'splat' && SPLAT) { splatKeys(); requestAnimationFrame(flight); return; }
   if (mode === 'todo' && T3) {
     const now = performance.now();
@@ -867,9 +870,16 @@ function tick() {
   requestAnimationFrame(tick);
 }
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
+let LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // sin edificios, sombras ni tráfico (gafas VR, celulares, equipos modestos)
+const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
+  fondo: 0xa9cbe6, niebla: 0xc9dcea, densNiebla: 0.00011,
+  top: 0x2f78cf, mid: 0x78b3e6, bot: 0xd9e6ec, nubes: 0.5,
+  hemiCielo: 0xcfe4ff, hemiSuelo: 0x6b6a45, hemi: 1.15,
+  solColor: 0xfff0d2, sol: 2.5, exposicion: 1.05
+};
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, y - LC.y];
-window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; }, get peat() { return PEAT; }, get aves() { return AVES; } }; // acceso para pruebas
+window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; }, get peat() { return PEAT; }, get aves() { return AVES; }, get pajaro() { return PAJARO; } }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
 
@@ -902,21 +912,22 @@ async function initTodo() {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = !LIVIANO;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.02;
+    renderer.toneMappingExposure = DIA.exposicion;
     $('todo3d').appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    // ambiente de mañana nublada con bruma en el horizonte (referencia: foto aérea del río con cielo gris y bosque verde oscuro)
-    scene.background = new THREE.Color(0xd6d6d2);
-    scene.fog = new THREE.FogExp2(0xd3d3cf, 0.00018);
+    // ambiente de día soleado: cielo azul con pocas nubes blancas y un poco de bruma cálida en el horizonte
+    scene.background = new THREE.Color(DIA.fondo);
+    scene.fog = new THREE.FogExp2(DIA.niebla, DIA.densNiebla);
     const skyU = {
-      top: { value: new THREE.Color(0x98a7b6) },
-      mid: { value: new THREE.Color(0xc4c9cd) },
-      bot: { value: new THREE.Color(0xdfdcd4) },
+      top: { value: new THREE.Color(DIA.top) },
+      mid: { value: new THREE.Color(DIA.mid) },
+      bot: { value: new THREE.Color(DIA.bot) },
       uTime: { value: 0 },
-      uCloud: { value: 1.0 },
+      uCloud: { value: DIA.nubes },
+      uGlow: { value: 1.0 },
       uSunDir: { value: new THREE.Vector3(0.42, 0.62, 0.35).normalize() }
     };
     const sky = new THREE.Mesh(
@@ -924,7 +935,7 @@ async function initTodo() {
       new THREE.ShaderMaterial({
         uniforms: skyU, side: THREE.BackSide, depthWrite: false, fog: false,
         vertexShader: `varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-        fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot, uSunDir; uniform float uTime, uCloud;
+        fragmentShader: `varying vec3 vP; uniform vec3 top, mid, bot, uSunDir; uniform float uTime, uCloud, uGlow;
           float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
           float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
             return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y); }
@@ -933,13 +944,14 @@ async function initTodo() {
             vec3 d = normalize(vP);
             float h = d.y;
             vec3 c = h > 0.12 ? mix(mid, top, smoothstep(0.12, 0.75, h)) : mix(bot, mid, smoothstep(-0.08, 0.12, h));
+            float sunAmt = max(dot(d, normalize(uSunDir)), 0.0);
             if (d.y > 0.015) {
               vec2 cuv = d.xz / (d.y + 0.28) * 0.75 + uTime * vec2(0.018, 0.007);
-              float cl = smoothstep(0.31, 0.6, fbm(cuv));
-              float sunAmt = max(dot(d, normalize(uSunDir)), 0.0);
-              vec3 cloudCol = mix(vec3(0.60, 0.63, 0.68), vec3(1.0, 0.97, 0.92), pow(sunAmt, 2.0));
+              float cl = smoothstep(0.50, 0.74, fbm(cuv)); // pocas nubes sueltas, no un techo cubierto
+              vec3 cloudCol = mix(vec3(0.80, 0.84, 0.90), vec3(1.0, 0.98, 0.94), pow(sunAmt, 2.0));
               c = mix(c, cloudCol, cl * smoothstep(0.015, 0.18, d.y) * uCloud);
             }
+            c += vec3(1.0, 0.86, 0.62) * (pow(sunAmt, 400.0) * 1.4 + pow(sunAmt, 14.0) * 0.18) * uGlow; // disco y halo del sol
             gl_FragColor = vec4(c, 1.0);
           }`
       })
@@ -953,10 +965,10 @@ async function initTodo() {
     orbit.target.set(tw[0], 0, tw[1]);
     orbit.enableDamping = true; orbit.dampingFactor = 0.06;
     orbit.maxPolarAngle = Math.PI * 0.495; orbit.minDistance = 4; orbit.maxDistance = 9000;
-    const hemi = new THREE.HemisphereLight(0xc9d3dd, 0x4a5038, 0.95);
-    const sun = new THREE.DirectionalLight(0xfff0dc, 1.55);
+    const hemi = new THREE.HemisphereLight(DIA.hemiCielo, DIA.hemiSuelo, DIA.hemi);
+    const sun = new THREE.DirectionalLight(DIA.solColor, DIA.sol);
     sun.position.set(4000, 5000, 2000);
-    sun.castShadow = true;
+    sun.castShadow = !LIVIANO;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.left = -900; sun.shadow.camera.right = 900;
     sun.shadow.camera.top = 900; sun.shadow.camera.bottom = -900;
@@ -972,14 +984,14 @@ async function initTodo() {
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
     ground.receiveShadow = true;
     scene.add(ground);
-    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, night: false, anim: null, last: 0, counts: {},
+    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, liviano: LIVIANO, night: false, anim: null, last: 0, counts: {},
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
     try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
-    const B = await fetchProg('data3d/buildings.json', 'Edificios');
+    const B = LIVIANO ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
     $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
     await new Promise(r => setTimeout(r, 30));
     buildChunks(THREE, B);
@@ -1022,7 +1034,7 @@ async function initTodo() {
       try { T3.plants = await T3.R.buildNearPlants(T3, W, lw, T3.env, P); }
       catch (e) { console.warn('pasto 3D:', e); pastoRespaldo(); }
     })();
-    (async () => {
+    if (!LIVIANO) (async () => {
       try { await buildTraffic(THREE); say('🚗 ' + TRAF.NV.toLocaleString('es-CO') + ' carros (' + Math.round(TRAF.dur) + 's de simulación)', 4000); }
       catch (e) { console.warn('traffic:', e); try { buildCars(THREE, N); } catch (e2) { console.warn('cars:', e2); } }
     })();    return true;
@@ -1536,7 +1548,7 @@ function updateTraffic(dt) {
     }
     n++;
   }
-  if (F) { F.end(T3.camera.position.x, T3.camera.position.z); n = 0; } // las cajas del tráfico antiguo quedan ocultas
+  if (F) { F.end((T3.vpos || T3.camera.position).x, (T3.vpos || T3.camera.position).z); n = 0; } // las cajas del tráfico antiguo quedan ocultas
   TRAF.bodies.count = n; TRAF.cabins.count = n; TRAF.wheels.count = n * 4;
   TRAF.bodies.instanceMatrix.needsUpdate = true;
   TRAF.cabins.instanceMatrix.needsUpdate = true;
@@ -1699,11 +1711,11 @@ function buildWater(THREE, W) {
     uniforms: {
       uTime: T3.waterU,
       uSun: { value: new THREE.Vector3(0.45, 0.62, 0.35).normalize() },
-      uDeep: { value: new THREE.Color(0x020e14) },
-      uShallow: { value: new THREE.Color(0x0e3d49) },
-      uSkyA: { value: new THREE.Color(0x4a6a80) },
-      uSkyB: { value: new THREE.Color(0x7d97a8) },
-      uCloud: { value: 0.7 }
+      uDeep: { value: new THREE.Color(0x06222a) },
+      uShallow: { value: new THREE.Color(0x24655c) },
+      uSkyA: { value: new THREE.Color(0x4b86c2) },
+      uSkyB: { value: new THREE.Color(0x9cc6e8) },
+      uCloud: { value: 0.45 }
     },
     transparent: true, depthWrite: false, side: THREE.DoubleSide, fog: false,
     vertexShader: `
@@ -1925,7 +1937,7 @@ function mergeGeoms(THREE, gs) { // une geometrías con los mismos atributos (po
 }
 function updatePeatones(dt) {
   if (!PEAT) return;
-  const cx = T3.camera.position.x, cz = T3.camera.position.z, R2 = 300 * 300, t = T3.waterU.value, d = PEAT.d, m = PEAT.mesh;
+  const cx = (T3.vpos || T3.camera.position).x, cz = (T3.vpos || T3.camera.position).z, R2 = 300 * 300, t = T3.waterU.value, d = PEAT.d, m = PEAT.mesh;
   let n = 0;
   for (const p of PEAT.list) {
     p.s += p.v * p.dir * dt;
@@ -2152,17 +2164,52 @@ function todoNight(on) {
     T3.hemi.intensity = 0.22; T3.hemi.color.set(0x5a76a8);
     T3.sun.intensity = 0.35; T3.sun.color.set(0x93b6e6);
     T3.renderer.toneMappingExposure = 0.9;
-    if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); T3.skyU.uCloud.value = 0.18; }
-    if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); }
+    if (T3.skyU) { T3.skyU.top.value.set(0x060a18); T3.skyU.mid.value.set(0x0d1626); T3.skyU.bot.value.set(0x030507); T3.skyU.uCloud.value = 0.18; T3.skyU.uGlow.value = 0; }
   } else {
-    T3.scene.background.set(0xd6d6d2); T3.scene.fog.color.set(0xd3d3cf);
-    T3.hemi.intensity = 0.95; T3.hemi.color.set(0xc9d3dd);
-    T3.sun.intensity = 1.55; T3.sun.color.set(0xfff0dc);
-    T3.renderer.toneMappingExposure = 1.02;
-    if (T3.skyU) { T3.skyU.top.value.set(0x98a7b6); T3.skyU.mid.value.set(0xc4c9cd); T3.skyU.bot.value.set(0xdfdcd4); T3.skyU.uCloud.value = 1.0; }
+    T3.scene.background.set(DIA.fondo); T3.scene.fog.color.set(DIA.niebla);
+    T3.hemi.intensity = DIA.hemi; T3.hemi.color.set(DIA.hemiCielo);
+    T3.sun.intensity = DIA.sol; T3.sun.color.set(DIA.solColor);
+    T3.renderer.toneMappingExposure = DIA.exposicion;
+    if (T3.skyU) { T3.skyU.top.value.set(DIA.top); T3.skyU.mid.value.set(DIA.mid); T3.skyU.bot.value.set(DIA.bot); T3.skyU.uCloud.value = DIA.nubes; T3.skyU.uGlow.value = 1.0; }
   }
 }
 $('b-todo').onclick = async () => { setMode('todo'); };
+
+/* ============ MODO PÁJARO · juego de vuelo + realidad virtual (data3d/pajaro.js) ============ */
+// simulación compartida: lo mismo que hace el vuelo normal, pero con la posición del pájaro (en VR la cámara va dentro de un "rig")
+function simTick(dt, pos) {
+  updateAves(); updatePeatones(dt);
+  if (T3.trees) T3.trees.update({ position: pos });
+  if (T3.plants) T3.plants.update({ position: pos });
+  if (TRAF) updateTraffic(dt); else updateCars(dt);
+  T3.waterU.value = performance.now() / 1000;
+  if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
+  T3.sun.position.copy(pos).add(T3.sunOff);
+  T3.sun.target.position.copy(pos);
+}
+const esperarHasta = (cond, ms) => new Promise((res, rej) => {
+  const t0 = Date.now(), iv = setInterval(() => {
+    if (cond()) { clearInterval(iv); res(); } else if (Date.now() - t0 > ms) { clearInterval(iv); rej(new Error('el mundo 3D tardó demasiado en cargar')); }
+  }, 250);
+});
+$('b-pajaro').onclick = async () => {
+  if (!PAJARO) {
+    try {
+      const m = await import('./data3d/pajaro.js');
+      PAJARO = m.crearPajaro({
+        T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say,
+        listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),
+        cargar: async (liviano) => {
+          if (liviano) LIVIANO = true; // si el mundo aún no está cargado, se carga la versión ligera
+          if (mode !== 'todo' || !T3) setMode('todo');
+          await esperarHasta(() => T3 && T3.ready && AVES && AVES.nuevo, 600000);
+          await esperarHasta(() => !!T3.trees || T3.trees === null, 120000).catch(() => {});
+        }
+      });
+    } catch (e) { console.warn('modo pájaro:', e); say('⚠️ No cargó el modo pájaro: ' + String(e && e.message || e).slice(0, 100), 6000); return; }
+  }
+  PAJARO.abrirMenu();
+};
 { // barra de abajo: play / pausa y tiempo de la simulación de carros
   const play = $('trafficPlay'), tiempo = $('trafficTime'), etiqueta = $('trafficLabel');
   const fmt = (t) => { t = Math.max(0, Math.floor(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };

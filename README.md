@@ -57,6 +57,19 @@ La escena demo incluida es el castillo hiperrealista de tu foto, para que veas e
 - Simulaciones: carros (trayectorias reales, barra de tiempo), peatones por las aceras (solo se dibujan cerca de la camara), viento en arboles y pasto, oleaje y nubes.
 - Aves 3D (data3d/aves3d.js): patos macho y hembra, fochas y garzas blancas posadas, mas garzas y patos en vuelo batiendo las alas; modelos de varias piezas con color por vertice, repartidos por todos los humedales y lagunas (no solo El Burro). Los patos nadan, se detienen y meten la cabeza al agua; las garzas caminan por la orilla.
 - Arboles lejanos: la copa de nivel 2 se deriva del volumen de hojas del modelo real de cada especie, asi la silueta coincide con la del arbol cercano.
-- Ambiente: manana nublada con bruma en el horizonte (cielo gris con nubes, niebla clara, luz suave); el agua es un espejo oscuro y calmado que refleja ese cielo; bosque de ribera denso de tres filas de arboles junto a cada cuerpo de agua, con verdes profundos y frios.
-- `?liviano=1` abre el modo TODO 3D sin edificios ni sombras (equipos modestos o pruebas).
+- Ambiente: dia soleado (cielo azul con pocas nubes, sol con halo, luz calida y bruma ligera); el agua refleja ese cielo; bosque de ribera denso de tres filas de arboles junto a cada cuerpo de agua. Los colores del dia estan en la constante `DIA` de `index.html`.
+- Arboles: los modelos reales 3D se ven hasta 70 m (completo) y 380 m (reducido); mas alla hay arboles 3D de bajos poligonos hasta 1.500 m, y solo despues siluetas. Asi no se ven "falsos" de lejos.
+- `?liviano=1` abre el modo TODO 3D sin edificios, sombras ni trafico (equipos modestos, celulares y gafas VR).
+
+## Humedal El Burro: mas aves
+`data3d/aves3d.js` pone en El Burro unas 330 aves de 9 especies: patos (macho y hembra), pato turrio, focha, tingua de pico rojo, garza real y garza del ganado en las orillas, garzas pescadoras en vuelo, bandadas de patos y gaviotas andinas. Las garzas de la orilla acechan y dan la estocada con un pez en el pico; las garzas en vuelo bajan al agua, atrapan un pez, lo suben y se lo llevan a su nido entre los arboles (con ondas en el agua al pescar).
+
+## 🐦 Modo Pajaro y realidad virtual (`data3d/pajaro.js`)
+Boton **🐦 Modo Pajaro · VR** (abajo a la derecha). Juego: eres una garza que vuela sobre El Burro; atrapas peces que saltan (vuela bajo sobre ellos), los llevas al nido dorado (hasta 3 por viaje), pasas por los aros y entregas 10 peces para completar la mision. Hay 3 formas de jugarlo:
+
+- **🥽 Gafas VR (WebXR)**: Meta Quest / Pico (abre la pagina en su navegador) o PC con gafas conectadas (Quest Link, SteamVR, Windows MR) en Chrome o Edge. La pagina debe estar en **https** (GitHub Pages lo esta). Vuelas hacia donde miras; gatillo = acelerar, grip = frenar, palanca = girar, y puedes aletear moviendo los brazos hacia abajo. El HUD va dentro de la escena (abajo en tu campo de vision).
+- **📱 Cardboard (celular)**: pantalla dividida + giroscopio; toca para acelerar.
+- **💻 Pantalla**: clic para capturar el mouse; W/Shift acelerar, S frenar, A/D girar, Espacio aletear, Esc salir.
+
+Para gafas y celular se carga la version ligera (sin edificios, sombras ni trafico) para ir fluido; en pantalla se carga completa.
 - Para usar otra foto de ave, reemplaza los PNG de `data3d/aves/`.
