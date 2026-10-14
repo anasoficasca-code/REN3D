@@ -335,15 +335,15 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   }
   // L0 modelo real completo (cerca) · L1 modelo real reducido (medio) · L2 arbol 3D de bajos poligonos (lejos) · siluetas sólo más allá de R2 o si se llena el cupo
   // la versión ligera (gafas VR, celulares: T3.liviano) usa menos árboles detallados y copas más simples; la completa muestra más modelos reales
-  const LV = !!T3.liviano, CAP2 = LV ? 4000 : 6500, R0 = LV ? 25 : 45, R1 = LV ? 260 : 620, R2 = LV ? 900 : 1500, d = new THREE.Object3D(), col = new THREE.Color();
-  const CAP0S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 3 : 6) : (LV ? 6 : 14)); // el arbolpeq tiene 83.000 triángulos en el nivel 0
-  const CAP1S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 30 : 110) : (LV ? 160 : 650)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
+  const LV = !!T3.liviano, CAP2 = LV ? 5000 : 10000, R0 = LV ? 40 : 100, R1 = LV ? 400 : 1000, R2 = LV ? 1200 : 2200, d = new THREE.Object3D(), col = new THREE.Color();
+  const CAP0S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 4 : 10) : (LV ? 10 : 32)); // el arbolpeq tiene 83.000 triángulos en el nivel 0
+  const CAP1S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 40 : 200) : (LV ? 240 : 1100)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
   const TIPO_BAJO = especies.map(e => (e.base === 'arbolpeq' || e.base === 'island_tree_02') ? 1 : 0);
   const matBajo = materialArbolBajo(T3), REF = [0.17, 0.255, 0.0875]; // REF = verde medio del degradado de vértices
   const bajos = especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaCopaDeModelo(e.niveles, e.alto, e.ancho, LV ? 0 : 1) || geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
   const TINTE_BAJO = especies.map(e => e.hojaRGB.map((v, k) => Math.max(1.1, Math.min(3.4, 2.1 * v / REF[k])))); // lleva el verde de la copa al color real de las hojas de esa especie (el modelo real además brilla un poco por su textura emisiva)
   const lod = especies.map((e, si) => ({ L0: e.niveles.L0.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP0S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; T3.scene.add(m); return m; }),
-    L1: e.niveles.L1.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP1S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; T3.scene.add(m); return m; }) }));
+    L1: e.niveles.L1.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP1S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = !LV; m.receiveShadow = true; T3.scene.add(m); return m; }) }));
   lod.forEach(l => [...l.L0, ...l.L1].forEach(m => { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }));
   // lejos: tres planos cruzados con la silueta real de la especie
   const cruz = (lado) => { const ps = [0, Math.PI / 3, -Math.PI / 3].map(a => { const g = new THREE.PlaneGeometry(lado, lado); g.translate(0, lado / 2, 0); g.rotateY(a); return g; }); return mergeGeometries(ps); };
