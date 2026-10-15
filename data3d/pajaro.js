@@ -84,7 +84,8 @@ export function crearPajaro(ctx) {
   const guardado = {};
   let efecto = null, sesionXR = null, wakeLock = null;
   const dir = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
-  let alaI = null, alaD = null, hudPlano = null, hudCv = null, hudTex = null, tHud = 0, tAleteo = 0;
+  let calidad = 0, tAcum = 0, nAcum = 0, tPrev = 0;
+  let picoM = null, alaI = null, alaD = null, hudPlano = null, hudCv = null, hudTex = null, tHud = 0, tAleteo = 0;
   const sim = { puntos: 0, llevando: 0, entregados: 0, tiempo: 0, mejor: 0, terminado: false, aro: 0, aros: 0, msgHasta: 0, msgTxt: '', vidas: 3, energia: 100, inmune: 0, perdido: false, ex: 0, golpes: 0 };
   let caida = 0, lift = 0, sacudida = 0; // movimiento vertical extra: la turbulencia del tráfico te hunde, aletear te sube
   let peces = [], nido = null, marcas = null, arosPos = [], aroMesh = null;
@@ -128,23 +129,38 @@ export function crearPajaro(ctx) {
   }
 
   // ---------------------------------------------------------------- objetos del juego
-  function alaGeo() {
-    const n = 8, P = [], C = [], I = [];
-    for (let i = 0; i <= n; i++) {
-      const t = i / n, x = 0.1 + t * 0.95, ch = 0.4 * (1 - 0.55 * t * t), sw = 0.22 * t * t;
-      P.push(x, 0, 0.12 - sw, x, 0, 0.12 - ch - sw);
-      const b = t > 0.72 ? 0.07 : 0.93 - t * 0.22; // blanca, con puntas oscuras
-      C.push(b, b, b * 0.97, b * 0.9, b * 0.9, b * 0.88);
-      if (i < n) { const a = i * 2; I.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-    }
-    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); g.setIndex(I); g.computeVertexNormals();
-    return g;
+  // ala de garza hecha de plumas: cada pluma tiene forma, raquis y barbas dibujadas (textura), y el ala se dobla en la muñeca al aletear
+  function texPluma(punta) {
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 32; const g = cv.getContext('2d');
+    const hw = (u) => 14.5 * Math.min(1, 0.35 + u * 4) * Math.sqrt(Math.max(0, 1 - Math.pow(u, 3.2)));
+    g.beginPath(); g.moveTo(0, 16); for (let i = 0; i <= 40; i++) { const u = i / 40; g.lineTo(u * 127, 16 - hw(u)); } for (let i = 40; i >= 0; i--) { const u = i / 40; g.lineTo(u * 127, 16 + hw(u)); } g.closePath();
+    const gr = g.createLinearGradient(0, 0, 128, 0); gr.addColorStop(0, '#f7f6f1'); gr.addColorStop(punta ? 0.5 : 1, '#efeee8'); if (punta) { gr.addColorStop(0.78, '#8b909a'); gr.addColorStop(1, '#2a2e36'); }
+    g.fillStyle = gr; g.fill(); g.save(); g.clip();
+    g.lineWidth = 0.9; for (let x = 4; x < 124; x += 2.6) { g.strokeStyle = 'rgba(70,70,60,' + (0.1 + 0.08 * ((x * 7) % 3)) + ')'; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(x, 16); g.lineTo(x + 13, 16 + s * 14); g.stroke(); } } // barbas
+    g.strokeStyle = punta ? 'rgba(20,22,28,.65)' : 'rgba(150,148,138,.9)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(0, 16); g.lineTo(124, 16); g.stroke(); // raquis
+    g.restore();
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+  }
+  function geoPluma(L, W) { // lámina fina, en el plano XZ, que sale del origen hacia +X (sin dibujar el borde con una caja)
+    const n = 7, P = [], U = [], I = [];
+    for (let i = 0; i <= n; i++) { const t = i / n, x = t * L, w = W / 2 * (0.55 + 0.45 * Math.sin(Math.min(1, t * 1.6) * Math.PI / 2)); P.push(x, 0, -w, x, 0, w); U.push(t, 0, t, 1); if (i < n) { const a = i * 2; I.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); } }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); g.setIndex(I); g.computeVertexNormals(); return g;
   }
   function crearAlas() {
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
-    const g = alaGeo();
-    const mk = (lado) => { const piv = new THREE.Group(); const m = new THREE.Mesh(g, mat); if (lado < 0) m.scale.x = -1; m.frustumCulled = false; piv.add(m); piv.scale.setScalar(0.55); piv.position.set(lado * 0.3, -0.62, -0.9); return piv; };
+    const mBlanca = new THREE.MeshLambertMaterial({ map: texPluma(false), alphaTest: 0.45, side: THREE.DoubleSide, emissive: 0x2a2a28 }), mPunta = new THREE.MeshLambertMaterial({ map: texPluma(true), alphaTest: 0.45, side: THREE.DoubleSide, emissive: 0x242426 });
+    const mk = (lado) => {
+      const piv = new THREE.Group(), esp = new THREE.Group(), muneca = new THREE.Group(); esp.add(muneca); piv.add(esp); if (lado < 0) esp.scale.x = -1;
+      const pl = (par, mat, L, W, x, z, ang, y, rz) => { const m = new THREE.Mesh(geoPluma(L, W), mat); m.position.set(x, y || 0, z); m.rotation.y = -ang; if (rz) m.rotation.z = rz; m.frustumCulled = false; par.add(m); return m; };
+      const brazo = 0.5, mx = brazo, mz = -0.07; muneca.position.set(mx, 0, mz);
+      for (let k = 0; k < 9; k++) pl(esp, k < 3 ? mBlanca : mBlanca, 0.40 + 0.04 * Math.sin(k / 8 * Math.PI), 0.1, brazo * (0.04 + k / 8 * 0.9), -0.02 + (mz + 0.02) * (k / 8), 1.3 - 0.18 * (k / 8), 0.0, 0.02); // secundarias (en el antebrazo)
+      const prim = []; for (let k = 0; k < 10; k++) { const a = 0.02 + k / 9 * 0.95, L = 0.34 + 0.24 * Math.sin((1 - k / 9) * 1.35 + 0.15); prim.push(pl(muneca, mPunta, L, 0.09, 0, 0.0, a, 0.004 * k, 0)); } // primarias en abanico, de punta oscura
+      for (let k = 0; k < 7; k++) pl(esp, mBlanca, 0.2 + 0.05 * (k % 2), 0.12, brazo * (0.02 + k / 6 * 0.95), -0.035, 1.25, 0.012, 0.0); // cubiertas (tapan la base de las plumas)
+      for (let k = 0; k < 5; k++) pl(muneca, mBlanca, 0.17, 0.11, 0.0 + k * 0.01, -0.01 - k * 0.012, 0.35 + k * 0.2, 0.012, 0.0);
+      piv.scale.setScalar(0.62); piv.position.set(lado * 0.26, -0.36, -0.7); piv.userData = { muneca, prim }; return piv;
+    };
     alaI = mk(-1); alaD = mk(1);
+    // pico amarillo, largo y fino, que se ve al mirar hacia abajo
+    const pico = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.34, 6), new THREE.MeshLambertMaterial({ color: 0xe8b923, emissive: 0x4a3a05 })); pico.rotation.x = -Math.PI / 2; pico.position.set(0, -0.09, -0.45); pico.frustumCulled = false; picoM = pico;
   }
   function crearHudPlano() {
     hudCv = document.createElement('canvas'); hudCv.width = 640; hudCv.height = 360;
@@ -273,7 +289,7 @@ export function crearPajaro(ctx) {
     via.hora += dt;
     const onda = 0.5 - 0.5 * Math.cos(via.hora / 60 * Math.PI * 2), meta = clamp(0.2 + 0.7 * onda + 0.04 * sim.entregados, 0.2, 1);
     via.intens += (meta - via.intens) * Math.min(1, dt * 0.35);
-    const frac = 0.1 + 0.9 * via.intens, vm = 1 - 0.5 * via.intens, p = rig.position;
+    const frac = (0.1 + 0.9 * via.intens) * (via.tope || 1), vm = 1 - 0.5 * via.intens, p = rig.position;
     for (const c of via.coches) {
       c.s += c.dir * c.v0 * vm * dt; const L = via.cadenas[c.ch].L; if (c.s > L) c.s -= L; else if (c.s < 0) c.s += L;
       posCoche(c);
@@ -440,8 +456,11 @@ export function crearPajaro(ctx) {
       sim.energia = sim.ex < 0.06 ? Math.min(100, sim.energia + 9 * dt) : Math.max(0, sim.energia - 4 * sim.ex * dt);
       sim.inmune = Math.max(0, sim.inmune - dt);
       if (sim.inmune <= 0 && !sim.perdido) {
-        if (p.y < 4) for (const c of via.coches) if (c.act && Math.abs(c.x - p.x) < 4.5 && Math.abs(c.z - p.z) < 4.5 && Math.hypot(c.x - p.x, c.z - p.z) < 4.2) { chocar('¡Un carro te golpeó!'); break; }
+        if (p.y < 12) for (const c of via.coches) if (c.act && Math.abs(c.x - p.x) < 14 && Math.abs(c.z - p.z) < 14) { // muy cerca del tráfico y bajo: te asustas y te pierdes
+          const h = Math.hypot(c.x - p.x, c.z - p.z); if (h < 14 && (p.y < 4 ? h < 4.5 : h < 11)) { chocar(p.y < 4 ? '¡Un carro te golpeó!' : 'Te acercaste demasiado al tráfico y te asustaste.'); break; }
+        }
         if (p.y < 2.8 && via.d < 14) chocar('Te hundiste hasta la avenida.');
+        if (sim.energia <= 0 && sim.ex > 0.25) chocar('El ruido y el humo te agotaron.');
       }
       const prox = clamp(1 - via.d / 260, 0, 1) * clamp(1 - p.y / 300, 0.15, 1), lou = via.intens * prox;
       if (audio && trafG) {
@@ -546,6 +565,12 @@ export function crearPajaro(ctx) {
     const now = performance.now() / 1000, dt = dtFijo || clamp(now - (ultimo || now), 0.001, 0.05); ultimo = now;
     const cam = T3.camera;
     sim.ex = via.seg.length ? exposicion(rig.position) : 0; sacudida += dt * 11;
+    if (modo !== 'pantalla' && !dtFijo) { // si las gafas/celular no sostienen ~60 cuadros por segundo, se baja el detalle poco a poco para que se vea fluido
+      if (tPrev) { tAcum += now - tPrev; nAcum++; } tPrev = now;
+      if (nAcum >= 90) { const ms = tAcum / nAcum * 1000; tAcum = 0; nAcum = 0;
+        if (ms > 17.5 && calidad < 3) { calidad++; if (calidad === 1) { T3.sun.castShadow = false; via.tope = 0.55; } else if (calidad === 2) { via.tope = 0.3; if (T3.trees) T3.trees.minMs = 2500; try { if (modo === 'vr') T3.renderer.xr.setFoveation(0.6); } catch (e) { /* ok */ } } else { via.tope = 0.15; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = false; } catch (e) { /* ok */ } } }
+      }
+    }
     if (modo === 'vr') { leerXR(dt); rig.rotation.set(0, yaw, 0); }
     else if (modo === 'cardboard' && tieneOri && ori) {
       const a = (ori.alpha || 0) * Math.PI / 180, bt = (ori.beta || 0) * Math.PI / 180, gm = (ori.gamma || 0) * Math.PI / 180, o = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
@@ -575,7 +600,11 @@ export function crearPajaro(ctx) {
     tAleteo = Math.max(0, tAleteo - dt);
     const fq = 1.2 + (acelera ? 2.2 : 0) + (impulso > 1 ? 2 : 0) + (tAleteo > 0 ? 2 : 0), amp = (dir.y < -0.35 ? 0.12 : 0.5) * (frena ? 0.4 : 1);
     const ang = 0.18 + Math.sin(now * fq * Math.PI * 2) * amp;
-    if (alaI) { alaI.rotation.z = -ang; alaD.rotation.z = ang; }
+    if (alaI) {
+      alaI.rotation.z = -ang; alaD.rotation.z = ang;
+      const ph = now * fq * Math.PI * 2, mun = Math.sin(ph - 1.0) * amp * 0.75 - 0.05, abre = 0.14 * (1 - Math.min(1, Math.abs(amp) * 1.3)) + 0.06 * Math.max(0, Math.cos(ph)); // la muñeca va un poco atrasada y las puntas se abren al planear
+      for (const a of [alaI, alaD]) { a.userData.muneca.rotation.z = mun; a.userData.prim.forEach((p, k) => { p.rotation.y = -(0.02 + k / 9 * 0.95) - (k - 4.5) * abre * 0.2; }); }
+    }
     if (vientoG && audio) vientoG.gain.value = 0.02 + Math.min(0.12, vel / 400);
     juego(dt);
     T3.vpos = rig.position;
@@ -586,7 +615,7 @@ export function crearPajaro(ctx) {
   }
 
   // ---------------------------------------------------------------- espejo: lo que ves en las gafas también se dibuja en la pantalla del computador
-  let espejo = !ESQUEST, camEsp = null, nEsp = 0; // en las Quest solas no hay pantalla de PC: se apaga para ganar velocidad
+  let espejo = false, camEsp = null, nEsp = 0; // en las Quest solas no hay pantalla de PC: se apaga para ganar velocidad
   function renderEspejo() {
     if ((nEsp++ & 1) || !T3) return; // se refresca cada 2 cuadros
     const r = T3.renderer, cam = T3.camera, w = r.domElement.width, h = r.domElement.height;
@@ -608,20 +637,21 @@ export function crearPajaro(ctx) {
     Object.assign(guardado, { pos: cam.position.clone(), tgt: T3.orbit.target.clone(), near: cam.near, far: cam.far, sombra: T3.sun.castShadow, pr: r.getPixelRatio(), quat: cam.quaternion.clone() });
     try {
       T3.orbit.enabled = false; cam.near = 0.5; cam.far = 30000; cam.updateProjectionMatrix();
-      if (m === 'cardboard') T3.sun.castShadow = false; // celular: sin sombras para ir fluido (Quest y PC sí llevan sombras)
+      if (m === 'cardboard' || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (las sombras en baja resolución se veían como cuadros)
+      if (m !== 'pantalla') { if (T3.trees) { T3.trees.umbral = 40; T3.trees.minMs = 800; } if (T3.plants) T3.plants.minMs = 800; } // recorrer todos los árboles cada pocos metros daba tirones
       T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
       if (!alaI) { crearAlas(); crearHudPlano(); }
-      cam.add(alaI, alaD, hudPlano); hudPlano.visible = m !== 'pantalla'; // el HUD dentro de la escena es para gafas y Cardboard
+      cam.add(alaI, alaD, picoM, hudPlano); hudPlano.visible = m !== 'pantalla'; // el HUD dentro de la escena es para gafas y Cardboard
       preparar();
     } catch (e) { console.warn('pájaro:', e); estado(String(e.message || e)); abortar(); menu.style.display = 'flex'; return; }
     if (m === 'vr') {
       try {
         if (!navigator.xr) throw new Error('Este navegador no tiene WebXR');
         r.xr.setReferenceSpaceType('local'); r.xr.enabled = true;
-        try { r.xr.setFramebufferScaleFactor(ESQUEST ? 1.2 : 1.6); } catch (e) { /* ok */ } // más resolución = menos borroso
+        try { r.xr.setFramebufferScaleFactor(ESQUEST ? 1.0 : 1.3); } catch (e) { /* ok */ } // más resolución = menos borroso
         sesionXR = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
-        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(ESQUEST ? 0.5 : 0); } catch (e) { /* ok */ }
-        try { if (sesionXR.supportedFrameRates && sesionXR.supportedFrameRates.includes(90)) await sesionXR.updateTargetFrameRate(90); } catch (e) { /* ok */ }
+        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(ESQUEST ? 0.2 : 0); } catch (e) { /* ok */ }
+        try { if (sesionXR.supportedFrameRates && sesionXR.supportedFrameRates.includes(ESQUEST ? 72 : 90)) await sesionXR.updateTargetFrameRate(ESQUEST ? 72 : 90); } catch (e) { /* ok */ }
         sesionXR.addEventListener('end', () => { if (activo) salir(); });
         for (let i = 0; i < 2; i++) { // manos: esferas luminosas y gatillo/grip
           const c = r.xr.getController(i); rig.add(c);
@@ -654,7 +684,7 @@ export function crearPajaro(ctx) {
     try { if (sesionXR) { const s = sesionXR; sesionXR = null; s.end().catch(() => {}); } } catch (e) { /* ok */ }
     try { for (let i = 0; i < 2; i++) { const c = r.xr.getController(i); rig.remove(c); } r.xr.enabled = false; } catch (e) { /* ok */ }
     const cam = T3.camera;
-    try { cam.remove(alaI, alaD, hudPlano); rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
+    try { cam.remove(alaI, alaD, picoM, hudPlano); rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
     limpiarJuego(); T3.vpos = null;
     cam.position.copy(guardado.pos); cam.quaternion.copy(guardado.quat); cam.near = guardado.near; cam.far = guardado.far; cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
     T3.orbit.target.copy(guardado.tgt); T3.orbit.enabled = true; T3.orbit.update();
@@ -667,6 +697,7 @@ export function crearPajaro(ctx) {
     try { if (audio) { audio.close(); audio = null; vientoG = null; trafG = null; motG = null; } } catch (e) { /* ok */ }
     document.body.classList.remove('pj', 'pjvr', 'pjcb'); hud.classList.remove('on'); btnSalir.classList.remove('on'); msgEl.style.display = 'none';
     xrAcelera = 0; xrFrena = 0; ctrlY = [null, null]; acelera = false; frena = false;
+    if (T3.trees) { T3.trees.umbral = 0; T3.trees.minMs = 0; } if (T3.plants) T3.plants.minMs = 0; via.tope = 1; calidad = 0; tAcum = 0; nAcum = 0; tPrev = 0; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = true; } catch (e) { /* ok */ }
   }
   function salir() { if (!activo) return; activo = false; restaurar(); modo = null; ctx.say('Saliste del modo pájaro', 2500); }
   btnSalir.onclick = salir;

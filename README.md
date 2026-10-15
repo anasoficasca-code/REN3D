@@ -79,3 +79,8 @@ Para gafas y celular se carga la version ligera (sin edificios, sombras ni trafi
 - Modo Pajaro (pajaro.js): el nido queda al otro lado de la avenida respecto al agua del humedal El Burro (se calcula solo con 
 et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido, con los modelos reales) que suben y bajan en ciclos de "hora pico" cada minuto.
 - Dinamicas: con mucho trafico hay ruido (rumor de motores y pitos), turbulencia que frena y hunde (mas si llevas peces), energia que se gasta (aletear con Espacio sube pero cansa), 3 vidas (tocar la calle o un carro te quita una vida y los peces que llevas) y vineta roja de peligro.
+
+## v34
+- Territorio en espejo corregido (lw invierte el eje N-S en index.html).
+- Alas de plumas con textura y muneca articulada, mas pico.
+- Modo Pajaro: perderse al acercarse al trafico; VR mas fluido (sin sombras en Quest, menos arboles recalculados, calidad adaptativa, 72 Hz en Quest, espejo de pantalla apagado por defecto).

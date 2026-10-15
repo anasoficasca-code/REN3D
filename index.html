@@ -104,7 +104,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v33</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v34</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -519,7 +519,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v33' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v33' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v33' : 'MODO: 🛰️ SATÉLITE · v33'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v34' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v34' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v34' : 'MODO: 🛰️ SATÉLITE · v34'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -603,7 +603,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v33 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v34 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -843,7 +843,7 @@ function tick() {
     requestAnimationFrame(tick); return;
   }
   if (mode === 'todo' && T3) {
-    $('o-ctr').textContent = Math.round(T3.camera.position.x + LC.x) + ', ' + Math.round(T3.camera.position.z + LC.y);
+    $('o-ctr').textContent = Math.round(T3.camera.position.x + LC.x) + ', ' + Math.round(LC.y - T3.camera.position.z);
     $('o-zoom').textContent = '3D';
     const _d = T3.orbit.target.clone().sub(T3.camera.position).normalize();
     $('o-pitch').textContent = Math.round(Math.asin(Math.max(-1, Math.min(1, _d.y))) * 180 / Math.PI);
@@ -881,7 +881,7 @@ const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver
   solColor: 0xfff0d2, sol: 2.5, exposicion: 1.05
 };
 const LC = { x: 5341.33, y: 3161.9 };
-const lw = (x, y) => [x - LC.x, y - LC.y];
+const lw = (x, y) => [x - LC.x, LC.y - y]; // z invertido: el territorio estaba en espejo (norte/sur al revés)
 window.REN3D = { get T3() { return T3; }, lw, get traf() { return TRAF; }, get peat() { return PEAT; }, get aves() { return AVES; }, get pajaro() { return PAJARO; } }; // acceso para pruebas
 const ll2l = (lat, lng) => [LC.x + (lng + 74.153) * 110955, LC.y + (lat - 4.636) * 110540];
 function poiLocal(p) { return p.L || ll2l(p.lat, p.lng); }
@@ -991,7 +991,7 @@ async function initTodo() {
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js?v=33'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
+    try { T3.R = await import('./data3d/real3d.js?v=34'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
@@ -1524,10 +1524,10 @@ function updateTraffic(dt) {
   const F = T3.fleet; // flota de carros reales (data3d/real3d.js): recibe las trayectorias de la simulación
   if (F) F.begin();
   for (let i = 0; i < A.ids.length && n < TRAF.maxi; i++) {
-    const x0 = A.xs[i] - LC.x, y0 = A.ys[i] - LC.y;
+    const x0 = A.xs[i] - LC.x, y0 = LC.y - A.ys[i];
     const j = m.get(A.ids[i]);
     let x1 = x0, y1 = y0;
-    if (j !== undefined) { x1 = B.xs[j] - LC.x; y1 = B.ys[j] - LC.y; }
+    if (j !== undefined) { x1 = B.xs[j] - LC.x; y1 = LC.y - B.ys[j]; }
     const dx = x1 - x0, dy = y1 - y0;
     if (dx * dx + dy * dy > 1e-6) TRAF.head[n] = Math.atan2(-dy, dx);
     const hd = TRAF.head[n];
@@ -2202,7 +2202,7 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=33');
+      const m = await import('./data3d/pajaro.js?v=34');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),

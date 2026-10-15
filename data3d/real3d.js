@@ -363,8 +363,8 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   const ult = { x: 1e9, z: 1e9, t: 0 }, cand = [];
   const api = { N, ribera, enParques, deCalle, especies: especies.map(e => e.base + ':' + e.niveles.L0.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0) + '/' + e.niveles.L1.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0)) };
   api.update = (cam, force) => {
-    const now = performance.now(), dx = cam.position.x - ult.x, dz = cam.position.z - ult.z;
-    if (!force && dx * dx + dz * dz < 36 && now - ult.t < 1500) return;
+    const now = performance.now(), dx = cam.position.x - ult.x, dz = cam.position.z - ult.z, U = api.umbral || 6;
+    if (!force && ((dx * dx + dz * dz < U * U && now - ult.t < 1500) || now - ult.t < (api.minMs || 0))) return; // en VR se actualiza menos seguido: recorrer todos los árboles cada pocos metros causaba tirones
     ult.x = cam.position.x; ult.z = cam.position.z; ult.t = now;
     cand.length = 0;
     for (let i = 0; i < N; i++) { const ex = X[i] - ult.x, ez = Z[i] - ult.z, d2 = ex * ex + ez * ez; if (d2 < R2 * R2) cand.push([i, d2]); }
@@ -482,7 +482,7 @@ export async function buildNearPlants(T3, W, lw, env, Pq) {
   const ult = { x: 1e9, z: 1e9, t: 0 }, api = { puntos: M, pastos: NP, juncos: NJ, variantes: NV };
   api.update = (cam, force) => {
     const now = performance.now(), ddx = cam.position.x - ult.x, ddz = cam.position.z - ult.z;
-    if (!force && ddx * ddx + ddz * ddz < 16 && now - ult.t < 1500) return;
+    if (!force && ((ddx * ddx + ddz * ddz < 16 && now - ult.t < 1500) || now - ult.t < (api.minMs || 0))) return;
     ult.x = cam.position.x; ult.z = cam.position.z; ult.t = now;
     const cnt = new Int32Array(TIPOS), cap = (t) => (t < NP ? CAPG : t < NP + NJ ? CAPJ : CAPV), R = Math.max(RG, RV), c0x = Math.floor((ult.x - R) / CELDA), c1x = Math.floor((ult.x + R) / CELDA), c0z = Math.floor((ult.z - R) / CELDA), c1z = Math.floor((ult.z + R) / CELDA);
     let total = 0;
