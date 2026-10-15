@@ -84,3 +84,7 @@ et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido
 - Territorio en espejo corregido (lw invierte el eje N-S en index.html).
 - Alas de plumas con textura y muneca articulada, mas pico.
 - Modo Pajaro: perderse al acercarse al trafico; VR mas fluido (sin sombras en Quest, menos arboles recalculados, calidad adaptativa, 72 Hz en Quest, espejo de pantalla apagado por defecto).
+
+## v35
+- Pagina limpia: arranca en el Humedal El Burro; solo botones Dia/Noche y JUGAR.
+- Seleccion de ave (AVES_JUEGO en pajaro.js): garza real (pesca), gaviota andina (carronera) y pato turrio (semillas contrarreloj), cada una con velocidad, energia, giro y mision propias. Menu y HUD sin emojis.

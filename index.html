@@ -80,6 +80,14 @@
     border-radius:6px;padding:3px 7px;font-size:10.5px;white-space:nowrap;color:#e0f2fe}
   @media(max-width:820px){#hud-b{display:none}#hud-l{max-width:210px}}
   #hud-r{display:none}
+  /* pagina limpia: solo quedan Dia/Noche y JUGAR */
+  #hud-l,#hud-b,#hud-r,#trafficHud,#modebadge,#b-todo,#b-trees,#b-water,#b-aves,#b-home,#b-pie{display:none!important}
+  #hud-c{left:50%;right:auto;transform:translateX(-50%);bottom:26px;background:none;border:none;box-shadow:none;backdrop-filter:none;padding:0;gap:14px;align-items:stretch;flex-wrap:nowrap;max-width:94vw}
+  #hud-c button{font-family:inherit;letter-spacing:.18em;text-transform:uppercase;font-size:12px;font-weight:700;border-radius:0;clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);padding:14px 26px;background:rgba(8,16,26,.72);backdrop-filter:blur(10px);border:none;color:#dbeafe;box-shadow:inset 0 0 0 1px rgba(125,211,252,.35)}
+  #hud-c button:hover{background:rgba(14,40,64,.85);color:#fff}
+  #hud-c #b-pajaro{padding:14px 54px;font-size:15px;letter-spacing:.32em;color:#04121c;background:linear-gradient(100deg,#7dd3fc,#34d399);box-shadow:none;transition:filter .15s,transform .15s}
+  #hud-c #b-pajaro:hover{filter:brightness(1.12);transform:translateY(-2px);color:#04121c}
+  #hud-c #b-night.on{color:#fde68a;box-shadow:inset 0 0 0 1px rgba(253,230,138,.55)}
   #trafficHud{position:fixed;left:14px;bottom:64px;z-index:18;width:min(344px,44vw);padding:10px 14px;background:rgba(7,13,22,.92);border:1px solid rgba(56,189,248,.45);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);color:#e8eef7;display:none}
   #trafficHud .trafficTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700;font-size:13px}
   #trafficHud .trafficTop b{font-variant-numeric:tabular-nums;letter-spacing:.02em;white-space:nowrap}
@@ -104,7 +112,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v34</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v35</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -137,10 +145,10 @@
   <button id="b-trees" class="on">🌳 Árboles 3D</button>
   <button id="b-water" class="on">🌊 Agua 3D</button>
   <button id="b-aves" class="on">🦆 Aves</button>
-  <button id="b-night">🌙 Noche</button>
+  <button id="b-night">Noche</button>
   <button id="b-home">🏠 Vista general</button>
   <button id="b-pie">🚶 A pie</button>
-  <button id="b-pajaro" style="border-color:#4ade80;background:linear-gradient(135deg,rgba(22,101,52,.8),rgba(3,105,161,.7))">🐦 Modo Pájaro · VR</button>
+  <button id="b-pajaro">JUGAR</button>
 </div>
 
 <div id="trafficHud" role="group" aria-label="Simulación de tráfico"><div class="trafficTop"><span>Simulación de tráfico</span><b id="trafficLabel">cargando…</b><button id="trafficPlay" type="button" aria-label="Reproducir simulación">❚❚</button></div><input id="trafficTime" type="range" min="0" max="1499" step="1" value="1000" aria-label="Tiempo de la simulación de carros"></div>
@@ -161,7 +169,7 @@ const KENNEDY = { lng: -74.1620, lat: 4.6252, zoom: 14.2, pitch: 62, bearing: -1
 const INICIO = { lng: -74.1630, lat: 4.6210, zoom: 17.3, pitch: 68, bearing: -18 };
 
 const POIS = [
-  { n: 'Humedal El Burro',        lng: -74.1706, lat: 4.6382, z: 17.2, d: 'Reserva de humedal y aves', L: [7437, 3271] },
+  { n: 'Humedal El Burro',        lng: -74.1706, lat: 4.6382, z: 17.2, d: 'Reserva de humedal y aves', L: [7437, 3271], vista: [230, 120, -290], mira: [15, 15] },
   { n: 'Parque Timiza',           lng: -74.1626, lat: 4.6216, z: 17.0, d: 'Lago y zona recreativa', L: [7008, -326] },
   { n: 'Plaza de las Américas',   lng: -74.1700, lat: 4.6192, z: 17.4, d: 'Nodo urbano y comercio' },
   { n: 'Portal 80',               lng: -74.1505, lat: 4.6424, z: 17.0, d: 'Portal del sistema masivo' },
@@ -261,8 +269,9 @@ map.addControl(new maplibregl.ScaleControl({ maxWidth: 92, unit: 'metric' }), 'b
 const $ = id => document.getElementById(id);
 const toast = $('toast');
 let toastH;
+const sinEmoji = (s) => String(s).replace(/[\p{Extended_Pictographic}‍️▶➜]/gu, '').replace(/\s{2,}/g, ' ').trim();
 function say(t, ms = 2600) {
-  toast.textContent = t; toast.style.opacity = '1';
+  toast.textContent = sinEmoji(t); toast.style.opacity = '1';
   clearTimeout(toastH); toastH = setTimeout(() => toast.style.opacity = '0', ms);
 }
 setTimeout(() => toast.style.opacity = '0', 4200);
@@ -519,7 +528,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v34' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v34' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v34' : 'MODO: 🛰️ SATÉLITE · v34'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v35' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v35' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v35' : 'MODO: 🛰️ SATÉLITE · v35'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -527,7 +536,7 @@ function setMode(m) {
     (async () => {
       const ok = await initTodo();
       if (!ok) setMode('sat');
-      else if (T3 && !T3.ready) { T3.ready = true; flyTodo(1, true); say('🧱 Estás sobre el Lago Timiza · arrastra para orbitar, WASD para volar'); }
+      else if (T3 && !T3.ready) { T3.ready = true; flyTodo(0, true); say('Humedal El Burro · arrastra para orbitar, WASD para volar'); }
     })();
   }
   if (m === 'splat') {
@@ -603,7 +612,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v34 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v35 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -740,7 +749,7 @@ let night = false;
 $('b-night').onclick = e => {
   night = !night;
   e.target.classList.toggle('on', night);
-  e.target.textContent = night ? '☀️ Día' : '🌙 Noche';
+  e.target.textContent = night ? 'Día' : 'Noche';
   if (mode === 'todo') { todoNight(night); say(night ? '🌙 Noche TODO 3D' : '☀️ Día TODO 3D'); return; }
   if (mode === 'splat' && SPLAT && SPLAT.canvas) { SPLAT.canvas.classList.toggle('splat-night', night); say(night ? '🌙 Noche en el humedal' : '☀️ Día en el humedal'); return; }
   if (mode === 'foto') { $('cesium').classList.toggle('night', night); say(night ? '🌙 Noche fotorrealista' : '☀️ Día fotorrealista'); return; }
@@ -991,7 +1000,7 @@ async function initTodo() {
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js?v=34'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
+    try { T3.R = await import('./data3d/real3d.js?v=35'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
@@ -1872,8 +1881,9 @@ function buildRoads(THREE, N) {
 function flyTodo(i, instant) {
   const p = POIS[i]; idx = i;
   const L = poiLocal(p), w = lw(L[0], L[1]);
-  const p1 = new T3.THREE.Vector3(w[0] + 320, 190, w[1] + 400);
-  const c1 = new T3.THREE.Vector3(w[0], 0, w[1]);
+  const v = p.vista || [320, 190, 400]; // vista de cada punto (desplazamiento x, altura, desplazamiento z); el humedal arranca cerca y de frente
+  const p1 = new T3.THREE.Vector3(w[0] + v[0], v[1], w[1] + v[2]);
+  const c1 = new T3.THREE.Vector3(w[0] + (p.mira ? p.mira[0] : 0), 0, w[1] + (p.mira ? p.mira[1] : 0));
   if (instant) {
     T3.camera.position.copy(p1); T3.orbit.target.copy(c1); T3.anim = null;
   } else {
@@ -2202,7 +2212,7 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=34');
+      const m = await import('./data3d/pajaro.js?v=35');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),
