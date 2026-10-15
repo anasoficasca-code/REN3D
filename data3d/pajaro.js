@@ -24,7 +24,13 @@ const CSS = `
 #pjHud .arrow{display:inline-block;font-size:26px;transition:transform .1s;color:#fde047}
 #pjSalir{position:fixed;top:14px;right:14px;z-index:31;display:none}
 #pjMsg{position:fixed;left:50%;bottom:16%;transform:translateX(-50%);z-index:31;display:none;background:rgba(7,18,26,.9);border:1px solid rgba(253,224,71,.6);border-radius:14px;padding:10px 20px;font:700 16px system-ui,sans-serif;color:#fef9c3;pointer-events:none;text-align:center}
+#pjRuido{position:fixed;inset:0;z-index:29;display:none;pointer-events:none;box-shadow:inset 0 0 160px 40px rgba(239,68,68,.55);opacity:0;transition:opacity .15s}
+#pjHud .barra{display:inline-block;width:92px;height:8px;border-radius:5px;background:rgba(255,255,255,.18);vertical-align:middle;overflow:hidden}
+#pjHud .barra i{display:block;height:100%;border-radius:5px}
+#pjHud .aviso{margin-top:4px;color:#fca5a5;font-weight:800}
 body.pj .hud,body.pj #trafficHud,body.pj #toast{display:none!important}
+body.pj #pjRuido{display:block}
+body.pj.pjcb #pjRuido,body.pj.pjvr #pjRuido{display:none!important}
 body.pj #pjHud.on,body.pj #pjSalir.on{display:block}
 body.pj.pjcb #pjHud,body.pj.pjcb #pjSalir,body.pj.pjcb #pjMsg{display:none!important}
 `;
@@ -36,7 +42,9 @@ const DATOS = [
   'La tingua de pico rojo y el pato turrio viven en los humedales de la sabana de Bogotá.',
   'Las garzas pescan quedándose muy quietas y dando una estocada rápida con el pico.',
   'El pasto y los juncos del borde del agua son el refugio de los polluelos.',
-  'Un humedal sano tiene agua limpia, juncos, árboles en la orilla y muchas aves.'
+  'Un humedal sano tiene agua limpia, juncos, árboles en la orilla y muchas aves.',
+  'El ruido y el humo de los carros asustan a las aves y les dificultan anidar cerca de las avenidas.',
+  'Los humedales urbanos son islas de vida: las aves deben cruzar calles peligrosas para llegar a ellos.'
 ];
 
 const ESQUEST = /OculusBrowser|Quest|Pico/i.test(navigator.userAgent); // gafas independientes (sin PC)
@@ -45,7 +53,7 @@ export function crearPajaro(ctx) {
   const div = (id, html, cls) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; e.innerHTML = html || ''; document.body.appendChild(e); return e; };
   const menu = div('pjMenu', `<div class="card">
     <h2>🐦 Modo Pájaro · Humedal El Burro</h2>
-    <p>Eres una <b>garza</b> que vuela sobre el humedal. <b>Atrapa peces</b> que saltan en el agua (vuela bajo sobre ellos), <b>llévalos al nido</b> (columna dorada) y pasa por los <b>aros</b> de vuelo. ¡Entrega 10 peces para completar la misión!</p>
+    <p>Eres una <b>garza</b> que vuela sobre el humedal. <b>Atrapa peces</b> que saltan en el agua (vuela bajo sobre ellos) y <b>llévalos al nido</b> (columna dorada), que queda <b>al otro lado de la avenida</b>. Cuando hay mucho tráfico el ruido y el aire revuelto te frenan y te hunden: ¡aletea, cruza volando alto o espera a que pase la hora pico! Tienes 3 vidas. Entrega 10 peces para completar la misión.</p>
     <div class="opts">
       <button data-m="vr">🥽 Gafas de realidad virtual<small id="pjXr">Meta Quest, Pico, PC con gafas (SteamVR / Windows MR)… se conectan con WebXR</small></button>
       <button data-m="cardboard">📱 Celular + visor Cardboard<small>Pantalla dividida para visores de celular; mueves la cabeza y el celular lo detecta</small></button>
@@ -57,13 +65,15 @@ export function crearPajaro(ctx) {
       <li><b>Gafas VR:</b> vuelas hacia donde miras. Gatillo = acelerar · botón lateral (grip) = frenar · palanca izquierda/derecha = girar · ¡mueve los brazos como alas para impulsarte!</li>
       <li><b>Cardboard:</b> mira hacia donde quieres volar · toca la pantalla para acelerar.</li>
       <li><b>Pantalla:</b> clic para capturar el mouse y mirar · <kbd>W</kbd>/<kbd>Shift</kbd> acelerar · <kbd>S</kbd> frenar · <kbd>A</kbd>/<kbd>D</kbd> girar · <kbd>Espacio</kbd> aletear · <kbd>Esc</kbd> salir.</li>
-      <li>Vuela bajo (menos de 7 m) sobre un pez para atraparlo. Puedes llevar hasta 3 peces. Para entregar, acércate al nido dorado.</li>
+      <li>Vuela bajo (menos de 7 m) sobre un pez para atraparlo. Puedes llevar hasta 3 peces (pesan: con ellos te hundes más sobre la avenida). Para entregar, acércate al nido dorado.</li>
+      <li><b>Avenida:</b> cerca de la calle, bajo y con mucho tráfico, la turbulencia te hunde y el ruido sube. Aletear (<kbd>Espacio</kbd>) te sube pero gasta energía; la energía se recupera lejos del tráfico. Si tocas la calle o un carro pierdes una vida y los peces que llevas.</li>
     </ul></details>
     <button data-m="cerrar">Cerrar</button></div>`);
   const listo = div('pjListo', `<div class="card"><h2 id="pjListoT">✅ Mundo listo</h2><p id="pjListoP"></p><button class="go" id="pjGo">▶ Empezar</button></div>`);
   const hud = div('pjHud', '');
   const btnSalir = document.createElement('button'); btnSalir.id = 'pjSalir'; btnSalir.textContent = '✖ Salir del modo pájaro'; document.body.appendChild(btnSalir);
   const msgEl = div('pjMsg', '');
+  const ruidoEl = div('pjRuido', '');
   const $ = (id) => document.getElementById(id);
 
   // ---- estado ----
@@ -75,9 +85,10 @@ export function crearPajaro(ctx) {
   let efecto = null, sesionXR = null, wakeLock = null;
   const dir = new THREE.Vector3(), tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
   let alaI = null, alaD = null, hudPlano = null, hudCv = null, hudTex = null, tHud = 0, tAleteo = 0;
-  const sim = { puntos: 0, llevando: 0, entregados: 0, tiempo: 0, mejor: 0, terminado: false, aro: 0, aros: 0, msgHasta: 0, msgTxt: '' };
+  const sim = { puntos: 0, llevando: 0, entregados: 0, tiempo: 0, mejor: 0, terminado: false, aro: 0, aros: 0, msgHasta: 0, msgTxt: '', vidas: 3, energia: 100, inmune: 0, perdido: false, ex: 0, golpes: 0 };
+  let caida = 0, lift = 0, sacudida = 0; // movimiento vertical extra: la turbulencia del tráfico te hunde, aletear te sube
   let peces = [], nido = null, marcas = null, arosPos = [], aroMesh = null;
-  let audio = null, vientoG = null;
+  let audio = null, vientoG = null, trafG = null, motG = null, tBocina = 3;
 
   // ---------------------------------------------------------------- menú y arranque
   const estado = (t) => { $('pjEstado').textContent = t || ''; };
@@ -136,9 +147,9 @@ export function crearPajaro(ctx) {
     alaI = mk(-1); alaD = mk(1);
   }
   function crearHudPlano() {
-    hudCv = document.createElement('canvas'); hudCv.width = 640; hudCv.height = 300;
+    hudCv = document.createElement('canvas'); hudCv.width = 640; hudCv.height = 360;
     hudTex = new THREE.CanvasTexture(hudCv); hudTex.colorSpace = THREE.SRGBColorSpace;
-    hudPlano = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.3375), new THREE.MeshBasicMaterial({ map: hudTex, transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
+    hudPlano = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.405), new THREE.MeshBasicMaterial({ map: hudTex, transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false }));
     hudPlano.position.set(0, -0.6, -1.5); hudPlano.renderOrder = 999; hudPlano.frustumCulled = false;
   }
   const matHaz = (color, op) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
@@ -154,9 +165,151 @@ export function crearPajaro(ctx) {
     const b = ctx.aves().burro, p = puntoAgua(b, 14);
     f.x = p[0]; f.z = p[1]; f.vivo = true; f.sig = 0.5 + Math.random() * 3; f.salto = -1; f.mesh.visible = false; f.haz.visible = true; f.haz.position.set(f.x, 30, f.z);
   }
+  // ---------------------------------------------------------------- avenida con tráfico (queda entre el humedal y el nido)
+  const via = { cadenas: [], coches: [], seg: [], intens: 0.3, hora: 0, d: 999, estado: 0 };
+  const lw = (x, z) => ctx.lw(x, z);
+  const rnd = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+  function cercaDe(pts, x, z) { // punto del borde del polígono más cercano a (x,z): [qx, qz, distancia]
+    let m = 1e9, qx = x, qz = z;
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], c = pts[(i + 1) % pts.length], dx = c[0] - a[0], dz = c[1] - a[1], l2 = dx * dx + dz * dz || 1e-9, t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / l2, 0, 1), px = a[0] + t * dx, pz = a[1] + t * dz, q = Math.hypot(x - px, z - pz);
+      if (q < m) { m = q; qx = px; qz = pz; }
+    }
+    return [qx, qz, m];
+  }
+  function construirAvenida(b) {
+    via.cadenas = []; via.coches = []; via.seg = [];
+    const N = T3.net; if (!N || !N.edges) return;
+    const E = [], mx0 = b.x0 - 260, mx1 = b.x1 + 260, mz0 = b.z0 - 260, mz1 = b.z1 + 260;
+    for (const e of N.edges) {
+      if (e[0] === 'local' || !e[1] || e[1].length < 2) continue;
+      const pts = e[1].map(p => lw(p[0], p[1])); let md = 1e9;
+      for (const p of pts) if (p[0] > mx0 && p[0] < mx1 && p[1] > mz0 && p[1] < mz1) md = Math.min(md, cercaDe(b.pts, p[0], p[1])[2]);
+      E.push({ cl: e[0], pts, md, usado: false });
+    }
+    const k = (p) => Math.round(p[0] / 3) + ',' + Math.round(p[1] / 3), ady = new Map();
+    E.forEach((e, i) => { for (const f of [0, 1]) { const kk = k(f ? e.pts[e.pts.length - 1] : e.pts[0]); if (!ady.has(kk)) ady.set(kk, []); ady.get(kk).push([i, f]); } });
+    const extender = (path, largoMax) => { // sigue la vía por su extremo, eligiendo siempre el tramo más recto, para que la avenida no termine de golpe
+      let largo = 0;
+      while (largo < largoMax) {
+        const h = path[path.length - 1], p0 = path[Math.max(0, path.length - 2)];
+        let ux = h[0] - p0[0], uz = h[1] - p0[1]; const ul = Math.hypot(ux, uz) || 1; ux /= ul; uz /= ul;
+        let mejor = null, mv = 0.35;
+        for (const [i, f] of ady.get(k(h)) || []) {
+          const e = E[i]; if (e.usado) continue; const q = f ? e.pts.slice().reverse() : e.pts, vx = q[1][0] - q[0][0], vz = q[1][1] - q[0][1], dot = (vx * ux + vz * uz) / (Math.hypot(vx, vz) || 1);
+          if (dot > mv) { mv = dot; mejor = [i, q]; }
+        }
+        if (!mejor) break;
+        E[mejor[0]].usado = true; const q = mejor[1];
+        for (let j = 1; j < q.length; j++) { largo += Math.hypot(q[j][0] - q[j - 1][0], q[j][1] - q[j - 1][1]); path.push(q[j]); }
+      }
+    };
+    let semillas = E.filter(e => e.cl === 'major' && e.md < 170).sort((a, c) => a.md - c.md);
+    if (!semillas.length) semillas = E.filter(e => e.md < 170).sort((a, c) => a.md - c.md);
+    for (const s of semillas) {
+      if (s.usado || via.cadenas.length >= 4) continue;
+      s.usado = true; const path = s.pts.slice(); extender(path, 450); path.reverse(); extender(path, 450);
+      const cum = [0]; for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(path[i][0] - path[i - 1][0], path[i][1] - path[i - 1][1]));
+      if (cum[cum.length - 1] < 40) continue;
+      via.cadenas.push({ pts: path, cum, L: cum[cum.length - 1] });
+      for (let i = 0; i < path.length - 1; i++) via.seg.push([path[i][0], path[i][1], path[i + 1][0], path[i + 1][1]]);
+    }
+    // avenida de dos calzadas: si hay otra cadena paralela muy cerca, cada una es de un solo sentido (se conduce por la derecha); si no, doble sentido
+    const medio = (ch) => { let j = 0; while (j < ch.pts.length - 2 && ch.cum[j + 1] < ch.L / 2) j++; const a = ch.pts[j], e = ch.pts[j + 1], l = (ch.cum[j + 1] - ch.cum[j]) || 1; return { x: (a[0] + e[0]) / 2, z: (a[1] + e[1]) / 2, dx: (e[0] - a[0]) / l, dz: (e[1] - a[1]) / l }; };
+    via.cadenas.forEach((ch, ci) => {
+      const m = medio(ch); let mejor = null, md = 55;
+      via.cadenas.forEach((o, oi) => {
+        if (oi === ci) return; let dm = 1e9, ox = 0, oz = 0;
+        for (let i = 0; i < o.pts.length - 1; i++) { const a = o.pts[i], e = o.pts[i + 1], dx = e[0] - a[0], dz = e[1] - a[1], l2 = dx * dx + dz * dz || 1e-9, t = clamp(((m.x - a[0]) * dx + (m.z - a[1]) * dz) / l2, 0, 1), px = a[0] + t * dx, pz = a[1] + t * dz, q = Math.hypot(m.x - px, m.z - pz); if (q < dm) { dm = q; ox = px; oz = pz; } }
+        if (dm < md && dm > 3) { md = dm; mejor = [ox, oz]; }
+      });
+      if (mejor) ch.unico = ((m.x - mejor[0]) * -m.dz + (m.z - mejor[1]) * m.dx) > 0 ? 1 : -1;
+    });
+    // carros: muchos más que en la simulación normal; según la hora pico se ven unos u otros (rank = orden en que aparecen)
+    const Ltot = via.cadenas.reduce((a, c) => a + c.L, 0), TOT = T3.liviano ? 150 : 320; let id = 0;
+    via.cadenas.forEach((ch, ci) => {
+      const n = Math.round(TOT * ch.L / (Ltot || 1));
+      for (let i = 0; i < n; i++) {
+        const dir = ch.unico || (id % 2 ? 1 : -1), lane = ch.unico ? (id % 3) : ((id >> 1) % 2);
+        via.coches.push({ id: id++, ch: ci, j: 0, s: rnd(id * 3 + 1) * ch.L, dir, off: ch.unico ? (lane - 1) * 3.0 : dir * (2.0 + lane * 2.8), v0: 9 + lane * 0.8 + rnd(id * 5 + 2) * 3.5, rank: rnd(id * 7 + 4), act: false, x: 0, z: 0, h: 0 });
+      }
+    });
+    via.coches.forEach(c => { posCoche(c); c.act = c.rank < 0.3; });
+  }
+  function posCoche(c) {
+    const ch = via.cadenas[c.ch], pts = ch.pts, cum = ch.cum; let j = c.j;
+    while (j > 0 && cum[j] > c.s) j--;
+    while (j < pts.length - 2 && cum[j + 1] < c.s) j++;
+    c.j = j; const a = pts[j], e = pts[j + 1], l = (cum[j + 1] - cum[j]) || 1, t = clamp((c.s - cum[j]) / l, 0, 1), dx = (e[0] - a[0]) / l, dz = (e[1] - a[1]) / l, off = c.off;
+    c.x = a[0] + (e[0] - a[0]) * t - dz * off; c.z = a[1] + (e[1] - a[1]) * t + dx * off; c.h = Math.atan2(dx * c.dir, dz * c.dir);
+  }
+  function distVia(x, z) { // distancia al eje de la avenida
+    let m = 1e9;
+    for (const s of via.seg) { const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz || 1e-9, t = clamp(((x - s[0]) * dx + (z - s[1]) * dz) / l2, 0, 1), q = Math.hypot(x - (s[0] + t * dx), z - (s[1] + t * dz)); if (q < m) m = q; }
+    return m;
+  }
+  function nidoAlOtroLado(b) { // el nido queda pasando la avenida: al lado contrario del humedal
+    if (!via.cadenas.length) return null;
+    const av = ctx.aves(); let mejor = null, md = 1e12, cx = 0, cz = 0;
+    for (let i = 0; i < 200; i++) { const q = puntoAgua(b, 5); cx += q[0] / 200; cz += q[1] / 200; } // centro del agua (donde saltan los peces)
+    const cruza = (ax, az, bx, bz) => via.seg.some(s => { // ¿el trayecto A→B atraviesa algún tramo de la avenida?
+      const d1x = bx - ax, d1z = bz - az, d2x = s[2] - s[0], d2z = s[3] - s[1], den = d1x * d2z - d1z * d2x; if (Math.abs(den) < 1e-9) return false;
+      const t = ((s[0] - ax) * d2z - (s[1] - az) * d2x) / den, u = ((s[0] - ax) * d1z - (s[1] - az) * d1x) / den; return t > 0 && t < 1 && u > 0 && u < 1;
+    });
+    for (const ch of via.cadenas) for (let s = 0; s < ch.L; s += 10) {
+      let j = 0; while (j < ch.pts.length - 2 && ch.cum[j + 1] < s) j++;
+      const a = ch.pts[j], e = ch.pts[j + 1], l = (ch.cum[j + 1] - ch.cum[j]) || 1, t = (s - ch.cum[j]) / l, x = a[0] + (e[0] - a[0]) * t, z = a[1] + (e[1] - a[1]) * t, tx = (e[0] - a[0]) / l, tz = (e[1] - a[1]) / l;
+      for (const lado of [-1, 1]) {
+        const nx = x - tz * lado * 105, nz = z + tx * lado * 105; // 105 m a un lado de la vía, fuera de la turbulencia fuerte
+        if (av.dentro(nx, nz, b.pts) || cercaDe(b.pts, nx, nz)[2] < 40 || distVia(nx, nz) < 80) continue;
+        if (!cruza(nx, nz, cx, cz)) continue; // el nido tiene que quedar al otro lado de la avenida respecto al agua
+        const dc = Math.hypot(nx - cx, nz - cz); if (dc < md) { md = dc; mejor = [nx, nz]; }
+      }
+    }
+    return mejor;
+  }
+  // intensidad del tráfico (0 calmado … 1 hora pico): sube y baja cada minuto y sube un poco con cada entrega
+  function pasoTrafico(dt) {
+    via.hora += dt;
+    const onda = 0.5 - 0.5 * Math.cos(via.hora / 60 * Math.PI * 2), meta = clamp(0.2 + 0.7 * onda + 0.04 * sim.entregados, 0.2, 1);
+    via.intens += (meta - via.intens) * Math.min(1, dt * 0.35);
+    const frac = 0.1 + 0.9 * via.intens, vm = 1 - 0.5 * via.intens, p = rig.position;
+    for (const c of via.coches) {
+      c.s += c.dir * c.v0 * vm * dt; const L = via.cadenas[c.ch].L; if (c.s > L) c.s -= L; else if (c.s < 0) c.s += L;
+      posCoche(c);
+      const q = c.rank < frac; if (q !== c.act && (Math.abs(c.x - p.x) + Math.abs(c.z - p.z) > 140 || p.y > 200)) c.act = q; // no aparecen ni desaparecen carros delante de ti
+    }
+    const est = via.intens > 0.78 ? 2 : via.intens < 0.42 ? 0 : 1;
+    if (est !== via.estado) { if (est === 2 && via.estado !== 2) mensaje('🚨 ¡Hora pico! Muchos carros y mucho ruido: cruza volando alto', 3500); if (est === 0 && via.estado === 2) mensaje('🟢 Pasó la hora pico: buen momento para cruzar', 3000); via.estado = est; }
+  }
+  // fuerza de la turbulencia en un punto: cerca de la avenida, bajo y con mucho tráfico es máxima
+  function exposicion(p) {
+    via.d = distVia(p.x, p.z);
+    return Math.pow(clamp(1 - via.d / 95, 0, 1), 0.8) * Math.pow(clamp(1 - p.y / 75, 0, 1), 0.8) * via.intens;
+  }
+  function aleteo() { // aletear sube, pero cansa
+    if (sim.energia < 12) { if (performance.now() - (sim.avisoE || 0) > 2500) { sim.avisoE = performance.now(); mensaje('😮‍💨 ¡Sin energía! Planea unos segundos lejos del tráfico', 2000); } lift = Math.min(22, lift + 4); return; }
+    sim.energia -= 12; lift = Math.min(22, lift + 15); impulso += 4; tAleteo = 0.6; pip(200, 140, 0.1, 0.05);
+  }
+  function chocar(motivo) {
+    if (sim.inmune > 0 || sim.perdido) return;
+    sim.vidas--; sim.golpes++; const perdidos = sim.llevando; sim.llevando = 0; sim.energia = 100; sim.inmune = 3.5; caida = 0; lift = 0;
+    pip(220, 60, 0.5, 0.25); setTimeout(() => pip(150, 50, 0.4, 0.2), 120);
+    const b = ctx.aves().burro, p0 = puntoSeguro(b); rig.position.set(p0[0], 38, p0[1]); vel = 14; impulso = 0;
+    if (sim.vidas <= 0) {
+      sim.perdido = true; sim.puntos = Math.max(0, sim.puntos - 100);
+      mensaje('💀 ' + motivo + ' Sin vidas · ' + sim.entregados + ' peces entregados. Reiniciando…', 6000);
+      setTimeout(() => { if (activo) { Object.assign(sim, { puntos: 0, llevando: 0, entregados: 0, tiempo: 0, terminado: false, aros: 0, vidas: 3, energia: 100, perdido: false, inmune: 3 }); via.hora = 0; mensaje('Nueva ronda: ¡cruza la avenida con cuidado!', 3500); } }, 6500);
+    } else mensaje('💥 ' + motivo + (perdidos ? ' Perdiste ' + perdidos + ' pez' + (perdidos > 1 ? 'es' : '') + '.' : '') + ' Vidas: ' + sim.vidas, 4000);
+  }
+  function puntoSeguro(b) { // un punto del agua lo más lejos posible de la avenida (para arrancar y reaparecer tranquilo)
+    let mejor = puntoAgua(b, 40), md = via.seg.length ? distVia(mejor[0], mejor[1]) : 0;
+    for (let i = 0; i < 24 && via.seg.length; i++) { const q = puntoAgua(b, 40), d = distVia(q[0], q[1]); if (d > md) { md = d; mejor = q; } }
+    return mejor;
+  }
   function crearNido(b) {
-    const av = ctx.aves(); let pos = null;
-    for (let i = 0; i < 80 && !pos; i++) {
+    const av = ctx.aves(); let pos = nidoAlOtroLado(b);
+    for (let i = 0; i < 80 && !pos; i++) { // sin avenida en los datos: nido cerca de la orilla
       const x = b.x0 - 150 + Math.random() * (b.x1 - b.x0 + 300), z = b.z0 - 150 + Math.random() * (b.z1 - b.z0 + 300);
       if (av.dentro(x, z, b.pts)) continue; const d = av.distBorde(x, z, b.pts);
       if (d > 30 && d < 90) pos = [x, z];
@@ -190,17 +343,21 @@ export function crearPajaro(ctx) {
       const mesh = crearPez(), haz = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 60, 8, 1, true), matHaz(0x7dd3fc, 0.3));
       T3.scene.add(mesh, haz); const f = { mesh, haz }; ponerPez(f); peces.push(f);
     }
+    try { construirAvenida(b); } catch (e) { console.warn('avenida:', e); via.cadenas = []; via.coches = []; via.seg = []; }
+    T3.extraCars = via.coches.length ? (F) => { for (const c of via.coches) if (c.act) F.add(c.x, c.z, c.h, 5000 + c.id); } : null; // la flota de carros dibuja también los de la avenida
     nido = crearNido(b); crearAros(b);
-    Object.assign(sim, { puntos: 0, llevando: 0, entregados: 0, tiempo: 0, terminado: false, aro: 0, aros: 0 });
+    Object.assign(sim, { puntos: 0, llevando: 0, entregados: 0, tiempo: 0, terminado: false, aro: 0, aros: 0, vidas: 3, energia: 100, inmune: 2, perdido: false, ex: 0, golpes: 0 });
+    via.hora = 0; via.intens = 0.3; via.estado = 0; caida = 0; lift = 0; sacudida = 0;
     try { sim.mejor = Number(localStorage.getItem('ren3d_pajaro_mejor') || 0); } catch (e) { sim.mejor = 0; }
     // arranque: sobre el agua del humedal, mirando al primer pez
-    const p0 = puntoAgua(b, 40), f0 = peces[0];
-    rig.position.set(p0[0], 38, p0[1]); yaw = Math.atan2(f0.x - p0[0], f0.z - p0[1]); pit = -0.12; vel = 14; impulso = 0;
+    const p0 = puntoSeguro(b), f0 = peces[0];
+    rig.position.set(p0[0], 38, p0[1]); yaw = Math.atan2(p0[0] - f0.x, p0[1] - f0.z); // la cámara mira hacia -Z girada por yaw: así arranca mirando al primer pez pit = -0.12; vel = 14; impulso = 0;
     rig.rotation.set(0, 0, 0);
   }
   function limpiarJuego() {
     for (const f of peces) { T3.scene.remove(f.mesh, f.haz); }
     peces = [];
+    if (T3) T3.extraCars = null; via.coches = []; via.cadenas = []; via.seg = [];
     if (nido) { T3.scene.remove(nido.g); nido = null; }
     if (aroMesh) { T3.scene.remove(aroMesh); aroMesh = null; }
   }
@@ -214,7 +371,17 @@ export function crearPajaro(ctx) {
       const src = audio.createBufferSource(); src.buffer = buf; src.loop = true;
       const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500; vientoG = audio.createGain(); vientoG.gain.value = 0.05;
       src.connect(f); f.connect(vientoG); vientoG.connect(audio.destination); src.start();
+      // ruido del tráfico: rumor grave de motores + zumbido de llantas; sube con la hora pico y cuando estás cerca de la avenida
+      const s2 = audio.createBufferSource(); s2.buffer = buf; s2.loop = true; s2.playbackRate.value = 0.8;
+      const f2 = audio.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 280; f2.Q.value = 0.6; trafG = audio.createGain(); trafG.gain.value = 0;
+      s2.connect(f2); f2.connect(trafG); trafG.connect(audio.destination); s2.start();
+      const mot = audio.createOscillator(); mot.type = 'sawtooth'; mot.frequency.value = 52; const fm = audio.createBiquadFilter(); fm.type = 'lowpass'; fm.frequency.value = 160; motG = audio.createGain(); motG.gain.value = 0;
+      mot.connect(fm); fm.connect(motG); motG.connect(audio.destination); mot.start();
     } catch (e) { audio = null; }
+  }
+  function bocina() { // pitido de carro: dos tonos
+    if (!audio) return;
+    try { const t = audio.currentTime, g = audio.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05 + 0.06 * via.intens, t + 0.03); g.gain.setValueAtTime(0.05, t + 0.28); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34); g.connect(audio.destination); for (const fq of [400 + Math.random() * 60, 500 + Math.random() * 60]) { const o = audio.createOscillator(); o.type = 'square'; o.frequency.value = fq; const fl = audio.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1400; o.connect(fl); fl.connect(g); o.start(t); o.stop(t + 0.36); } } catch (e) { /* sin audio */ }
   }
   function pip(f0, f1, dur, vol) {
     if (!audio) return;
@@ -238,20 +405,27 @@ export function crearPajaro(ctx) {
     const o = objetivo(), p = rig.position; let rel = 0, dist = 0;
     camaraDir(dir);
     if (o) { rel = giro(Math.atan2(dir.x, dir.z), Math.atan2(o.x - p.x, o.z - p.z)); dist = Math.hypot(o.x - p.x, o.z - p.z); }
-    const pez = '🐟'.repeat(sim.llevando) + '·'.repeat(3 - sim.llevando);
+    const pez = '🐟'.repeat(sim.llevando) + '·'.repeat(3 - sim.llevando), vid = '❤️'.repeat(Math.max(0, sim.vidas)) + '🖤'.repeat(Math.max(0, 3 - sim.vidas));
+    const en = Math.round(sim.energia), colE = en > 50 ? '#4ade80' : en > 20 ? '#fde047' : '#f87171', tr = Math.round(via.intens * 100), colT = tr > 75 ? '#f87171' : tr > 45 ? '#fb923c' : '#4ade80';
+    const aviso = sim.ex > 0.12 ? (sim.energia < 12 ? '⚠ ¡Sin energía! Te hundes' : '⚠ Turbulencia del tráfico: sube y aletea') : '';
     if (modo !== 'cardboard') {
-      hud.innerHTML = `<div class="n">${sim.puntos} pts</div><div>Peces entregados: <b>${sim.entregados}/10</b> · Llevas: ${pez}</div><div>⏱ ${fmt(sim.tiempo)} · Altura ${Math.round(p.y)} m · ${Math.round(vel * 3.6)} km/h</div>` + (o ? `<div style="margin-top:4px">${o.txt}: <span class="arrow" style="transform:rotate(${-rel}rad)">➤</span> ${Math.round(dist)} m</div>` : '') + `<div style="color:#5eead4">Aros: ${sim.aros} · mejor puntaje ${sim.mejor}</div>`;
+      hud.innerHTML = `<div class="n">${sim.puntos} pts <span style="font-size:15px">${vid}</span></div><div>Peces entregados: <b>${sim.entregados}/10</b> · Llevas: ${pez}</div><div>⏱ ${fmt(sim.tiempo)} · Altura ${Math.round(p.y)} m · ${Math.round(vel * 3.6)} km/h</div>`
+        + `<div>Energía <span class="barra"><i style="width:${en}%;background:${colE}"></i></span></div><div>🚗 Tráfico <span class="barra"><i style="width:${tr}%;background:${colT}"></i></span> 🔊</div>`
+        + (o ? `<div style="margin-top:4px">${o.txt}: <span class="arrow" style="transform:rotate(${-rel}rad)">➤</span> ${Math.round(dist)} m</div>` : '') + (aviso ? `<div class="aviso">${aviso}</div>` : '') + `<div style="color:#5eead4">Aros: ${sim.aros} · mejor puntaje ${sim.mejor}</div>`;
     }
     if (modo !== 'pantalla' && hudCv) {
       const g = hudCv.getContext('2d'), W = hudCv.width, H = hudCv.height;
-      g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(7,22,30,.78)'; g.strokeStyle = 'rgba(74,222,128,.8)'; g.lineWidth = 4;
+      g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(7,22,30,.78)'; g.strokeStyle = sim.ex > 0.12 ? 'rgba(248,113,113,.95)' : 'rgba(74,222,128,.8)'; g.lineWidth = 4;
       g.beginPath(); if (g.roundRect) g.roundRect(4, 4, W - 8, H - 8, 26); else g.rect(4, 4, W - 8, H - 8); g.fill(); g.stroke();
-      g.fillStyle = '#4ade80'; g.font = '800 56px system-ui,sans-serif'; g.fillText(sim.puntos + ' pts', 28, 74);
-      g.fillStyle = '#fff'; g.font = '600 34px system-ui,sans-serif';
-      g.fillText('Peces ' + sim.entregados + '/10   ' + pez, 28, 128); g.fillText('⏱ ' + fmt(sim.tiempo) + '   ' + Math.round(p.y) + ' m', 28, 176);
-      g.fillStyle = '#fde047'; g.fillText(o ? o.txt + ' ' + Math.round(dist) + ' m' : '', 28, 226);
+      g.fillStyle = '#4ade80'; g.font = '800 52px system-ui,sans-serif'; g.fillText(sim.puntos + ' pts', 28, 64); g.font = '600 34px system-ui,sans-serif'; g.fillText(vid, 300, 62);
+      g.fillStyle = '#fff'; g.font = '600 32px system-ui,sans-serif';
+      g.fillText('Peces ' + sim.entregados + '/10   ' + pez, 28, 110); g.fillText('⏱ ' + fmt(sim.tiempo) + '   ' + Math.round(p.y) + ' m', 28, 152);
+      const barra = (y, v, c, t) => { g.fillStyle = '#fff'; g.font = '600 26px system-ui,sans-serif'; g.fillText(t, 28, y + 20); g.fillStyle = 'rgba(255,255,255,.2)'; g.fillRect(210, y, 220, 18); g.fillStyle = c; g.fillRect(210, y, 220 * clamp(v, 0, 1), 18); };
+      barra(166, sim.energia / 100, colE, 'Energía'); barra(198, via.intens, colT, '🚗 Tráfico');
+      g.fillStyle = '#fde047'; g.font = '600 30px system-ui,sans-serif'; g.fillText(o ? o.txt + ' ' + Math.round(dist) + ' m' : '', 28, 262);
       if (o) { g.save(); g.translate(W - 80, 100); g.rotate(-rel); g.fillStyle = '#fde047'; g.beginPath(); g.moveTo(0, -48); g.lineTo(34, 34); g.lineTo(0, 16); g.lineTo(-34, 34); g.closePath(); g.fill(); g.restore(); }
-      if (performance.now() < sim.msgHasta) { g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(14, 238, W - 28, 52); g.fillStyle = '#fef9c3'; g.font = '700 28px system-ui,sans-serif'; g.fillText(sim.msgTxt.slice(0, 40), 26, 276); }
+      if (aviso) { g.fillStyle = '#fca5a5'; g.font = '800 26px system-ui,sans-serif'; g.fillText(aviso.slice(0, 38), 28, 300); }
+      if (performance.now() < sim.msgHasta) { g.fillStyle = 'rgba(0,0,0,.7)'; g.fillRect(14, 308, W - 28, 46); g.fillStyle = '#fef9c3'; g.font = '700 26px system-ui,sans-serif'; g.fillText(sim.msgTxt.slice(0, 42), 26, 342); }
       hudTex.needsUpdate = true;
     }
   }
@@ -260,6 +434,22 @@ export function crearPajaro(ctx) {
   function juego(dt) {
     const p = rig.position, av = ctx.aves(), b = av.burro;
     if (!sim.terminado) sim.tiempo += dt;
+    // avenida: tráfico, energía, ruido y choques
+    if (via.coches.length) {
+      pasoTrafico(dt);
+      sim.energia = sim.ex < 0.06 ? Math.min(100, sim.energia + 9 * dt) : Math.max(0, sim.energia - 4 * sim.ex * dt);
+      sim.inmune = Math.max(0, sim.inmune - dt);
+      if (sim.inmune <= 0 && !sim.perdido) {
+        if (p.y < 4) for (const c of via.coches) if (c.act && Math.abs(c.x - p.x) < 4.5 && Math.abs(c.z - p.z) < 4.5 && Math.hypot(c.x - p.x, c.z - p.z) < 4.2) { chocar('¡Un carro te golpeó!'); break; }
+        if (p.y < 2.8 && via.d < 14) chocar('Te hundiste hasta la avenida.');
+      }
+      const prox = clamp(1 - via.d / 260, 0, 1) * clamp(1 - p.y / 300, 0.15, 1), lou = via.intens * prox;
+      if (audio && trafG) {
+        trafG.gain.value = 0.015 * via.intens + 0.95 * lou * lou; motG.gain.value = 0.14 * lou * lou;
+        tBocina -= dt; if (tBocina <= 0) { tBocina = (2 + Math.random() * 4) / (0.3 + via.intens * 1.6); if (lou > 0.2 && Math.random() < 0.8) bocina(); }
+      }
+      ruidoEl.style.opacity = String(clamp(sim.ex * 1.5 + (sim.inmune > 3 ? 0.5 : 0), 0, 0.9));
+    }
     // peces: de vez en cuando saltan; si vuelas bajo y cerca, los atrapas
     for (const f of peces) {
       if (!f.vivo) { f.espera -= dt; if (f.espera <= 0) ponerPez(f); continue; }
@@ -318,15 +508,16 @@ export function crearPajaro(ctx) {
   const onKey = (e) => {
     if (!activo) return; teclas[e.code] = e.type === 'keydown';
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
-    if (e.type === 'keydown' && e.code === 'Space' && !e.repeat) impulso += 4;
+    if (e.type === 'keydown' && e.code === 'Space' && !e.repeat) aleteo();
     if (e.type === 'keydown' && e.code === 'Escape' && !document.pointerLockElement) salir();
   };
   const onMouse = (e) => {
     if (!activo || modo === 'vr' || (modo === 'cardboard' && tieneOri)) return;
     if (document.pointerLockElement || e.buttons) { yaw -= e.movementX * 0.0024; pit = clamp(pit - e.movementY * 0.0024, -1.25, 1.25); }
   };
-  const onTouchStart = () => { if (activo && (modo === 'cardboard')) acelera = true; };
-  const onTouchEnd = () => { acelera = false; };
+  let tToque = 0;
+  const onTouchStart = () => { if (activo && (modo === 'cardboard')) { acelera = true; tToque = performance.now(); } };
+  const onTouchEnd = () => { acelera = false; if (activo && modo === 'cardboard' && performance.now() - tToque < 220) aleteo(); }; // toque corto = aletear
   const onClickCanvas = () => { if (activo && modo === 'pantalla' && !document.pointerLockElement) { try { T3.renderer.domElement.requestPointerLock(); } catch (e) { /* sin bloqueo */ } } };
   let cdGiro = 0, ctrlY = [null, null], cdAleteo = 0, xrAcelera = 0, xrFrena = 0;
   function leerXR(dt) {
@@ -343,7 +534,7 @@ export function crearPajaro(ctx) {
     // aletear: bajar rápido las manos da impulso
     for (let i = 0; i < 2; i++) {
       const c = T3.renderer.xr.getController(i); if (!c) continue;
-      const y = c.position.y; if (ctrlY[i] != null && dt > 0) { const vy = (y - ctrlY[i]) / dt; if (vy < -1.6 && cdAleteo <= 0) { impulso += 3.5; cdAleteo = 0.4; tAleteo = 0.6; pip(180, 120, 0.12, 0.06); } }
+      const y = c.position.y; if (ctrlY[i] != null && dt > 0) { const vy = (y - ctrlY[i]) / dt; if (vy < -1.6 && cdAleteo <= 0) { aleteo(); cdAleteo = 0.4; } }
       ctrlY[i] = y;
     }
     acelera = ac; frena = fr;
@@ -351,9 +542,10 @@ export function crearPajaro(ctx) {
 
   // ---------------------------------------------------------------- bucle
   function bucle() { try { paso(); } catch (e) { if (!bucle.avisado) { bucle.avisado = true; console.warn('modo pájaro:', e); } } }
-  function paso() {
-    const now = performance.now() / 1000, dt = clamp(now - (ultimo || now), 0.001, 0.05); ultimo = now;
+  function paso(dtFijo) { // dtFijo: sólo para pruebas automáticas (avanza la simulación sin esperar cuadros)
+    const now = performance.now() / 1000, dt = dtFijo || clamp(now - (ultimo || now), 0.001, 0.05); ultimo = now;
     const cam = T3.camera;
+    sim.ex = via.seg.length ? exposicion(rig.position) : 0; sacudida += dt * 11;
     if (modo === 'vr') { leerXR(dt); rig.rotation.set(0, yaw, 0); }
     else if (modo === 'cardboard' && tieneOri && ori) {
       const a = (ori.alpha || 0) * Math.PI / 180, bt = (ori.beta || 0) * Math.PI / 180, gm = (ori.gamma || 0) * Math.PI / 180, o = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
@@ -365,14 +557,19 @@ export function crearPajaro(ctx) {
       if (teclas.KeyA || teclas.ArrowLeft) yaw += 1.3 * dt; if (teclas.KeyD || teclas.ArrowRight) yaw -= 1.3 * dt;
       if (teclas.ArrowUp) pit = clamp(pit + 0.9 * dt, -1.25, 1.25); if (teclas.ArrowDown) pit = clamp(pit - 0.9 * dt, -1.25, 1.25);
       acelera = !!(teclas.KeyW || teclas.ShiftLeft || teclas.ShiftRight) || (modo === 'cardboard' && acelera); frena = !!teclas.KeyS;
-      rig.rotation.set(pit, yaw, 0);
+      rig.rotation.set(pit + Math.sin(sacudida * 1.3) * 0.012 * sim.ex, yaw + Math.sin(sacudida * 0.9) * 0.01 * sim.ex, Math.sin(sacudida) * 0.03 * sim.ex); // el aire revuelto sacude la vista
     }
     camaraDir(dir);
     // velocidad: planeo suave; la picada acelera, subir frena; aletear da impulsos
     let obj = 15; if (acelera) obj = 30; if (frena) obj = 7;
     obj *= 1 + clamp(-dir.y * 0.6, -0.35, 0.5); impulso *= Math.exp(-1.6 * dt); obj += impulso;
+    obj *= (1 - 0.4 * sim.ex) * (1 - 0.04 * sim.llevando); // con tráfico pesado el aire te frena; los peces pesan
     vel += (obj - vel) * Math.min(1, dt * 1.5); vel = Math.max(6, vel);
     rig.position.addScaledVector(dir, vel * dt);
+    // turbulencia sobre la avenida: te hunde (más con peces y sin energía); aletear (lift) te sube
+    const hundir = sim.ex * (7 + 1.3 * sim.llevando) * (sim.energia < 5 ? 1.6 : 1);
+    caida += (-hundir - caida) * Math.min(1, dt * 2.5); lift *= Math.exp(-1.5 * dt);
+    rig.position.y += (caida + lift + sim.ex * (Math.sin(sacudida) * 0.9 + Math.sin(sacudida * 2.7) * 0.6)) * dt;
     if (rig.position.y < 1.8) rig.position.y = 1.8; if (rig.position.y > 600) rig.position.y = 600;
     // alas
     tAleteo = Math.max(0, tAleteo - dt);
@@ -467,7 +664,7 @@ export function crearPajaro(ctx) {
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* ok */ }
     try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* ok */ }
     try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { /* ok */ }
-    try { if (audio) { audio.close(); audio = null; vientoG = null; } } catch (e) { /* ok */ }
+    try { if (audio) { audio.close(); audio = null; vientoG = null; trafG = null; motG = null; } } catch (e) { /* ok */ }
     document.body.classList.remove('pj', 'pjvr', 'pjcb'); hud.classList.remove('on'); btnSalir.classList.remove('on'); msgEl.style.display = 'none';
     xrAcelera = 0; xrFrena = 0; ctrlY = [null, null]; acelera = false; frena = false;
   }
@@ -477,5 +674,5 @@ export function crearPajaro(ctx) {
   addEventListener('touchstart', onTouchStart, { passive: true }); addEventListener('touchend', onTouchEnd, { passive: true });
   document.addEventListener('click', (e) => { if (e.target && e.target.tagName === 'CANVAS') onClickCanvas(); });
   addEventListener('resize', () => { if (activo && efecto) { efecto.setSize(innerWidth, innerHeight); T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); } });
-  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, peces, nido, rig, vel, ver: (y, p) => { yaw = y; pit = p; } }; } };
+  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, via, peces, nido, rig, vel, paso, tecla: (c, v) => { teclas[c] = v; }, aleteo, ver: (y, p) => { yaw = y; pit = p; } }; } };
 }

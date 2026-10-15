@@ -164,7 +164,11 @@ function dibujarSiluetas(T3, partes, alto, ancho) {
   const cam = new THREE.OrthographicCamera(-lado / 2, lado / 2, lado / 2, -lado / 2, 1, 200); cam.position.set(0, lado / 2, 80); cam.lookAt(0, lado / 2, 0);
   const r = T3.renderer, c0 = new THREE.Color(); r.getClearColor(c0); const a0 = r.getClearAlpha(), rt0 = r.getRenderTarget();
   r.setRenderTarget(rt); r.setClearColor(0x000000, 0); r.clear(); r.render(s, cam); r.setRenderTarget(rt0); r.setClearColor(c0, a0);
-  return { tex: rt.texture, lado };
+  // segunda foto, desde arriba: sirve para que visto desde lo alto (vuelo, zoom lejano) el árbol tenga copa y no sea una cruz de láminas
+  const rtT = new THREE.WebGLRenderTarget(512, 512, { samples: 4 }), camT = new THREE.OrthographicCamera(-lado / 2, lado / 2, lado / 2, -lado / 2, 1, 400);
+  camT.position.set(0, alto + 120, 0); camT.up.set(0, 0, -1); camT.lookAt(0, 0, 0);
+  r.setRenderTarget(rtT); r.setClearColor(0x000000, 0); r.clear(); r.render(s, camT); r.setRenderTarget(rt0); r.setClearColor(c0, a0);
+  return { tex: rt.texture, texTop: rtT.texture, lado };
 }
 // Arbol 3D de muy pocos triangulos (tronco + copa hecha con varias masas), de 1 m de alto y 1 m de ancho, con color por vertice.
 // Es 3D de verdad (volumen, no planos): se usa a media y larga distancia, donde el modelo real no cabe en la tarjeta grafica.
@@ -340,14 +344,17 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   const CAP1S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 40 : 200) : (LV ? 240 : 1100)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
   const TIPO_BAJO = especies.map(e => (e.base === 'arbolpeq' || e.base === 'island_tree_02') ? 1 : 0);
   const matBajo = materialArbolBajo(T3), REF = [0.17, 0.255, 0.0875]; // REF = verde medio del degradado de vértices
-  const bajos = especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaCopaDeModelo(e.niveles, e.alto, e.ancho, LV ? 0 : 1) || geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
+  const USAR_BAJOS = false; // las copas de bajos polígonos se veían como bolas verdes al alejar la cámara: lejos ahora se dibuja el mismo árbol real (fotos desde el lado y desde arriba)
+  const bajos = !USAR_BAJOS ? [] : especies.map((e, s) => { const m = new THREE.InstancedMesh(geometriaCopaDeModelo(e.niveles, e.alto, e.ancho, LV ? 0 : 1) || geometriaArbolBajo(TIPO_BAJO[s]), matBajo, CAP2); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAP2 * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
   const TINTE_BAJO = especies.map(e => e.hojaRGB.map((v, k) => Math.max(1.1, Math.min(3.4, 2.1 * v / REF[k])))); // lleva el verde de la copa al color real de las hojas de esa especie (el modelo real además brilla un poco por su textura emisiva)
   const lod = especies.map((e, si) => ({ L0: e.niveles.L0.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP0S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = true; m.receiveShadow = true; T3.scene.add(m); return m; }),
     L1: e.niveles.L1.map(p => { const m = new THREE.InstancedMesh(p.geo, p.mat, CAP1S[si]); m.count = 0; m.frustumCulled = false; m.castShadow = !LV; m.receiveShadow = true; T3.scene.add(m); return m; }) }));
   lod.forEach(l => [...l.L0, ...l.L1].forEach(m => { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(m.instanceMatrix.count * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); }));
   // lejos: tres planos cruzados con la silueta real de la especie
-  const cruz = (lado) => { const ps = [0, Math.PI / 3, -Math.PI / 3].map(a => { const g = new THREE.PlaneGeometry(lado, lado); g.translate(0, lado / 2, 0); g.rotateY(a); return g; }); return mergeGeometries(ps); };
+  const cruz = (lado) => { const ps = [0, Math.PI / 4, Math.PI / 2, -Math.PI / 4].map(a => { const g = new THREE.PlaneGeometry(lado, lado); g.translate(0, lado / 2, 0); g.rotateY(a); return g; }); return mergeGeometries(ps); };
   const lejos = especies.map((e, ei) => { const mat = new THREE.MeshBasicMaterial({ map: e.sil.tex, alphaTest: 0.42, side: THREE.DoubleSide }); const cap = SP.reduce((a, q) => a + (q === ei ? 1 : 0), 0) + 16; const m = new THREE.InstancedMesh(cruz(e.sil.lado), mat, cap); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
+  // copa vista desde arriba: lámina horizontal con la foto cenital del árbol (de canto casi no se ve; desde el aire cubre los huecos entre las láminas verticales)
+  const techos = especies.map((e, ei) => { const g = new THREE.PlaneGeometry(e.sil.lado, e.sil.lado); g.rotateX(-Math.PI / 2); g.translate(0, e.alto * 0.62, 0); const mat = new THREE.MeshBasicMaterial({ map: e.sil.texTop, alphaTest: 0.42, side: THREE.DoubleSide }); const cap = lejos[ei].instanceMatrix.count; const m = new THREE.InstancedMesh(g, mat, cap); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); T3.scene.add(m); return m; });
   const escala = (i) => { const e = especies[SP[i]]; return Math.min(Hh[i] / e.alto, e.ancho / e.ancho0 || Hh[i] / e.alto); };
   especies.forEach(e => { e.ancho0 = e.ancho; });
   const esc = (i) => { const e = especies[SP[i]]; return Math.min(Hh[i] / e.alto, ESPECIES_ARBOL[SP[i]].ancho / e.ancho); };
@@ -368,7 +375,7 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
       const s = SP[i], sc = esc(i), tv = 0.82 + hash(i * 19) * 0.34;
       if (d2 < R0 * R0 && n0[s] < CAP0S[s]) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv * 0.74, tv * 0.88 * (0.96 + hash(i) * 0.08), tv * 0.76); const k = n0[s]++; lod[s].L0.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
       else if (d2 < R1 * R1 && n1[s] < CAP1S[s]) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(sc); d.updateMatrix(); col.setRGB(tv * 0.74, tv * 0.88 * (0.96 + hash(i) * 0.08), tv * 0.76); const k = n1[s]++; lod[s].L1.forEach(m => { m.setMatrixAt(k, d.matrix); m.setColorAt(k, col); }); asignado[i] = 1; }
-      else if (tot2 < CAP2) { // arbol 3D de bajos poligonos con el mismo alto y ancho de copa que tendria el modelo real
+      else if (USAR_BAJOS && tot2 < CAP2) { // arbol 3D de bajos poligonos con el mismo alto y ancho de copa que tendria el modelo real
         const e = especies[s], w = e.ancho * sc, h = e.alto * sc, ti = TINTE_BAJO[s], hv = 0.96 + hash(i) * 0.08;
         d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.set(w, h, w); d.updateMatrix(); col.setRGB(tv * ti[0] * 0.86, tv * hv * ti[1] * 1.0, tv * 0.94 * ti[2] * 0.86);
         const k = n2[s]++; bajos[s].setMatrixAt(k, d.matrix); bajos[s].setColorAt(k, col); tot2++; asignado[i] = 1;
@@ -382,7 +389,7 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
       const s = SP[i], k = nf[s]++, ca = lejos[s].instanceColor.array;
       lejos[s].instanceMatrix.array.set(FM.subarray(i * 16, i * 16 + 16), k * 16); ca[k * 3] = FC[i * 3]; ca[k * 3 + 1] = FC[i * 3 + 1]; ca[k * 3 + 2] = FC[i * 3 + 2];
     }
-    lejos.forEach((m, s) => { m.count = nf[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; });
+    lejos.forEach((m, s) => { m.count = nf[s]; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; const t = techos[s]; t.instanceMatrix.array.set(m.instanceMatrix.array.subarray(0, nf[s] * 16)); t.instanceColor.array.set(m.instanceColor.array.subarray(0, nf[s] * 3)); t.count = nf[s]; t.instanceMatrix.needsUpdate = true; t.instanceColor.needsUpdate = true; });
     api.stats = { cerca: n0.join('+'), medio: n1.join('+'), bajos: n2.join('+'), siluetas: nf.join('+') };
   };
   api.update({ position: new THREE.Vector3(1e8, 0, 1e8) }, true);

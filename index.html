@@ -104,7 +104,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v32</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v33</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -519,7 +519,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v32' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v32' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v32' : 'MODO: 🛰️ SATÉLITE · v32'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v33' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v33' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v33' : 'MODO: 🛰️ SATÉLITE · v33'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -603,7 +603,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v32 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v33 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -991,7 +991,7 @@ async function initTodo() {
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
+    try { T3.R = await import('./data3d/real3d.js?v=33'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
@@ -1006,6 +1006,7 @@ async function initTodo() {
       fetch('data3d/parques.json').then(r => r.json()),
       fetch('data3d/net.json').then(r => r.json())
     ]);
+    T3.net = N; // red de vías: el modo pájaro la usa para ubicar la avenida del humedal
     const realOK = !!(T3.R && T3.env);
     // 1) lo liviano primero, para que el mundo aparezca ya: árboles de planos cruzados, agua, parques (suelo de pasto), vías y aves
     // con los modelos reales NO se dibujan árboles de planos cruzados (se ven como imagen plana): sólo son el respaldo si fallan
@@ -1552,6 +1553,7 @@ function updateTraffic(dt) {
     }
     n++;
   }
+  if (F && T3.extraCars) T3.extraCars(F); // carros extra de la avenida del humedal (modo pájaro)
   if (F) { F.end((T3.vpos || T3.camera.position).x, (T3.vpos || T3.camera.position).z); n = 0; } // las cajas del tráfico antiguo quedan ocultas
   TRAF.bodies.count = n; TRAF.cabins.count = n; TRAF.wheels.count = n * 4;
   TRAF.bodies.instanceMatrix.needsUpdate = true;
@@ -2186,6 +2188,7 @@ function simTick(dt, pos) {
   if (T3.trees) T3.trees.update({ position: pos });
   if (T3.plants) T3.plants.update({ position: pos });
   if (TRAF) updateTraffic(dt); else updateCars(dt);
+  if (!TRAF && T3.fleet && T3.extraCars) { T3.fleet.begin(); T3.extraCars(T3.fleet); T3.fleet.end(pos.x, pos.z); } // versión ligera/media: sin simulación de tráfico, sólo los carros de la avenida
   T3.waterU.value = performance.now() / 1000;
   if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
   T3.sun.position.copy(pos).add(T3.sunOff);
@@ -2199,9 +2202,9 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js');
+      const m = await import('./data3d/pajaro.js?v=33');
       PAJARO = m.crearPajaro({
-        T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say,
+        T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),
         cargar: async (nivel) => {
           if (nivel !== 'completo') LIVIANO = true; // si el mundo aún no está cargado, se carga la versión ligera o media

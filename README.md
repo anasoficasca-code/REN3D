@@ -73,3 +73,9 @@ Boton **🐦 Modo Pajaro · VR** (abajo a la derecha). Juego: eres una garza que
 
 Para gafas y celular se carga la version ligera (sin edificios, sombras ni trafico) para ir fluido; en pantalla se carga completa.
 - Para usar otra foto de ave, reemplaza los PNG de `data3d/aves/`.
+
+## v33 · Arboles iguales de cerca y de lejos, avenida con trafico en el Modo Pajaro
+- Arboles: se quitaron las "bolas verdes" de bajos poligonos. Lejos ahora se dibuja el mismo arbol real (foto de lado + foto desde arriba, 4 laminas cruzadas y una copa horizontal), asi el arbol se ve igual al alejar la camara (eal3d.js, constante USAR_BAJOS).
+- Modo Pajaro (pajaro.js): el nido queda al otro lado de la avenida respecto al agua del humedal El Burro (se calcula solo con 
+et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido, con los modelos reales) que suben y bajan en ciclos de "hora pico" cada minuto.
+- Dinamicas: con mucho trafico hay ruido (rumor de motores y pitos), turbulencia que frena y hunde (mas si llevas peces), energia que se gasta (aletear con Espacio sube pero cansa), 3 vidas (tocar la calle o un carro te quita una vida y los peces que llevas) y vineta roja de peligro.
