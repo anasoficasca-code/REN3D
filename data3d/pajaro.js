@@ -810,7 +810,7 @@ export function crearPajaro(ctx) {
       const txt = (s, x, y, f, c) => { g.font = f; g.fillStyle = c; g.fillText(s, x, y); };
       txt(AVE.nombre.toUpperCase(), 28, 40, '700 22px "Segoe UI",system-ui,sans-serif', AVE.color); txt(String(sim.puntos), 28, 96, '800 52px "Segoe UI",system-ui,sans-serif', '#fff'); txt('PTS', 30 + g.measureText(String(sim.puntos)).width + 8, 96, '600 20px "Segoe UI",system-ui,sans-serif', '#7b8ea3');
       for (let k = 0; k < 3; k++) { g.fillStyle = k < sim.vidas ? '#f87171' : 'rgba(148,163,184,.3)'; g.fillRect(W - 150 + k * 40, 60, 30, 14); }
-      txt('MANTÉN B / Y: SALIR', W - 262, 36, '700 17px "Segoe UI",system-ui,sans-serif', '#93a8bd');
+      txt('MANTÉN A/B/X/Y: SALIR', W - 232, 36, '700 17px "Segoe UI",system-ui,sans-serif', '#93a8bd');
       txt(ETQ[AVE.objetivo].toUpperCase() + '  ' + sim.entregados + ' / ' + AVE.meta, 28, 138, '700 28px "Segoe UI",system-ui,sans-serif', '#e8f1f8');
       txt('TIEMPO ' + tiempo + '   ALT ' + Math.round(p.y) + ' m', 28, 174, '600 24px "Segoe UI",system-ui,sans-serif', '#a3b5c7');
       if (AVE.cap > 1) for (let k = 0; k < AVE.cap; k++) { g.fillStyle = k < sim.llevando ? AVE.color : 'rgba(148,163,184,.3)'; g.fillRect(W - 150 + k * 40, 120, 30, 14); }
@@ -999,9 +999,9 @@ export function crearPajaro(ctx) {
       if (y < -0.6) ac = true; if (y > 0.6) fr = true;
       if (gp.buttons[0] && gp.buttons[0].pressed) ac = true;
       if (gp.buttons[1] && gp.buttons[1].pressed) fr = true;
-      if (gp.buttons[5] && gp.buttons[5].pressed) sal = true; // botón B (mano derecha) o Y (izquierda): mantenido un segundo, sale del juego
+      for (const k of [3, 4, 5]) if (gp.buttons[k] && gp.buttons[k].pressed) sal = true; // joystick (click), A/X o B/Y: cualquiera, mantenido un segundo, sale del juego
     }
-    if (sal) { tSalir += dt; if (tSalir > 0.35 && tSalir - dt <= 0.35) mensaje('Sigue pulsando B o Y para volver a elegir ave...', 1200); if (tSalir > 0.8) { tSalir = 0; try { if (sesionXR) sesionXR.end(); } catch (e) { salir(); } return; } } else tSalir = 0;
+    if (sal) { tSalir += dt; if (tSalir > 0.35 && tSalir - dt <= 0.35) mensaje('Sigue pulsando para volver a elegir ave...', 1200); if (tSalir > 0.8) { tSalir = 0; try { if (sesionXR) sesionXR.end(); } catch (e) { /* se sale igual */ } setTimeout(() => { if (activo) salir(); }, 500); return; } } else tSalir = 0;
     // aletear: bajar rápido las manos da impulso
     for (let i = 0; i < 2; i++) {
       const c = T3.renderer.xr.getController(i); if (!c) continue;
@@ -1199,7 +1199,7 @@ export function crearPajaro(ctx) {
     document.body.classList.toggle('pjcb', m === 'cardboard'); hud.classList.toggle('on', m !== 'cardboard'); btnSalir.classList.toggle('on', true);
     ultimo = 0; iniciarAudio();
     r.setAnimationLoop(bucle);
-    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); setTimeout(() => { if (activo) mensaje(m === 'vr' ? 'Para salir y elegir otra ave: mantén B o Y (o el botón Meta)' : m === 'observar' ? (tactil ? 'Botón Cámara: cambia la vista' : 'Tecla V: cambia la cámara') : tactil ? 'Palanca: dirigir. Botones: acelerar, frenar y aletear' : 'W acelerar · S frenar · A y D girar · Espacio aletear', 4500); }, 4800);
+    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); setTimeout(() => { if (activo) mensaje(m === 'vr' ? 'Para salir: mantén A, B, X, Y o el joystick (o el botón Meta)' : m === 'observar' ? (tactil ? 'Botón Cámara: cambia la vista' : 'Tecla V: cambia la cámara') : tactil ? 'Palanca: dirigir. Botones: acelerar, frenar y aletear' : 'W acelerar · S frenar · A y D girar · Espacio aletear', 4500); }, 4800);
   }
   function abortar() { activo = false; restaurar(); }
   function restaurar() {

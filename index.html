@@ -2232,7 +2232,7 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 async function asegurarPajaro() {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=49');
+      const m = await import('./data3d/pajaro.js?v=50');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo), faltanEdificios: () => !!T3 && !T3.edifOK,
