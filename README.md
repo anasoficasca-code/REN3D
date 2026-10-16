@@ -103,3 +103,8 @@ et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido
 ## v39 - Limpieza y responsive
 - Menu de aves simplificado (nombre, rol, una linea y dificultad; Jugar yo / Ver al ave sola; Comenzar) y adaptado a celular vertical/horizontal, tableta y computador. Enter comienza, Esc cierra.
 - HUD reducido a lo esencial (vidas, objetivo, carga, energia, trafico, guia).
+
+## v40 - Gafas VR
+- Quest: version ligera (sin edificios ni sombras), 72 Hz, antialias, foveacion moderada, shaders precompilados, plano lejano reducido, HTML del HUD apagado en VR, calidad adaptativa.
+- Confort: fundido al entrar, vineta suave al girar/turbulencia, sin vibracion de camara, vibracion en los controles.
+- Audio: volumen general mas bajo; audio 3D (la avenida suena desde su lado, polluelos desde el nido), grillos y ranas muy bajitos.

@@ -266,7 +266,7 @@ export function crearPajaro(ctx) {
   });
   async function elegir(m) {
     // celular: versión ligera. Quest sola: versión media (con edificios, sin sombras ni tráfico). Gafas conectadas al PC (Link/SteamVR): versión completa
-    const nivel = m === 'cardboard' || MOVIL ? 'ligero' : (m === 'vr' && ESQUEST) ? 'medio' : 'completo';
+    const nivel = m === 'cardboard' || MOVIL ? 'ligero' : (m === 'vr' && ESQUEST) ? 'ligero' : 'completo';
     let cargo = false;
     if (!ctx.listo()) {
       cargo = true; estado('Cargando el mundo' + (nivel === 'completo' ? '' : nivel === 'medio' ? ' (versión media para las gafas)' : ' (versión ligera)') + '. Puede tardar un poco...');
@@ -593,23 +593,42 @@ export function crearPajaro(ctx) {
     if (aroMesh) { T3.scene.remove(aroMesh); aroMesh = null; }
   }
 
+  // ---------------------------------------------------------------- confort en gafas: entrada con fundido, viñeta suave al girar o con turbulencia, vibración en los controles
+  let vinM = null, fadeM = null, tFade = 0, tSnap = 0;
+  function crearConfort() {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 256; const g = cv.getContext('2d'), gr = g.createRadialGradient(128, 128, 60, 128, 128, 128);
+    gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(0.5, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,.96)'); g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    const tex = new THREE.CanvasTexture(cv), mat = (o) => Object.assign({ transparent: true, depthTest: false, depthWrite: false, fog: false, toneMapped: false }, o);
+    vinM = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.7), new THREE.MeshBasicMaterial(mat({ map: tex, opacity: 0 }))); vinM.position.set(0, 0, -0.25); vinM.renderOrder = 997; vinM.frustumCulled = false; vinM.visible = false;
+    fadeM = new THREE.Mesh(new THREE.PlaneGeometry(3, 3), new THREE.MeshBasicMaterial(mat({ color: 0x000000, opacity: 1 }))); fadeM.position.set(0, 0, -0.3); fadeM.renderOrder = 998; fadeM.frustumCulled = false;
+  }
+  function confortPaso(dt) {
+    if (fadeM && tFade > 0) { tFade -= dt; fadeM.material.opacity = clamp(tFade / 1.3, 0, 1); if (tFade <= 0) fadeM.visible = false; }
+    if (vinM) { tSnap = Math.max(0, tSnap - dt); const o = clamp(sim.ex * 0.9 + (tSnap > 0 ? 0.55 : 0) + (sim.inmune > 3 ? 0.35 : 0), 0, 0.8); vinM.material.opacity += (o - vinM.material.opacity) * Math.min(1, dt * 7); vinM.visible = vinM.material.opacity > 0.01; }
+  }
+  function vibrar(i, ms) { // vibración en los controles de las gafas
+    if (modo !== 'vr' || !T3) return;
+    try { const s = T3.renderer.xr.getSession && T3.renderer.xr.getSession(); if (!s) return; for (const src of s.inputSources) { const gp = src.gamepad, h = gp && ((gp.hapticActuators && gp.hapticActuators[0]) || gp.vibrationActuator); if (!h) continue; if (h.pulse) h.pulse(i, ms); else if (h.playEffect) h.playEffect('dual-rumble', { duration: ms, strongMagnitude: i, weakMagnitude: i }); } } catch (e) { /* sin vibración */ }
+  }
   // ---------------------------------------------------------------- sonido: todo suave y sintetizado (viento, agua, aves lejanas, aleteo, avisos); se puede silenciar
   let bus = null, aguaG = null, bufRuido = null, tAve = 2, sonidoOn = true;
   try { sonidoOn = localStorage.getItem('ren3d_sonido') !== '0'; } catch (e) { /* ok */ }
-  const VOL = 0.5;
+  let trafP = null, grillosG = null, tRana = 6, tNido = 1, tPos = 0; const VOL = 0.28; // volumen general bajo; en gafas aún más (se oye pegado a los oídos)
   function iniciarAudio() {
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
       audio = new AC(); try { if (audio.state === 'suspended') audio.resume(); } catch (e) { /* ok */ } const n = audio.sampleRate * 2; bufRuido = audio.createBuffer(1, n, audio.sampleRate); const d = bufRuido.getChannelData(0);
       let l = 0; for (let i = 0; i < n; i++) { l = l * 0.97 + (Math.random() * 2 - 1) * 0.03; d[i] = l * 6; }
-      const comp = audio.createDynamicsCompressor(); comp.threshold.value = -24; comp.ratio.value = 6; bus = audio.createGain(); bus.gain.value = sonidoOn ? VOL : 0; bus.connect(comp); comp.connect(audio.destination);
+      const comp = audio.createDynamicsCompressor(); comp.threshold.value = -30; comp.ratio.value = 8; bus = audio.createGain(); bus.gain.value = sonidoOn ? VOL * (modo === 'vr' ? 0.85 : 1) : 0; bus.connect(comp); comp.connect(audio.destination);
       const capa = (rate, tipo, fq, q) => { const s = audio.createBufferSource(); s.buffer = bufRuido; s.loop = true; s.playbackRate.value = rate; const fl = audio.createBiquadFilter(); fl.type = tipo; fl.frequency.value = fq; if (q) fl.Q.value = q; const g = audio.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(bus); s.start(); return g; };
       vientoG = capa(1, 'lowpass', 380); // viento
       aguaG = capa(0.7, 'bandpass', 650, 0.7); // olitas del humedal (sube cuando vuelas bajo sobre el agua)
       const lfo = audio.createOscillator(), lg = audio.createGain(); lfo.frequency.value = 0.23; lg.gain.value = 0.35; lfo.connect(lg); lg.connect(aguaG.gain); lfo.start(); // el agua sube y baja suavemente
-      trafG = capa(0.8, 'bandpass', 260, 0.6); // rumor de la avenida
+      trafG = capa(0.8, 'bandpass', 260, 0.6); // rumor de la avenida: suena desde donde está la calle (audio 3D)
+      trafP = audio.createPanner(); trafP.panningModel = 'HRTF'; trafP.distanceModel = 'inverse'; trafP.refDistance = 60; trafP.rolloffFactor = 0.25; trafP.maxDistance = 2000; trafG.disconnect(); trafG.connect(trafP); trafP.connect(bus);
+      grillosG = capa(1, 'bandpass', 4300, 9); { const lf = audio.createOscillator(), lq = audio.createGain(); lf.type = 'square'; lf.frequency.value = 7.5; lq.gain.value = 0.0025; lf.connect(lq); lq.connect(grillosG.gain); lf.start(); } // grillos y bichos del humedal, muy bajitos
       const mot = audio.createOscillator(); mot.type = 'triangle'; mot.frequency.value = 52; const fm = audio.createBiquadFilter(); fm.type = 'lowpass'; fm.frequency.value = 140; motG = audio.createGain(); motG.gain.value = 0;
-      mot.connect(fm); fm.connect(motG); motG.connect(bus); mot.start();
+      mot.connect(fm); fm.connect(motG); motG.connect(trafP); mot.start();
     } catch (e) { audio = null; }
   }
   function nota(f0, dur, vol, tipo, retraso, f1, pan) { // tono corto con entrada y salida suaves
@@ -625,24 +644,38 @@ export function crearPajaro(ctx) {
     try { const t = audio.currentTime, s = audio.createBufferSource(), fl = audio.createBiquadFilter(), g = audio.createGain(); s.buffer = bufRuido; s.playbackRate.value = 1.4; fl.type = 'bandpass'; fl.Q.value = 0.8; fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(f1, t + dur); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(fl); fl.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + dur + 0.05); } catch (e) { /* sin audio */ }
   }
   const pip = (f0, f1, dur, vol) => nota(f0, dur, Math.min(0.05, (vol || 0.1) * 0.3), 'sine', 0, f1); // los avisos viejos suenan ahora muy suaves
-  const sAleteo = () => soplo(0.3, 0.05, 900, 280);
-  const sCaptura = () => { nota(380, 0.14, 0.05, 'sine', 0, 190); nota(760, 0.1, 0.02, 'sine', 0.03, 520); };
-  const sEntrega = () => { [523, 659, 784].forEach((f, i) => nota(f, 0.55, 0.035, 'sine', i * 0.12)); for (let i = 0; i < 4; i++) nota(3200 + Math.random() * 600, 0.05, 0.012, 'sine', 0.45 + i * 0.09, 3700); }; // acorde suave y piar de polluelos
-  const sAro = () => { nota(784, 0.22, 0.03, 'sine'); nota(988, 0.26, 0.03, 'sine', 0.09); };
-  const sChoque = () => { nota(110, 0.4, 0.1, 'sine', 0, 45); soplo(0.25, 0.04, 400, 120); };
+  const sAleteo = () => { soplo(0.3, 0.05, 900, 280); vibrar(0.12, 40); };
+  const sCaptura = () => { vibrar(0.35, 80); nota(380, 0.14, 0.05, 'sine', 0, 190); nota(760, 0.1, 0.02, 'sine', 0.03, 520); };
+  const sEntrega = () => { vibrar(0.5, 160); [523, 659, 784].forEach((f, i) => nota(f, 0.55, 0.035, 'sine', i * 0.12)); for (let i = 0; i < 4; i++) nota(3200 + Math.random() * 600, 0.05, 0.012, 'sine', 0.45 + i * 0.09, 3700); }; // acorde suave y piar de polluelos
+  const sAro = () => { vibrar(0.25, 60); nota(784, 0.22, 0.03, 'sine'); nota(988, 0.26, 0.03, 'sine', 0.09); };
+  const sChoque = () => { vibrar(1, 320); nota(110, 0.4, 0.1, 'sine', 0, 45); soplo(0.25, 0.04, 400, 120); };
   const sFin = () => [523, 659, 784, 1046].forEach((f, i) => nota(f, 0.7, 0.035, 'sine', i * 0.16));
   function chirp() { // ave lejana: dos o tres notitas
     const n = 2 + Math.floor(Math.random() * 3), base = 2200 + Math.random() * 1400, pan = Math.random() * 1.6 - 0.8, up = Math.random() < 0.5;
     for (let i = 0; i < n; i++) nota(base + i * 120, 0.07 + Math.random() * 0.04, 0.012 + Math.random() * 0.01, 'sine', i * 0.11, base + (up ? 500 : -400), pan);
   }
+  const ptV = new THREE.Vector3(), upV = new THREE.Vector3(), fwV = new THREE.Vector3();
+  function oidos(dt, p) { // el oído sigue a la cabeza (gafas): la calle suena a un lado, los polluelos desde el nido
+    const L = audio.listener, m = T3.camera.matrixWorld.elements; ptV.set(m[12], m[13], m[14]); fwV.set(-m[8], -m[9], -m[10]); upV.set(m[4], m[5], m[6]);
+    if (L.positionX) { L.positionX.value = ptV.x; L.positionY.value = ptV.y; L.positionZ.value = ptV.z; L.forwardX.value = fwV.x; L.forwardY.value = fwV.y; L.forwardZ.value = fwV.z; L.upX.value = upV.x; L.upY.value = upV.y; L.upZ.value = upV.z; }
+    else if (L.setPosition) { L.setPosition(ptV.x, ptV.y, ptV.z); L.setOrientation(fwV.x, fwV.y, fwV.z, upV.x, upV.y, upV.z); }
+    tPos -= dt; if (tPos <= 0 && trafP && via.seg.length) { tPos = 0.1; let m2 = 1e9, qx = 0, qz = 0; for (const s of via.seg) { const dx = s[2] - s[0], dz = s[3] - s[1], l2 = dx * dx + dz * dz || 1e-9, t = clamp(((p.x - s[0]) * dx + (p.z - s[1]) * dz) / l2, 0, 1), x = s[0] + t * dx, z = s[1] + t * dz, d = Math.hypot(p.x - x, p.z - z); if (d < m2) { m2 = d; qx = x; qz = z; } } if (trafP.positionX) { trafP.positionX.value = qx; trafP.positionY.value = 1; trafP.positionZ.value = qz; } else trafP.setPosition(qx, 1, qz); }
+  }
+  function piarNido(dt, p) { // los polluelos piden comida cuando te acercas al nido (suena desde el nido)
+    tNido -= dt; if (!nido || tNido > 0) return; const d = Math.hypot(nido.x - p.x, nido.y - p.y, nido.z - p.z); tNido = 1.1 + Math.random() * 1.6; if (d > 55) return;
+    const pn = audio.createPanner(); pn.panningModel = 'HRTF'; pn.refDistance = 6; pn.rolloffFactor = 1.2; if (pn.positionX) { pn.positionX.value = nido.x; pn.positionY.value = nido.y; pn.positionZ.value = nido.z; } else pn.setPosition(nido.x, nido.y, nido.z); pn.connect(bus);
+    const t = audio.currentTime; for (let i = 0; i < 3; i++) { const o = audio.createOscillator(), g = audio.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(3000 + Math.random() * 500, t + i * 0.1); o.frequency.exponentialRampToValueAtTime(3900, t + i * 0.1 + 0.07); g.gain.setValueAtTime(0.0001, t + i * 0.1); g.gain.linearRampToValueAtTime(0.03, t + i * 0.1 + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.1 + 0.09); o.connect(g); g.connect(pn); o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.12); }
+  }
   function audioPaso(dt, p, sobreAgua) {
-    if (!audio) return;
+    if (!audio) return; oidos(dt, p); piarNido(dt, p);
+    if (grillosG) grillosG.gain.value += ((p.y < 40 ? 0.003 : 0.001) - grillosG.gain.value) * Math.min(1, dt);
+    tRana -= dt; if (sobreAgua && p.y < 30 && tRana <= 0) { tRana = 7 + Math.random() * 8; nota(190, 0.1, 0.012, 'triangle', 0, 140); nota(200, 0.12, 0.012, 'triangle', 0.16, 150); }
     const baja = clamp(1 - p.y / 30, 0, 1);
     if (aguaG) aguaG.gain.value += ((sobreAgua ? 0.03 * baja + 0.006 : 0.003) - aguaG.gain.value) * Math.min(1, dt * 2);
     tAve -= dt; if (tAve <= 0) { tAve = 2.5 + Math.random() * 5.5; chirp(); }
   }
   function bocina() { // pitido de carro lejano: dos tonos suaves
-    if (!audio) return; const v = 0.012 + 0.012 * via.intens, f = 400 + Math.random() * 60;
+    if (!audio) return; const v = 0.007 + 0.007 * via.intens, f = 400 + Math.random() * 60;
     nota(f, 0.3, v, 'triangle'); nota(f * 1.25, 0.3, v, 'triangle');
   }
   const btnSnd = document.createElement('button'); btnSnd.id = 'pjSnd'; document.body.appendChild(btnSnd);
@@ -672,7 +705,7 @@ export function crearPajaro(ctx) {
     const aviso = sim.ex > 0.12 ? (sim.energia < 12 ? 'Sin energía: te hundes' : 'Turbulencia del tráfico: sube y aletea') : '';
     const pips = (n, tot, cls) => `<span class="pips ${cls || ''}">${Array.from({ length: tot }, (_, k) => `<i class="${k < n ? 'o' : ''}"></i>`).join('')}</span>`;
     const tiempo = fmt(sim.tiempo);
-    if (modo !== 'cardboard') {
+    if (modo !== 'cardboard' && modo !== 'vr') { // en gafas el marcador va dentro de la escena: no se toca el HTML (ahorra trabajo)
       hud.style.setProperty('--c', AVE.color);
       hud.innerHTML = `<div class="cab"><span class="ave">${AVE.nombre}</span><span class="n">${sim.puntos}<small>PTS</small></span></div>`
         + `<div class="fila">Vidas ${pips(sim.vidas, 3, 'vida')}</div>`
@@ -718,10 +751,10 @@ export function crearPajaro(ctx) {
       }
       const prox = clamp(1 - via.d / 260, 0, 1) * clamp(1 - p.y / 300, 0.15, 1), lou = via.intens * prox;
       if (audio && trafG) {
-        trafG.gain.value = 0.008 * via.intens + 0.3 * lou * lou; motG.gain.value = 0.045 * lou * lou;
+        trafG.gain.value = 0.006 * via.intens + 0.2 * lou * lou; motG.gain.value = 0.03 * lou * lou;
         tBocina -= dt; if (tBocina <= 0) { tBocina = (2 + Math.random() * 4) / (0.3 + via.intens * 1.6); if (lou > 0.2 && Math.random() < 0.8) bocina(); }
       }
-      ruidoEl.style.opacity = String(clamp(sim.ex * 1.5 + (sim.inmune > 3 ? 0.5 : 0), 0, 0.9));
+      if (modo !== 'vr') ruidoEl.style.opacity = String(clamp(sim.ex * 1.5 + (sim.inmune > 3 ? 0.5 : 0), 0, 0.9));
     }
     // objetos de la misión: peces que saltan (garza), tallos de junco en el borde del agua (tingua) o enjambres de insectos en el aire (gaviota)
     const obj = AVE.objetivo, nom = AVE.item[0], noms = AVE.item[1], vh = vel;
@@ -877,7 +910,7 @@ export function crearPajaro(ctx) {
     for (const src of s.inputSources) {
       const gp = src.gamepad; if (!gp) continue;
       const x = gp.axes[2] || 0, y = gp.axes[3] || 0;
-      if (Math.abs(x) > 0.7 && cdGiro <= 0) { yaw -= Math.sign(x) * Math.PI / 6; cdGiro = 0.3; }
+      if (Math.abs(x) > 0.7 && cdGiro <= 0) { yaw -= Math.sign(x) * Math.PI / 6; cdGiro = 0.3; tSnap = 0.3; }
       if (y < -0.6) ac = true; if (y > 0.6) fr = true;
       if (gp.buttons[0] && gp.buttons[0].pressed) ac = true;
       if (gp.buttons[1] && gp.buttons[1].pressed) fr = true;
@@ -896,7 +929,7 @@ export function crearPajaro(ctx) {
   function paso(dtFijo) { // dtFijo: sólo para pruebas automáticas (avanza la simulación sin esperar cuadros)
     const now = performance.now() / 1000, dt = dtFijo || clamp(now - (ultimo || now), 0.001, 0.05); ultimo = now;
     const cam = T3.camera;
-    sim.ex = via.seg.length ? exposicion(rig.position) : 0; sacudida += dt * 11;
+    sim.ex = via.seg.length ? exposicion(rig.position) : 0; sacudida += dt * 11; if (modo === 'vr' || modo === 'cardboard') confortPaso(dt);
     if ((modo === 'vr' || modo === 'cardboard' || MOVIL) && !dtFijo) { // si las gafas/celular no sostienen ~60 cuadros por segundo, se baja el detalle poco a poco para que se vea fluido
       if (tPrev) { tAcum += now - tPrev; nAcum++; } tPrev = now;
       if (nAcum >= 90) { const ms = tAcum / nAcum * 1000; tAcum = 0; nAcum = 0;
@@ -928,7 +961,7 @@ export function crearPajaro(ctx) {
     // turbulencia sobre la avenida: te hunde (más con peces y sin energía); aletear (lift) te sube
     const hundir = AVE.hundir * sim.ex * (7 + 1.3 * sim.llevando) * (sim.energia < 5 ? 1.6 : 1) + (sim.energia <= 0 ? 2.5 : 0); // sin energía caes despacio (la tingua aterriza en el agua y descansa)
     caida += (-hundir - caida) * Math.min(1, dt * 2.5); lift *= Math.exp(-1.5 * dt);
-    rig.position.y += (caida + lift + sim.ex * (Math.sin(sacudida) * 0.9 + Math.sin(sacudida * 2.7) * 0.6)) * dt;
+    rig.position.y += (caida + lift + (modo === 'vr' || modo === 'cardboard' ? 0 : sim.ex * (Math.sin(sacudida) * 0.9 + Math.sin(sacudida * 2.7) * 0.6))) * dt;
     if (rig.position.y < 1.8) rig.position.y = 1.8; if (rig.position.y > 600) rig.position.y = 600;
     // alas
     tAleteo = Math.max(0, tAleteo - dt);
@@ -939,7 +972,7 @@ export function crearPajaro(ctx) {
       const ph = now * fq * Math.PI * 2, mun = Math.sin(ph - 1.0) * amp * 0.75 - 0.05, abre = 0.14 * (1 - Math.min(1, Math.abs(amp) * 1.3)) + 0.06 * Math.max(0, Math.cos(ph)); // la muñeca va un poco atrasada y las puntas se abren al planear
       for (const a of [alaI, alaD]) { a.userData.muneca.rotation.z = mun; a.userData.prim.forEach((p, k) => { p.rotation.y = -(0.02 + k / 9 * 0.95) - (k - 4.5) * abre * 0.2; }); }
     }
-    if (vientoG && audio) vientoG.gain.value = 0.012 + Math.min(0.05, vel / 700);
+    if (vientoG && audio) vientoG.gain.value = 0.01 + Math.min(0.035, vel / 900);
     juego(dt);
     T3.vpos = rig.position;
     ctx.sim(dt, rig.position);
@@ -970,14 +1003,15 @@ export function crearPajaro(ctx) {
     const r = T3.renderer, cam = T3.camera;
     Object.assign(guardado, { pos: cam.position.clone(), tgt: T3.orbit.target.clone(), near: cam.near, far: cam.far, sombra: T3.sun.castShadow, pr: r.getPixelRatio(), quat: cam.quaternion.clone() });
     try {
-      T3.orbit.enabled = false; cam.near = 0.5; cam.far = 30000; cam.updateProjectionMatrix();
+      T3.orbit.enabled = false; cam.near = 0.5; cam.far = m === 'vr' ? 9000 : 30000; cam.updateProjectionMatrix();
       if (m === 'cardboard' || MOVIL || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (las sombras en baja resolución se veían como cuadros)
       if (m !== 'pantalla' || MOVIL) { if (T3.trees) { T3.trees.umbral = 40; T3.trees.minMs = 800; } if (T3.plants) T3.plants.minMs = 800; } // recorrer todos los árboles cada pocos metros daba tirones
       T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
       camVista = 0;
       crearAlas(); if (!hudPlano) crearHudPlano(); // las alas se rehacen en cada partida: cambian con el ave elegida
-      if (m === 'observar') { avatar = crearAvatar(); rig.add(avatar); ponerCamara(); } else { cam.add(alaI, alaD, picoM, hudPlano); hudPlano.visible = m === 'vr' || m === 'cardboard'; } // el HUD dentro de la escena es para gafas y Cardboard
+      if (m === 'observar') { avatar = crearAvatar(); rig.add(avatar); ponerCamara(); } else { cam.add(alaI, alaD, picoM, hudPlano); hudPlano.visible = m === 'vr' || m === 'cardboard'; if (hudPlano.visible) { if (!vinM) crearConfort(); fadeM.visible = true; fadeM.material.opacity = 1; tFade = 1.3; vinM.visible = false; cam.add(vinM, fadeM); } } // el HUD dentro de la escena es para gafas y Cardboard
       preparar();
+      try { r.compile(T3.scene, cam); } catch (e) { /* ok */ } // se compilan los materiales antes de entrar: evita tirones cuando aparecen carros, nido y polluelos
     } catch (e) { console.warn('pájaro:', e); estado(String(e.message || e)); abortar(); menu.style.display = 'flex'; return; }
     if (m === 'vr') {
       try {
@@ -985,7 +1019,7 @@ export function crearPajaro(ctx) {
         r.xr.setReferenceSpaceType('local'); r.xr.enabled = true;
         try { r.xr.setFramebufferScaleFactor(ESQUEST ? 1.0 : 1.3); } catch (e) { /* ok */ } // más resolución = menos borroso
         sesionXR = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
-        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(ESQUEST ? 0.2 : 0); } catch (e) { /* ok */ }
+        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(ESQUEST ? 0.35 : 0); } catch (e) { /* ok */ }
         try { if (sesionXR.supportedFrameRates && sesionXR.supportedFrameRates.includes(ESQUEST ? 72 : 90)) await sesionXR.updateTargetFrameRate(ESQUEST ? 72 : 90); } catch (e) { /* ok */ }
         sesionXR.addEventListener('end', () => { if (activo) salir(); });
         for (let i = 0; i < 2; i++) { // manos: esferas luminosas y gatillo/grip
@@ -1022,7 +1056,7 @@ export function crearPajaro(ctx) {
     try { if (sesionXR) { const s = sesionXR; sesionXR = null; s.end().catch(() => {}); } } catch (e) { /* ok */ }
     try { for (let i = 0; i < 2; i++) { const c = r.xr.getController(i); rig.remove(c); } r.xr.enabled = false; } catch (e) { /* ok */ }
     const cam = T3.camera;
-    try { cam.remove(alaI, alaD, picoM, hudPlano); if (avatar) { rig.remove(avatar); avatar = null; } rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
+    try { cam.remove(alaI, alaD, picoM, hudPlano); if (vinM) cam.remove(vinM, fadeM); if (avatar) { rig.remove(avatar); avatar = null; } rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
     limpiarJuego(); T3.vpos = null;
     cam.position.copy(guardado.pos); cam.quaternion.copy(guardado.quat); cam.near = guardado.near; cam.far = guardado.far; cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
     T3.orbit.target.copy(guardado.tgt); T3.orbit.enabled = true; T3.orbit.update();
@@ -1043,5 +1077,5 @@ export function crearPajaro(ctx) {
   addEventListener('touchstart', onTouchStart, { passive: true }); addEventListener('touchend', onTouchEnd, { passive: true });
   document.addEventListener('click', (e) => { if (e.target && e.target.tagName === 'CANVAS') onClickCanvas(); });
   addEventListener('resize', () => { if (activo && efecto) { efecto.setSize(innerWidth, innerHeight); T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); } });
-  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, via, bot, peces, nido, rig, vel, paso, tecla: (c, v) => { teclas[c] = v; }, aleteo, ver: (y, p) => { yaw = y; pit = p; } }; } };
+  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, via, bot, confort: () => { if (!vinM) crearConfort(); tFade = 1; confortPaso(0.1); return [vinM.visible, fadeM.material.opacity]; }, vibrar, peces, nido, rig, vel, paso, tecla: (c, v) => { teclas[c] = v; }, aleteo, ver: (y, p) => { yaw = y; pit = p; } }; } };
 }

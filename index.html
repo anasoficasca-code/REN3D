@@ -113,7 +113,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v39</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v40</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -529,7 +529,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v39' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v39' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v39' : 'MODO: 🛰️ SATÉLITE · v39'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v40' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v40' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v40' : 'MODO: 🛰️ SATÉLITE · v40'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -613,7 +613,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v39 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v40 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -883,8 +883,9 @@ function tick() {
 /* ============ MODO TODO 3D (datos propios de Kennedy, mundo local) ============ */
 let LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // sin edificios, sombras ni tráfico (gafas VR, celulares, equipos modestos)
 let MEDIO = false; // con LIVIANO: conserva los edificios (Quest sola)
-if (/OculusBrowser|Quest|Pico/i.test(navigator.userAgent)) { LIVIANO = true; MEDIO = true; } // gafas independientes: el mundo abre directo en versión media
-const MOVIL = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches && Math.min(screen.width, screen.height) < 900);
+const QUEST = /OculusBrowser|Quest|Pico/i.test(navigator.userAgent);
+if (QUEST) LIVIANO = true; // gafas independientes: versión ligera para ir fluido a 72 cuadros por segundo
+const MOVIL = QUEST || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches && Math.min(screen.width, screen.height) < 900);
 if (MOVIL) LIVIANO = true; // celular: sin edificios, sombras ni tráfico, árboles más livianos y sin descargar los modelos pesados (carga mucho más rápido)
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
   fondo: 0xa9cbe6, niebla: 0xc9dcea, densNiebla: 0.00011,
@@ -924,7 +925,7 @@ async function initTodo() {
     const THREE = await import('three');
     const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
     REFL = null; // agua analítica, sin espejo físico (evita manchas negras)
-    const renderer = new THREE.WebGLRenderer({ antialias: !MOVIL, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({ antialias: !MOVIL || QUEST, powerPreference: 'high-performance' });
     renderer.setPixelRatio(MOVIL ? 1 : Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
     renderer.shadowMap.enabled = !LIVIANO || MEDIO; // MEDIO (Quest sola) también lleva sombras
@@ -999,11 +1000,11 @@ async function initTodo() {
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
     ground.receiveShadow = true;
     scene.add(ground);
-    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, liviano: LIVIANO, movil: MOVIL && !MEDIO, night: false, anim: null, last: 0, counts: {},
+    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, liviano: LIVIANO, movil: MOVIL, night: false, anim: null, last: 0, counts: {},
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js?v=39'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
+    try { T3.R = await import('./data3d/real3d.js?v=40'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
@@ -2215,7 +2216,7 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=39');
+      const m = await import('./data3d/pajaro.js?v=40');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),
