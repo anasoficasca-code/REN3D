@@ -816,6 +816,10 @@ function flight(ms) {
     if (T3.trees) T3.trees.update(cam);
     if (T3.plants) T3.plants.update(cam);
     if (TRAF) updateTraffic(dt); else updateCars(dt);
+    if (LIVIANO && T3.edificios && T3.edificios.length && (T3.tEdif = (T3.tEdif || 0) - dt) <= 0) { // celular/gafas: los bloques de edificios lejanos a la cámara no se dibujan (más lejos cuanto más alto se mira)
+      T3.tEdif = 0.6; const lim = 1300 + cam.position.y * 3;
+      for (const e of T3.edificios) { const v = Math.hypot(e.cx - cam.position.x, e.cz - cam.position.z) - e.r < lim; if (e.mesh.visible !== v) e.mesh.visible = v; }
+    }
     if (!TRAF && T3.fleet && T3.extraCars) { if (T3.mundoTick) T3.mundoTick(dt); T3.fleet.begin(); T3.extraCars(T3.fleet); T3.fleet.end(cam.position.x, cam.position.z); } // sin simulación de tráfico: los carros de la avenida del humedal circulan desde el inicio
     T3.waterU.value = performance.now() / 1000;
     if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
@@ -887,7 +891,7 @@ let MEDIO = false; // con LIVIANO: conserva los edificios (Quest sola)
 const QUEST = /OculusBrowser|Quest|Pico/i.test(navigator.userAgent);
 if (QUEST) { LIVIANO = true; MEDIO = true; } // gafas independientes: versión ligera (sin sombras ni tráfico pesado) pero CON los edificios del entorno del humedal desde que abre la página
 const MOVIL = QUEST || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches && Math.min(screen.width, screen.height) < 900);
-if (MOVIL) LIVIANO = true; // celular: sin edificios, sombras ni tráfico, árboles más livianos y sin descargar los modelos pesados (carga mucho más rápido)
+if (MOVIL) { LIVIANO = true; MEDIO = true; } // celular: sin sombras ni tráfico pesado, árboles más livianos y sin los modelos pesados, pero CON los edificios del entorno del humedal (archivo recortado de ~3 MB) desde que abre
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
   fondo: 0xa9cbe6, niebla: 0xcfdde8, densNiebla: 0.00017, // bruma que aclara y desatura lo lejano (perspectiva atmosférica)
   top: 0x2a6fc4, mid: 0x74afe3, bot: 0xdbe6ea, nubes: 0.5,
