@@ -665,10 +665,21 @@ export function crearPajaro(ctx) {
     rig.position.set(p0[0], AVE.techo ? 8 : 38, p0[1]); yaw = Math.atan2(p0[0] - f0.x, p0[1] - f0.z); pit = -0.12; vel = AVE.vel.cru; impulso = 0; // la cámara mira hacia -Z girada por yaw: así arranca mirando al primer objetivo
     rig.rotation.set(0, 0, 0);
   }
+  // la avenida con carros circulando también FUERA de la partida (pantalla de inicio del mundo 3D, sobre todo en gafas independientes, donde no hay simulación de tráfico)
+  function mundoVivo() {
+    if (activo) return;
+    const av = ctx.aves(), b = av && av.burro, T = ctx.T3(); if (!b || !T || !T.net) return;
+    T3 = T;
+    try { construirAvenida(b); } catch (e) { console.warn('avenida (inicio):', e); via.cadenas = []; via.coches = []; via.seg = []; return; }
+    if (!via.coches.length) return;
+    for (const c of via.coches) c.act = c.rank < 0.6;
+    T.extraCars = (F) => { for (const c of via.coches) if (c.act) F.add(c.x, c.z, c.h, 5000 + c.id); };
+    T.mundoTick = (dt) => { for (const c of via.coches) { c.s += c.dir * c.v0 * 0.8 * dt; const L = via.cadenas[c.ch].L; if (c.s > L) c.s -= L; else if (c.s < 0) c.s += L; posCoche(c); } };
+  }
   function limpiarJuego() {
     for (const f of peces) { T3.scene.remove(f.mesh, f.haz); }
     peces = [];
-    if (T3) T3.extraCars = null; via.coches = []; via.cadenas = []; via.seg = [];
+    if (T3) { T3.extraCars = null; T3.mundoTick = null; } via.coches = []; via.cadenas = []; via.seg = [];
     if (nido) { T3.scene.remove(nido.g); nido = null; }
     if (aroMesh) { T3.scene.remove(aroMesh); aroMesh = null; }
   }
@@ -799,6 +810,7 @@ export function crearPajaro(ctx) {
       const txt = (s, x, y, f, c) => { g.font = f; g.fillStyle = c; g.fillText(s, x, y); };
       txt(AVE.nombre.toUpperCase(), 28, 40, '700 22px "Segoe UI",system-ui,sans-serif', AVE.color); txt(String(sim.puntos), 28, 96, '800 52px "Segoe UI",system-ui,sans-serif', '#fff'); txt('PTS', 30 + g.measureText(String(sim.puntos)).width + 8, 96, '600 20px "Segoe UI",system-ui,sans-serif', '#7b8ea3');
       for (let k = 0; k < 3; k++) { g.fillStyle = k < sim.vidas ? '#f87171' : 'rgba(148,163,184,.3)'; g.fillRect(W - 150 + k * 40, 60, 30, 14); }
+      txt('MANTÉN B / Y: SALIR', W - 262, 36, '700 17px "Segoe UI",system-ui,sans-serif', '#93a8bd');
       txt(ETQ[AVE.objetivo].toUpperCase() + '  ' + sim.entregados + ' / ' + AVE.meta, 28, 138, '700 28px "Segoe UI",system-ui,sans-serif', '#e8f1f8');
       txt('TIEMPO ' + tiempo + '   ALT ' + Math.round(p.y) + ' m', 28, 174, '600 24px "Segoe UI",system-ui,sans-serif', '#a3b5c7');
       if (AVE.cap > 1) for (let k = 0; k < AVE.cap; k++) { g.fillStyle = k < sim.llevando ? AVE.color : 'rgba(148,163,184,.3)'; g.fillRect(W - 150 + k * 40, 120, 30, 14); }
@@ -989,7 +1001,7 @@ export function crearPajaro(ctx) {
       if (gp.buttons[1] && gp.buttons[1].pressed) fr = true;
       if (gp.buttons[5] && gp.buttons[5].pressed) sal = true; // botón B (mano derecha) o Y (izquierda): mantenido un segundo, sale del juego
     }
-    if (sal) { tSalir += dt; if (tSalir > 0.35 && tSalir - dt <= 0.35) mensaje('Sigue pulsando B o Y para salir...', 1200); if (tSalir > 1.0) { tSalir = 0; try { if (sesionXR) sesionXR.end(); } catch (e) { salir(); } return; } } else tSalir = 0;
+    if (sal) { tSalir += dt; if (tSalir > 0.35 && tSalir - dt <= 0.35) mensaje('Sigue pulsando B o Y para volver a elegir ave...', 1200); if (tSalir > 0.8) { tSalir = 0; try { if (sesionXR) sesionXR.end(); } catch (e) { salir(); } return; } } else tSalir = 0;
     // aletear: bajar rápido las manos da impulso
     for (let i = 0; i < 2; i++) {
       const c = T3.renderer.xr.getController(i); if (!c) continue;
@@ -1145,7 +1157,7 @@ export function crearPajaro(ctx) {
       if (T3.fleet && T3.fleet.setNear) T3.fleet.setNear(m === 'vr' && ESQUEST || MOVIL || m === 'cardboard' ? 45 : 130); // gafas: el carro detallado sólo muy cerca (más lejos va el modelo simple)
       if (m === 'cardboard' || MOVIL || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (las sombras en baja resolución se veían como cuadros)
       if (m !== 'pantalla' || MOVIL) { if (T3.trees) { T3.trees.umbral = 40; T3.trees.minMs = 800; } if (T3.plants) T3.plants.minMs = 800; } // recorrer todos los árboles cada pocos metros daba tirones
-      T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
+      T3.mundoTick = null; T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
       camVista = 0;
       crearAlas(); if (!hudPlano) crearHudPlano(); // las alas se rehacen en cada partida: cambian con el ave elegida
       if (m === 'observar') { avatar = crearAvatar(); rig.add(avatar); ponerCamara(); } else { cam.add(alaI, alaD, picoM, hudPlano); hudPlano.visible = m === 'vr' || m === 'cardboard'; if (hudPlano.visible) { if (!vinM) crearConfort(); fadeM.visible = true; fadeM.material.opacity = 1; tFade = 1.3; vinM.visible = false; cam.add(vinM, fadeM); } } // el HUD dentro de la escena es para gafas y Cardboard
@@ -1187,7 +1199,7 @@ export function crearPajaro(ctx) {
     document.body.classList.toggle('pjcb', m === 'cardboard'); hud.classList.toggle('on', m !== 'cardboard'); btnSalir.classList.toggle('on', true);
     ultimo = 0; iniciarAudio();
     r.setAnimationLoop(bucle);
-    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); setTimeout(() => { if (activo) mensaje(m === 'vr' ? 'Para salir: mantén B o Y un segundo (o el botón Meta)' : m === 'observar' ? (tactil ? 'Botón Cámara: cambia la vista' : 'Tecla V: cambia la cámara') : tactil ? 'Palanca: dirigir. Botones: acelerar, frenar y aletear' : 'W acelerar · S frenar · A y D girar · Espacio aletear', 4500); }, 4800);
+    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); setTimeout(() => { if (activo) mensaje(m === 'vr' ? 'Para salir y elegir otra ave: mantén B o Y (o el botón Meta)' : m === 'observar' ? (tactil ? 'Botón Cámara: cambia la vista' : 'Tecla V: cambia la cámara') : tactil ? 'Palanca: dirigir. Botones: acelerar, frenar y aletear' : 'W acelerar · S frenar · A y D girar · Espacio aletear', 4500); }, 4800);
   }
   function abortar() { activo = false; restaurar(); }
   function restaurar() {
@@ -1198,7 +1210,7 @@ export function crearPajaro(ctx) {
     const cam = T3.camera;
     try { cam.remove(alaI, alaD, picoM, hudPlano); if (vinM) cam.remove(vinM, fadeM); if (avatar) { rig.remove(avatar); avatar = null; } rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
     try { if (T3.edificios) for (const e of T3.edificios) e.mesh.visible = true; if (T3.fleet && T3.fleet.setNear) T3.fleet.setNear(130); } catch (e) { /* ok */ }
-    limpiarJuego(); T3.vpos = null; mapa = null; mapaCv.classList.remove('on');
+    limpiarJuego(); T3.vpos = null; mapa = null; mundoVivo(); mapaCv.classList.remove('on');
     cam.position.copy(guardado.pos); cam.quaternion.copy(guardado.quat); cam.near = guardado.near; cam.far = guardado.far; cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
     T3.orbit.target.copy(guardado.tgt); T3.orbit.enabled = true; T3.orbit.update();
     T3.sun.castShadow = guardado.sombra; r.setPixelRatio(guardado.pr); r.setSize(innerWidth, innerHeight); r.setScissorTest(false); r.setViewport(0, 0, innerWidth, innerHeight);
@@ -1212,11 +1224,11 @@ export function crearPajaro(ctx) {
     xrAcelera = 0; xrFrena = 0; ctrlY = [null, null]; acelera = false; frena = false;
     if (T3.trees) { T3.trees.umbral = 0; T3.trees.minMs = 0; } if (T3.plants) T3.plants.minMs = 0; via.tope = 1; calidad = 0; tAcum = 0; nAcum = 0; tPrev = 0; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = true; } catch (e) { /* ok */ }
   }
-  function salir() { if (!activo) return; activo = false; restaurar(); modo = null; ctx.say('Saliste del modo pájaro', 2500); }
+  function salir() { if (!activo) return; activo = false; restaurar(); modo = null; abrirMenu(); } // al salir (botón Salir, Escape, B/Y en gafas o cerrar el VR) vuelve a «Elige tu ave»
   btnSalir.onclick = salir;
   addEventListener('keydown', onKey); addEventListener('keyup', onKey); addEventListener('mousemove', onMouse);
   addEventListener('touchstart', onTouchStart, { passive: true }); addEventListener('touchend', onTouchEnd, { passive: true });
   document.addEventListener('click', (e) => { if (e.target && e.target.tagName === 'CANVAS') onClickCanvas(); });
   addEventListener('resize', () => { if (activo && efecto) { efecto.setSize(innerWidth, innerHeight); T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); } });
-  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, via, bot, confort: () => { if (!vinM) crearConfort(); tFade = 1; confortPaso(0.1); return [vinM.visible, fadeM.material.opacity]; }, vibrar, peces, nido, rig, vel, paso, tecla: (c, v) => { teclas[c] = v; }, aleteo, ver: (y, p) => { yaw = y; pit = p; } }; } };
+  return { abrirMenu, salir, mundoVivo, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, via, bot, confort: () => { if (!vinM) crearConfort(); tFade = 1; confortPaso(0.1); return [vinM.visible, fadeM.material.opacity]; }, vibrar, peces, nido, rig, vel, paso, tecla: (c, v) => { teclas[c] = v; }, aleteo, ver: (y, p) => { yaw = y; pit = p; } }; } };
 }

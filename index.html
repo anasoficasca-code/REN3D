@@ -816,6 +816,7 @@ function flight(ms) {
     if (T3.trees) T3.trees.update(cam);
     if (T3.plants) T3.plants.update(cam);
     if (TRAF) updateTraffic(dt); else updateCars(dt);
+    if (!TRAF && T3.fleet && T3.extraCars) { if (T3.mundoTick) T3.mundoTick(dt); T3.fleet.begin(); T3.extraCars(T3.fleet); T3.fleet.end(cam.position.x, cam.position.z); } // sin simulación de tráfico: los carros de la avenida del humedal circulan desde el inicio
     T3.waterU.value = performance.now() / 1000;
     if (T3.skyU) T3.skyU.uTime.value = T3.waterU.value;
     T3.sun.position.copy(o.target).add(T3.sunOff);
@@ -884,7 +885,7 @@ function tick() {
 let LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // sin edificios, sombras ni tráfico (gafas VR, celulares, equipos modestos)
 let MEDIO = false; // con LIVIANO: conserva los edificios (Quest sola)
 const QUEST = /OculusBrowser|Quest|Pico/i.test(navigator.userAgent);
-if (QUEST) LIVIANO = true; // gafas independientes: versión ligera para ir fluido a 72 cuadros por segundo
+if (QUEST) { LIVIANO = true; MEDIO = true; } // gafas independientes: versión ligera (sin sombras ni tráfico pesado) pero CON los edificios del entorno del humedal desde que abre la página
 const MOVIL = QUEST || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches && Math.min(screen.width, screen.height) < 900);
 if (MOVIL) LIVIANO = true; // celular: sin edificios, sombras ni tráfico, árboles más livianos y sin descargar los modelos pesados (carga mucho más rápido)
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
@@ -918,7 +919,13 @@ async function fetchProg(url, label) {
 }
 function hashN(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
 
-async function initTodo() {
+var initTodoP; // (var sin asignar, para que la línea no borre una carga ya en curso; var: la carga automática de la página llama a initTodo antes de que corra esta línea) si se pide el mundo dos veces a la vez (p. ej. botón y carga automática) se espera la misma carga: antes se construía duplicado (edificios y árboles dobles)
+function initTodo() {
+  if (T3) return Promise.resolve(true);
+  if (!initTodoP) initTodoP = initTodoReal().finally(() => { initTodoP = null; });
+  return initTodoP;
+}
+async function initTodoReal() {
   if (T3) return true;
   $('loader').classList.remove('hidden');
   try {
@@ -928,7 +935,7 @@ async function initTodo() {
     const renderer = new THREE.WebGLRenderer({ antialias: !MOVIL || QUEST, powerPreference: 'high-performance' });
     renderer.setPixelRatio(MOVIL ? 1 : Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
-    renderer.shadowMap.enabled = !LIVIANO || MEDIO; // MEDIO (Quest sola) también lleva sombras
+    renderer.shadowMap.enabled = !LIVIANO; // gafas y celulares: sin sombras (cuestan demasiado)
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = DIA.exposicion;
@@ -984,7 +991,7 @@ async function initTodo() {
     const hemi = new THREE.HemisphereLight(DIA.hemiCielo, DIA.hemiSuelo, DIA.hemi);
     const sun = new THREE.DirectionalLight(DIA.solColor, DIA.sol);
     sun.position.set(4000, 5000, 2000);
-    sun.castShadow = !LIVIANO || MEDIO;
+    sun.castShadow = !LIVIANO;
     sun.shadow.mapSize.set(MEDIO ? 2048 : 4096, MEDIO ? 2048 : 4096); // sombras nítidas alrededor del pájaro (el sol sigue a la cámara)
     const SR = MEDIO ? 320 : 600; sun.shadow.camera.left = -SR; sun.shadow.camera.right = SR;
     sun.shadow.camera.top = SR; sun.shadow.camera.bottom = -SR;
@@ -2222,10 +2229,10 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
     if (cond()) { clearInterval(iv); res(); } else if (Date.now() - t0 > ms) { clearInterval(iv); rej(new Error('el mundo 3D tardó demasiado en cargar')); }
   }, 250);
 });
-$('b-pajaro').onclick = async () => {
+async function asegurarPajaro() {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=47');
+      const m = await import('./data3d/pajaro.js?v=49');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo), faltanEdificios: () => !!T3 && !T3.edifOK,
@@ -2238,10 +2245,21 @@ $('b-pajaro').onclick = async () => {
           await esperarHasta(() => !!T3.trees || T3.trees === null, 120000).catch(() => {});
         }
       });
-    } catch (e) { console.warn('modo pájaro:', e); say('⚠️ No cargó el modo pájaro: ' + String(e && e.message || e).slice(0, 100), 6000); return; }
+    } catch (e) { console.warn('modo pájaro:', e); say('⚠️ No cargó el modo pájaro: ' + String(e && e.message || e).slice(0, 100), 6000); return false; }
   }
-  PAJARO.abrirMenu();
-};
+  return true;
+}
+$('b-pajaro').onclick = async () => { if (await asegurarPajaro()) PAJARO.abrirMenu(); };
+// versión ligera (gafas, celulares): sin simulación de tráfico, así que en cuanto el mundo está listo se ponen a circular los carros de la avenida del humedal
+{
+  let intentos = 0;
+  const iv = setInterval(async () => {
+    if (!LIVIANO || ++intentos > 400) { clearInterval(iv); return; }
+    if (!(T3 && T3.ready && AVES && AVES.nuevo && T3.net && T3.fleet)) return;
+    clearInterval(iv);
+    try { if (await asegurarPajaro()) PAJARO.mundoVivo(); } catch (e) { console.warn('carros del inicio:', e); }
+  }, 1500);
+}
 { // barra de abajo: play / pausa y tiempo de la simulación de carros
   const play = $('trafficPlay'), tiempo = $('trafficTime'), etiqueta = $('trafficLabel');
   const fmt = (t) => { t = Math.max(0, Math.floor(t)); return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0'); };
