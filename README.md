@@ -99,3 +99,7 @@ et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido
 
 ## v38 - Sonido suave
 - Audio sintetizado (sin archivos): viento, olitas del humedal, aves lejanas, aleteo, captura, entrega al nido (acorde y polluelos), aros y choque; trafico mas bajo. Boton Sonido/Silencio en el juego (se recuerda).
+
+## v39 - Limpieza y responsive
+- Menu de aves simplificado (nombre, rol, una linea y dificultad; Jugar yo / Ver al ave sola; Comenzar) y adaptado a celular vertical/horizontal, tableta y computador. Enter comienza, Esc cierra.
+- HUD reducido a lo esencial (vidas, objetivo, carga, energia, trafico, guia).

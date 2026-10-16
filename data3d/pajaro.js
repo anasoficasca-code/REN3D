@@ -7,55 +7,67 @@ import { StereoEffect } from 'three/addons/effects/StereoEffect.js';
 
 const CSS = `
 #pjMenu,#pjListo{position:fixed;inset:0;z-index:80;display:none;font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;color:#e8f1f8}
-#pjMenu{overflow:auto;background:radial-gradient(1200px 700px at 78% -10%,rgba(56,189,248,.16),transparent 60%),radial-gradient(900px 600px at 5% 110%,rgba(52,211,153,.12),transparent 60%),rgba(3,8,14,.93);backdrop-filter:blur(8px)}
-#pjMenu:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(115deg,rgba(255,255,255,.025) 0 1px,transparent 1px 46px)}
-#pjMenu .wrap{position:relative;max-width:1080px;margin:0 auto;padding:26px 28px 34px;min-height:100%;display:flex;flex-direction:column}
-#pjMenu header{display:flex;align-items:center;gap:16px;border-bottom:1px solid rgba(148,163,184,.18);padding-bottom:14px}
-#pjMenu .marca{font-weight:800;letter-spacing:.42em;font-size:15px;color:#fff}
-#pjMenu .sub{font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:#7b8ea3;flex:1}
-#pjMenu .x{background:none;border:1px solid rgba(148,163,184,.3);color:#9fb3c8;padding:8px 18px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;border-radius:0}
+#pjMenu{overflow:auto;-webkit-overflow-scrolling:touch;background:radial-gradient(1000px 600px at 80% -10%,rgba(56,189,248,.16),transparent 60%),radial-gradient(800px 500px at 0% 110%,rgba(52,211,153,.12),transparent 60%),rgb(3,8,14)}
+#pjMenu .wrap{position:relative;max-width:980px;margin:0 auto;padding:max(22px,env(safe-area-inset-top)) 24px max(24px,env(safe-area-inset-bottom));min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:20px}
+#pjMenu header{display:flex;align-items:center;justify-content:space-between}
+#pjMenu .marca{font-weight:800;letter-spacing:.42em;font-size:14px;color:#fff}
+#pjMenu .x{background:none;border:1px solid rgba(148,163,184,.3);color:#9fb3c8;padding:9px 18px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;border-radius:0;cursor:pointer}
 #pjMenu .x:hover{background:rgba(255,255,255,.08);color:#fff}
-#pjMenu h1{font-size:clamp(26px,4.4vw,44px);line-height:1.05;font-weight:800;letter-spacing:-.01em;margin:30px 0 6px;text-transform:uppercase}
+#pjMenu h1{font-size:clamp(26px,4vw,40px);line-height:1.05;font-weight:800;margin:0;text-transform:uppercase}
 #pjMenu h1 span{color:#7dd3fc}
-#pjMenu .lead{font-size:14px;color:#93a6ba;max-width:640px;line-height:1.55;margin-bottom:22px}
-#pjMenu .aves{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-#pjMenu .ave{position:relative;text-align:left;border:none;border-radius:0;padding:0;background:none;color:inherit;font:inherit;cursor:pointer;transition:transform .18s}
-#pjMenu .ave .in{display:block;height:100%;padding:18px 18px 16px;background:linear-gradient(170deg,rgba(18,30,44,.94),rgba(8,15,24,.96));clip-path:polygon(0 0,calc(100% - 22px) 0,100% 22px,100% 100%,22px 100%,0 calc(100% - 22px));box-shadow:inset 0 0 0 1px rgba(148,163,184,.2)}
-#pjMenu .ave:hover{transform:translateY(-4px)}
-#pjMenu .ave.sel .in{background:linear-gradient(170deg,color-mix(in srgb,var(--c) 18%,#0b1622),rgba(8,15,24,.97));box-shadow:inset 0 0 0 2px var(--c)}
-#pjMenu .ave .num{position:absolute;right:16px;top:12px;font-size:11px;letter-spacing:.2em;color:#64748b;z-index:2}
-#pjMenu .ave.sel .num{color:var(--c)}
-#pjMenu .ave svg{display:block;width:100%;height:92px;margin-bottom:8px}
+#pjMenu .aves{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+#pjMenu .ave{position:relative;text-align:left;border:none;border-radius:0;padding:0;background:none;color:inherit;font:inherit;cursor:pointer;transition:transform .15s;-webkit-tap-highlight-color:transparent}
+#pjMenu .ave .in{display:block;height:100%;padding:16px 16px 14px;background:linear-gradient(170deg,rgba(18,30,44,.94),rgba(8,15,24,.96));clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px));box-shadow:inset 0 0 0 1px rgba(148,163,184,.2)}
+#pjMenu .ave:hover{transform:translateY(-3px)}
+#pjMenu .ave.sel .in{background:linear-gradient(170deg,color-mix(in srgb,var(--c) 20%,#0b1622),rgba(8,15,24,.97));box-shadow:inset 0 0 0 2px var(--c)}
+#pjMenu .ave svg{display:block;width:100%;height:76px;margin-bottom:6px}
 #pjMenu .ave svg .ala{fill:var(--c);opacity:.92}
 #pjMenu .ave svg .cu{fill:#eaf3fa}
 #pjMenu .ave svg .pc{fill:#f2c230}
-#pjMenu .ave h3{font-size:22px;font-weight:800;letter-spacing:.02em;text-transform:uppercase}
-#pjMenu .ave .rol{display:block;font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--c);margin:3px 0 10px;font-style:normal;font-weight:700}
-#pjMenu .ave p{font-size:12.5px;line-height:1.5;color:#a3b5c7;margin:0 0 12px;min-height:56px}
-#pjMenu .ave .st{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:5px}
-#pjMenu .ave .st li{display:flex;align-items:center;gap:8px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#7b8ea3}
-#pjMenu .ave .st li b{width:84px;font-weight:600}
-#pjMenu .ave .st li span{display:flex;gap:3px}
-#pjMenu .ave .st li span i{width:22px;height:5px;background:rgba(148,163,184,.22)}
-#pjMenu .ave .st li span i.o{background:var(--c)}
-#pjMenu .ave .meta{display:block;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#d7e4ef;border-top:1px solid rgba(148,163,184,.2);padding-top:10px}
-#pjMenu .pie{margin-top:24px;display:flex;flex-wrap:wrap;gap:18px 30px;align-items:flex-end;border-top:1px solid rgba(148,163,184,.18);padding-top:18px}
-#pjMenu .ctrl{display:flex;flex-direction:column;gap:7px}
-#pjMenu .ctrl label,#pjMenu .esp{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#7b8ea3}
+#pjMenu .ave h3{font-size:20px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:0}
+#pjMenu .ave .rol{display:block;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--c);margin:3px 0 8px;font-style:normal;font-weight:700}
+#pjMenu .ave p{font-size:13px;line-height:1.45;color:#b3c2d1;margin:0 0 10px}
+#pjMenu .ave .dif{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#7b8ea3}
+#pjMenu .ave .dif span{display:flex;gap:3px}
+#pjMenu .ave .dif i{width:18px;height:5px;background:rgba(148,163,184,.25)}
+#pjMenu .ave .dif i.o{background:var(--c)}
+#pjMenu .pie{display:flex;flex-wrap:wrap;align-items:center;gap:14px 22px}
 #pjMenu .seg{display:flex}
-#pjMenu .seg button{border-radius:0;background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.25);margin-left:-1px;color:#b7c6d6;padding:11px 18px;font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+#pjMenu .seg button{border-radius:0;background:rgba(148,163,184,.08);border:1px solid rgba(148,163,184,.25);margin-left:-1px;color:#b7c6d6;padding:13px 20px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer}
 #pjMenu .seg button.on{background:#e8f1f8;color:#07121c;border-color:#e8f1f8}
-#pjMenu .jugar{margin-left:auto;border:none;border-radius:0;padding:17px 56px;font-size:15px;font-weight:800;letter-spacing:.3em;text-transform:uppercase;color:#04121c;background:linear-gradient(100deg,var(--cs,#7dd3fc),#34d399);clip-path:polygon(14px 0,100% 0,calc(100% - 14px) 100%,0 100%);transition:filter .15s,transform .15s}
+#pjMenu .esp{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#93a6ba}
+#pjMenu .jugar{margin-left:auto;border:none;border-radius:0;padding:18px 60px;font-size:15px;font-weight:800;letter-spacing:.28em;text-transform:uppercase;color:#04121c;background:linear-gradient(100deg,var(--cs,#7dd3fc),#34d399);clip-path:polygon(14px 0,100% 0,calc(100% - 14px) 100%,0 100%);cursor:pointer;transition:filter .15s,transform .15s;-webkit-tap-highlight-color:transparent}
 #pjMenu .jugar:hover{filter:brightness(1.12);transform:translateY(-2px)}
-#pjXr{flex-basis:100%;font-size:12px;color:#7dd3fc;min-height:16px;order:5}
-#pjEstado{flex-basis:100%;font-size:12px;color:#fbbf24;min-height:16px;order:6}
-#pjMenu .esp{display:flex;align-items:center;gap:8px;cursor:pointer}
-#pjMenu details{margin-top:18px;font-size:12.5px;color:#93a6ba}
-#pjMenu summary{cursor:pointer;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#7dd3fc}
-#pjMenu details ul{margin:10px 0 0 18px;line-height:1.7}
+#pjXr{flex-basis:100%;font-size:12px;color:#7dd3fc}
+#pjEstado{flex-basis:100%;font-size:12px;color:#fbbf24}
 #pjMenu kbd{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);padding:1px 6px;font-size:11px;color:#fff}
-@media(max-width:860px){#pjMenu .aves{grid-template-columns:1fr}#pjMenu .jugar{margin-left:0;width:100%}#pjMenu .wrap{padding:18px 16px 28px}#pjMenu .ave p{min-height:0}}
-#pjListo{align-items:center;justify-content:center;background:rgba(3,8,14,.86);backdrop-filter:blur(6px)}
+@media(max-width:860px){
+  #pjMenu .wrap{padding-left:16px;padding-right:16px;gap:14px}
+  #pjMenu h1{font-size:24px}
+  #pjMenu .aves{grid-template-columns:1fr;gap:10px}
+  #pjMenu .ave .in{display:grid;grid-template-columns:84px 1fr;gap:0 12px;align-items:center;padding:12px 14px}
+  #pjMenu .ave svg{grid-row:1/4;height:44px;margin:0}
+  #pjMenu .ave h3{font-size:17px}
+  #pjMenu .ave .rol{margin:1px 0 4px;font-size:9.5px}
+  #pjMenu .ave p{font-size:12px;margin:0 0 5px}
+  #pjMenu .ave .dif{grid-column:2}
+  #pjMenu .pie{flex-direction:column;align-items:stretch;gap:10px}
+  #pjMenu .seg button{flex:1}
+  #pjMenu .jugar{margin-left:0;width:100%;padding:17px 20px}
+}
+@media(max-height:520px) and (min-width:560px){
+  #pjMenu .wrap{gap:10px;padding-top:12px;padding-bottom:12px;justify-content:flex-start}
+  #pjMenu h1{font-size:20px}
+  #pjMenu .aves{grid-template-columns:repeat(3,1fr);gap:8px}
+  #pjMenu .ave .in{display:block;padding:10px 12px}
+  #pjMenu .ave svg{height:34px;margin-bottom:2px}
+  #pjMenu .ave h3{font-size:15px}
+  #pjMenu .ave p{display:none}
+  #pjMenu .ave .rol{margin:1px 0 4px}
+  #pjMenu .pie{flex-direction:row;align-items:center;gap:10px 14px}
+  #pjMenu .seg button{padding:10px 14px;flex:none}
+  #pjMenu .jugar{width:auto;margin-left:auto;padding:13px 34px}
+}#pjListo{align-items:center;justify-content:center;background:rgba(3,8,14,.86);backdrop-filter:blur(6px)}
 #pjListo .card{width:min(520px,92vw);background:linear-gradient(170deg,rgba(18,30,44,.97),rgba(8,15,24,.98));padding:26px 28px;clip-path:polygon(0 0,calc(100% - 22px) 0,100% 22px,100% 100%,22px 100%,0 calc(100% - 22px));box-shadow:inset 0 0 0 1px rgba(125,211,252,.35)}
 #pjListo h2{font-size:20px;letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px}
 #pjListo p{font-size:13.5px;line-height:1.55;color:#a3b5c7;margin:6px 0}
@@ -103,37 +115,17 @@ body.pjobs #pjBCam{display:block}body.pjobs #pjStick,body.pjobs #pjBtns{display:
 #pjGira{position:fixed;left:50%;top:46%;transform:translateX(-50%);z-index:27;display:none;padding:10px 20px;background:rgba(5,11,18,.85);color:#e8f1f8;font:600 12px "Segoe UI",sans-serif;letter-spacing:.14em;text-transform:uppercase;pointer-events:none;text-align:center}
 @media(orientation:portrait){body.pjtouch #pjGira{display:block;animation:pjFade 6s forwards}}
 @keyframes pjFade{0%,70%{opacity:1}100%{opacity:0}}
-#pjHud .sec{display:flex}
 @media(max-width:860px),(max-height:520px){
-  #pjMenu .wrap{padding:16px 16px 20px}
-  #pjMenu h1{margin:16px 0 4px;font-size:26px}
-  #pjMenu .lead{display:none}
-  #pjMenu .aves{gap:10px}
-  #pjMenu .ave .in{padding:12px 14px 12px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
-  #pjMenu .ave svg{float:left;width:88px;height:46px;margin:0 12px 4px 0}
-  #pjMenu .ave h3{font-size:18px}
-  #pjMenu .ave .rol{margin:2px 0 8px;font-size:10px}
-  #pjMenu .ave .num{display:none}
-  #pjMenu .ave p{clear:both;font-size:12px;min-height:0;margin-bottom:8px;line-height:1.4}
-  #pjMenu .ave .st{grid-template-columns:1fr 1fr;gap:3px 12px;margin-bottom:8px}
-  #pjMenu .ave .st li b{width:72px;font-size:9.5px}
-  #pjMenu .ave .st li span i{width:13px}
-  #pjMenu .ave .meta{padding-top:7px;font-size:10px}
-  #pjMenu .pie{position:sticky;bottom:0;margin-top:12px;padding:12px 0 4px;background:linear-gradient(0deg,rgba(3,8,14,.99) 72%,rgba(3,8,14,0));z-index:3}
-  #pjMenu .jugar{width:100%;padding:16px 20px;margin-left:0}
-  #pjMenu details{display:none}
-  #pjHud{top:8px;left:8px;width:182px;padding:8px 10px;font-size:11px}
+  #pjHud{top:8px;left:8px;width:172px;padding:8px 10px;font-size:11px}
   #pjHud .n{font-size:20px}
   #pjHud .fila{margin:3px 0;font-size:9.5px}
   #pjHud .fila b{font-size:11.5px}
-  #pjHud .barra{width:72px}
-  #pjHud .sec{display:none}
+  #pjHud .barra{width:68px}
   #pjHud .guia{font-size:9.5px;margin-top:5px;padding-top:5px}
   #pjSalir{top:8px;right:8px;padding:9px 16px}
   #pjSnd{top:8px;right:92px;padding:9px 12px}
   #pjMsg{bottom:36%;font-size:11.5px;padding:8px 16px}
-}
-@media(max-width:860px) and (orientation:landscape),(max-height:520px){#pjMenu .aves{grid-template-columns:repeat(3,1fr)}#pjMenu .ave svg{float:none;width:100%;height:40px}#pjMenu .ave p{display:none}}body.pj #hud-c{display:none!important}
+}body.pj #hud-c{display:none!important}
 `;
 
 const giro = (a, b) => { let x = b - a; while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
@@ -155,7 +147,7 @@ const DATOS = [
 //  - Gaviota andina (Chroicocephalus serranus): ágil y social; atrapa insectos al vuelo y en praderas; anida en el suelo, en nidos de pasto cerca del agua.
 const AVES_JUEGO = {
   garza: {
-    id: 'garza', nombre: 'Garza real', rol: 'Pescadora al acecho', color: '#7dd3fc', objetivo: 'pesca', meta: 10, cap: 3, nidoTipo: 'arbol',
+    id: 'garza', nombre: 'Garza real', rol: 'Pescadora al acecho', corto: 'Pesca peces al acecho y llévalos a tus polluelos.', color: '#7dd3fc', objetivo: 'pesca', meta: 10, cap: 3, nidoTipo: 'arbol',
     resumen: 'Pesca al acecho: acércate despacio y bajo a los peces que saltan, atrápalos y llévalos a tus polluelos. Tu nido de palitos está en un árbol de la colonia, al otro lado de la avenida.',
     vel: { min: 6, cru: 15, max: 30 }, regen: 9, hundir: 1.0, giro: 1.3, costo: 12, gasto: 0, item: ['pez', 'peces'],
     stats: [['Velocidad', 2], ['Resistencia', 3], ['Agilidad', 1], ['Dificultad', 2]], metaTxt: 'Alimenta a tus polluelos con 10 peces',
@@ -163,7 +155,7 @@ const AVES_JUEGO = {
     svg: '<path class="ala" d="M100 50C72 28 32 26 3 46c34-2 62 8 97 17 35-9 63-19 97-17-29-20-69-18-97 4z"/><ellipse class="cu" cx="100" cy="54" rx="8" ry="17"/><path class="cu" d="M96 40 92 16c-1-5 8-5 8 0l-2 24z"/><path class="pc" d="M92 16l-4-9 8 3z"/>'
   },
   tingua: {
-    id: 'tingua', nombre: 'Tingua de pico rojo', rol: 'Constructora de nido', color: '#fb7185', objetivo: 'juncos', meta: 12, cap: 2, nidoTipo: 'flotante', techo: 14, reposo: 14,
+    id: 'tingua', nombre: 'Tingua de pico rojo', rol: 'Constructora de nido', corto: 'Construye tu nido flotante con tallos de junco.', color: '#fb7185', objetivo: 'juncos', meta: 12, cap: 2, nidoTipo: 'flotante', techo: 14, reposo: 14,
     resumen: 'Casi no vuela: salta entre los juncos y cruza el agua en vuelos cortos y bajos. Junta tallos del borde del agua y construye tu nido flotante. Rozar el agua te deja descansar; subir mucho te agota.',
     vel: { min: 5, cru: 11, max: 20 }, regen: 1, hundir: 1.1, giro: 1.8, costo: 6, gasto: 5, item: ['tallo de junco', 'tallos de junco'],
     stats: [['Velocidad', 1], ['Resistencia', 1], ['Agilidad', 3], ['Dificultad', 3]], metaTxt: 'Construye tu nido con 12 tallos de junco',
@@ -171,7 +163,7 @@ const AVES_JUEGO = {
     svg: '<path class="ala" d="M100 52C86 42 64 40 46 48c18 4 36 8 54 14 18-6 36-10 54-14-18-8-40-6-54 4z"/><ellipse class="cu" cx="100" cy="57" rx="11" ry="14"/><circle class="cu" cx="100" cy="40" r="7"/><path d="M103 36l10 3-10 3z" fill="#e0443a"/>'
   },
   gaviota: {
-    id: 'gaviota', nombre: 'Gaviota andina', rol: 'Cazadora de insectos', color: '#fbbf24', objetivo: 'insectos', meta: 12, cap: 4, nidoTipo: 'suelo',
+    id: 'gaviota', nombre: 'Gaviota andina', rol: 'Cazadora de insectos', corto: 'Caza insectos al vuelo para tus polluelos.', color: '#fbbf24', objetivo: 'insectos', meta: 12, cap: 4, nidoTipo: 'suelo',
     resumen: 'Ágil y rápida: atraviesa los enjambres de insectos en pleno vuelo (si vas lento se escapan) y llévalos a tus polluelos, en un nido de pasto en la orilla. Cada sprint gasta energía.',
     vel: { min: 9, cru: 21, max: 40 }, regen: 7, hundir: 0.8, giro: 1.7, costo: 14, gasto: 6, item: ['bocado de insectos', 'bocados de insectos'],
     stats: [['Velocidad', 3], ['Resistencia', 2], ['Agilidad', 3], ['Dificultad', 2]], metaTxt: 'Alimenta a tus polluelos con 12 bocados de insectos',
@@ -184,25 +176,18 @@ const MOVIL = !ESQUEST && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.use
 export function crearPajaro(ctx) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const div = (id, html, cls) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; e.innerHTML = html || ''; document.body.appendChild(e); return e; };
-  const tarjeta = (a, i) => `<button class="ave" data-ave="${a.id}" style="--c:${a.color}"><span class="in"><span class="num">0${i + 1}</span><svg viewBox="0 0 200 80" aria-hidden="true">${a.svg}</svg><h3>${a.nombre}</h3><em class="rol">${a.rol}</em><p>${a.resumen}</p><ul class="st">${a.stats.map(([n, v]) => `<li><b>${n}</b><span>${[1, 2, 3].map(k => `<i class="${k <= v ? 'o' : ''}"></i>`).join('')}</span></li>`).join('')}</ul><span class="meta">${a.metaTxt}</span></span></button>`;
+  const tarjeta = (a) => `<button class="ave" data-ave="${a.id}" style="--c:${a.color}"><span class="in"><svg viewBox="0 0 200 80" aria-hidden="true">${a.svg}</svg><h3>${a.nombre}</h3><em class="rol">${a.rol}</em><p>${a.corto}</p><span class="dif">Dificultad <span>${[1, 2, 3].map(k => `<i class="${k <= a.stats[3][1] ? 'o' : ''}"></i>`).join('')}</span></span></span></button>`;
   const menu = div('pjMenu', `<div class="wrap">
-    <header><span class="marca">REN3D</span><span class="sub">Humedal El Burro · Kennedy · Bogotá</span><button class="x" data-m="cerrar">Cerrar</button></header>
-    <h1>Escoge qué ave<br><span>quieres ser hoy</span></h1>
-    <p class="lead">Cada ave vuela distinto y tiene su propia misión. La avenida que cruza el humedal es el peligro de todas: con mucho tráfico el ruido y el aire revuelto te frenan, te hunden y pueden hacerte perder.</p>
+    <header><span class="marca">REN3D</span><button class="x" data-m="cerrar">Cerrar</button></header>
+    <h1>Elige tu <span>ave</span></h1>
     <div class="aves">${Object.values(AVES_JUEGO).map(tarjeta).join('')}</div>
     <div class="pie">
-      <div class="ctrl"><label>Modo</label><div class="seg" id="pjSegJ"><button data-j="jugar" class="on">Jugar yo</button><button data-j="observar">Ver al ave sola</button></div></div>
-      <label class="esp" id="pjVrL" style="display:none"><input type="checkbox" id="pjVr"> Jugar con gafas VR</label>
+      <div class="seg" id="pjSegJ"><button data-j="jugar" class="on">Jugar yo</button><button data-j="observar">Ver al ave sola</button></div>
+      <label class="esp" id="pjVrL" style="display:none"><input type="checkbox" id="pjVr"> Gafas VR</label>
       <label class="esp" id="pjEspL" style="display:none"><input type="checkbox" id="pjEsp"> Ver en el computador lo que ves en las gafas</label>
-      <button class="jugar" data-m="jugar" id="pjJugar">Comenzar vuelo</button>
+      <button class="jugar" data-m="jugar" id="pjJugar">Comenzar</button>
       <div id="pjXr"></div><div id="pjEstado"></div>
     </div>
-    <details><summary>Cómo se maneja</summary><ul>
-      <li><b>Pantalla:</b> clic para capturar el mouse y mirar. <kbd>W</kbd> o <kbd>Shift</kbd> acelerar, <kbd>S</kbd> frenar, <kbd>A</kbd> <kbd>D</kbd> girar, <kbd>Espacio</kbd> aletear, <kbd>Esc</kbd> salir.</li>
-      <li><b>Gafas VR:</b> vuelas hacia donde miras. Gatillo acelera, botón lateral frena, palanca gira. Mueve los brazos como alas para impulsarte.</li>
-      <li><b>Celular + visor:</b> mira hacia donde quieres volar. Mantén el dedo para acelerar y toca rápido para aletear.</li>
-      <li><b>Avenida:</b> cerca de la calle, bajo y con tráfico pesado la turbulencia te hunde. Aletear sube pero gasta energía, que se recupera lejos del tráfico. Tocar la calle, un carro o quedarte muy cerca de ellos te cuesta una vida.</li>
-    </ul></details>
   </div>`);
   const listo = div('pjListo', `<div class="card"><h2 id="pjListoT">Mundo listo</h2><p id="pjListoP"></p><button class="go" id="pjGo">Empezar</button></div>`);
   const hud = div('pjHud', '');
@@ -249,7 +234,7 @@ export function crearPajaro(ctx) {
     menu.style.setProperty('--cs', AVE.color);
     menu.querySelectorAll('#pjSeg button').forEach(b => b.classList.toggle('on', b.getAttribute('data-c') === modoSel));
     menu.querySelectorAll('#pjSegJ button').forEach(b => b.classList.toggle('on', b.getAttribute('data-j') === modoJ));
-    $('pjVrL').style.display = hayVr && modoJ === 'jugar' ? 'flex' : 'none'; $('pjEspL').style.display = hayVr && modoJ === 'jugar' && pjVr.checked ? 'flex' : 'none'; $('pjJugar').textContent = modoJ === 'observar' ? 'Ver vuelo' : 'Comenzar vuelo';
+    $('pjVrL').style.display = hayVr && modoJ === 'jugar' ? 'flex' : 'none'; $('pjEspL').style.display = hayVr && modoJ === 'jugar' && pjVr.checked ? 'flex' : 'none'; $('pjJugar').textContent = modoJ === 'observar' ? 'Ver vuelo' : 'Comenzar';
   };
   let hayVr = false; // las gafas sólo se ofrecen si el navegador las reconoce (en el celular se juega con controles táctiles, sin elegir nada)
   async function abrirMenu() {
@@ -265,6 +250,7 @@ export function crearPajaro(ctx) {
       else el.textContent = navigator.xr ? 'WebXR sin gafas conectadas: conecta las gafas (Quest Link o SteamVR) o abre esta página en el navegador de las gafas.' : 'Este navegador no tiene WebXR: abre la página en el navegador de las gafas o en Chrome o Edge con las gafas conectadas.';
     } catch (e) { /* sin WebXR */ }
   }
+  addEventListener('keydown', (e) => { if (menu.style.display !== 'block') return; if (e.key === 'Enter') { e.preventDefault(); $('pjJugar').click(); } else if (e.key === 'Escape') menu.style.display = 'none'; });
   menu.addEventListener('click', (e) => {
     const a = e.target.closest('.ave'); if (a) { AVE = AVES_JUEGO[a.getAttribute('data-ave')] || AVE; pintarSel(); return; }
     const j = e.target.closest('#pjSegJ button'); if (j) { modoJ = j.getAttribute('data-j'); pintarSel(); return; }
@@ -692,14 +678,10 @@ export function crearPajaro(ctx) {
         + `<div class="fila">Vidas ${pips(sim.vidas, 3, 'vida')}</div>`
         + `<div class="fila">${ETQ[AVE.objetivo]} <b>${sim.entregados} / ${AVE.meta}</b></div>`
         + (AVE.cap > 1 ? `<div class="fila">Carga ${pips(sim.llevando, AVE.cap)}</div>` : '')
-        + `<div class="fila sec">Tiempo <b>${tiempo}</b></div>`
         + `<div class="fila">Energía <span class="barra"><i style="width:${en}%;background:${colE}"></i></span></div>`
         + `<div class="fila">Tráfico <span class="barra"><i style="width:${tr}%;background:${colT}"></i></span></div>`
-        + `<div class="fila sec">Altura <b>${Math.round(p.y)} m</b></div><div class="fila sec">Velocidad <b>${Math.round(vel * 3.6)} km/h</b></div>`
-        + (modo === 'observar' ? `<div class="guia">${bot.estado || 'Buscando objetivo'}</div><div class="fila" style="margin-top:5px">Cámara: tecla V</div>` : o ? `<div class="guia"><span class="arrow" style="transform:rotate(${-rel}rad)">&#10148;</span>${o.txt} ${Math.round(dist)} m</div>` : '') + (aviso ? `<div class="aviso">${aviso}</div>` : '')
-        + `<div class="fila sec" style="margin-top:7px">Récord <b>${sim.mejor}</b></div>`;
-    }
-    if ((modo === 'vr' || modo === 'cardboard') && hudCv) {
+        + (modo === 'observar' ? `<div class="guia">${bot.estado || 'Buscando objetivo'}</div>` : o ? `<div class="guia"><span class="arrow" style="transform:rotate(${-rel}rad)">&#10148;</span>${o.txt} ${Math.round(dist)} m</div>` : '') + (aviso ? `<div class="aviso">${aviso}</div>` : '');
+    }    if ((modo === 'vr' || modo === 'cardboard') && hudCv) {
       const g = hudCv.getContext('2d'), W = hudCv.width, H = hudCv.height;
       g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(6,14,22,.82)'; g.strokeStyle = sim.ex > 0.12 ? 'rgba(248,113,113,.95)' : 'rgba(148,163,184,.55)'; g.lineWidth = 3;
       g.beginPath(); g.moveTo(4, 4); g.lineTo(W - 30, 4); g.lineTo(W - 4, 30); g.lineTo(W - 4, H - 4); g.lineTo(30, H - 4); g.lineTo(4, H - 30); g.closePath(); g.fill(); g.stroke();
@@ -1031,7 +1013,7 @@ export function crearPajaro(ctx) {
     document.body.classList.toggle('pjcb', m === 'cardboard'); hud.classList.toggle('on', m !== 'cardboard'); btnSalir.classList.toggle('on', true);
     ultimo = 0; iniciarAudio();
     r.setAnimationLoop(bucle);
-    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); if (tactil && m === 'pantalla') setTimeout(() => mensaje('Palanca: dirigir. Botones: acelerar, frenar y aletear', 4000), 4700);
+    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); setTimeout(() => { if (activo) mensaje(m === 'observar' ? (tactil ? 'Botón Cámara: cambia la vista' : 'Tecla V: cambia la cámara') : tactil ? 'Palanca: dirigir. Botones: acelerar, frenar y aletear' : 'W acelerar · S frenar · A y D girar · Espacio aletear', 4500); }, 4800);
   }
   function abortar() { activo = false; restaurar(); }
   function restaurar() {
