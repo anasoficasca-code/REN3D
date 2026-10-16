@@ -113,7 +113,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v37</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v38</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -529,7 +529,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v37' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v37' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v37' : 'MODO: 🛰️ SATÉLITE · v37'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v38' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v38' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v38' : 'MODO: 🛰️ SATÉLITE · v38'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -613,7 +613,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v37 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v38 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -1003,7 +1003,7 @@ async function initTodo() {
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js?v=37'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
+    try { T3.R = await import('./data3d/real3d.js?v=38'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
@@ -2215,7 +2215,7 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=37');
+      const m = await import('./data3d/pajaro.js?v=38');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),

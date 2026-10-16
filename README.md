@@ -96,3 +96,6 @@ et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido
 ## v37 - Celular
 - Deteccion automatica de celular/tableta: controles tactiles (palanca + Acelerar/Frenar/Aletear), sin elegir controles; menu y HUD adaptados; pantalla completa y horizontal al jugar.
 - Carga liviana en celular: sin edificios, sombras, trafico ni plantas 3D; arboles solo con modelo reducido (carga ~15 MB en vez de ~100 MB). Gafas VR solo se ofrecen si el navegador las reconoce.
+
+## v38 - Sonido suave
+- Audio sintetizado (sin archivos): viento, olitas del humedal, aves lejanas, aleteo, captura, entrega al nido (acorde y polluelos), aros y choque; trafico mas bajo. Boton Sonido/Silencio en el juego (se recuerda).

@@ -78,6 +78,10 @@ const CSS = `
 #pjHud .arrow{display:inline-block;font-size:20px;transition:transform .1s;color:#fde047;line-height:1}
 #pjHud .aviso{margin-top:7px;color:#fca5a5;font-weight:700;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase}
 #pjSalir{position:fixed;top:18px;right:18px;z-index:31;display:none;border:none;border-radius:0;padding:11px 22px;font-size:11px;letter-spacing:.22em;text-transform:uppercase;background:rgba(8,16,26,.78);color:#dbeafe;box-shadow:inset 0 0 0 1px rgba(148,163,184,.35);clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+#pjSnd{position:fixed;top:18px;right:150px;z-index:31;display:none;border:none;border-radius:0;padding:11px 18px;font-size:11px;letter-spacing:.2em;text-transform:uppercase;background:rgba(8,16,26,.78);color:#dbeafe;box-shadow:inset 0 0 0 1px rgba(148,163,184,.35);clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%)}
+#pjSnd.mudo{color:#94a3b8;text-decoration:line-through}
+body.pj #pjSnd{display:block}
+body.pj.pjcb #pjSnd{display:none!important}
 #pjSalir:hover{background:rgba(190,60,60,.8);color:#fff}
 #pjMsg{position:fixed;left:50%;bottom:15%;transform:translateX(-50%);z-index:31;display:none;max-width:min(680px,90vw);background:rgba(5,11,18,.9);padding:12px 28px;font:700 13.5px "Segoe UI",system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:#f8fafc;pointer-events:none;text-align:center;clip-path:polygon(12px 0,100% 0,calc(100% - 12px) 100%,0 100%);box-shadow:inset 0 -2px 0 #fbbf24}
 #pjRuido{position:fixed;inset:0;z-index:29;display:none;pointer-events:none;box-shadow:inset 0 0 160px 40px rgba(239,68,68,.55);opacity:0;transition:opacity .15s}
@@ -126,6 +130,7 @@ body.pjobs #pjBCam{display:block}body.pjobs #pjStick,body.pjobs #pjBtns{display:
   #pjHud .sec{display:none}
   #pjHud .guia{font-size:9.5px;margin-top:5px;padding-top:5px}
   #pjSalir{top:8px;right:8px;padding:9px 16px}
+  #pjSnd{top:8px;right:92px;padding:9px 12px}
   #pjMsg{bottom:36%;font-size:11.5px;padding:8px 16px}
 }
 @media(max-width:860px) and (orientation:landscape),(max-height:520px){#pjMenu .aves{grid-template-columns:repeat(3,1fr)}#pjMenu .ave svg{float:none;width:100%;height:40px}#pjMenu .ave p{display:none}}body.pj #hud-c{display:none!important}
@@ -484,12 +489,12 @@ export function crearPajaro(ctx) {
   }
   function aleteo() { // aletear sube, pero cansa
     if (sim.energia < 12) { if (performance.now() - (sim.avisoE || 0) > 2500) { sim.avisoE = performance.now(); mensaje('Sin energía: planea unos segundos lejos del tráfico', 2000); } lift = Math.min(22, lift + 4); return; }
-    sim.energia -= AVE.costo || 12; lift = Math.min(22, lift + 15); impulso += 4; tAleteo = 0.6; pip(200, 140, 0.1, 0.05);
+    sim.energia -= AVE.costo || 12; lift = Math.min(22, lift + 15); impulso += 4; tAleteo = 0.6; sAleteo();
   }
   function chocar(motivo) {
     if (sim.inmune > 0 || sim.perdido) return;
     sim.vidas--; sim.golpes++; const perdidos = sim.llevando; sim.llevando = 0; sim.energia = 100; sim.inmune = 3.5; caida = 0; lift = 0;
-    pip(220, 60, 0.5, 0.25); setTimeout(() => pip(150, 50, 0.4, 0.2), 120);
+    sChoque();
     const b = ctx.aves().burro, p0 = puntoSeguro(b); rig.position.set(p0[0], AVE.techo ? 8 : 38, p0[1]); vel = AVE.vel.cru; impulso = 0;
     if (sim.vidas <= 0) fallar(motivo);
     else mensaje(motivo + (perdidos ? ' Perdiste ' + perdidos + ' ' + (perdidos > 1 ? AVE.item[1] : AVE.item[0]) + '.' : '') + ' Vidas: ' + sim.vidas, 4000);
@@ -602,32 +607,61 @@ export function crearPajaro(ctx) {
     if (aroMesh) { T3.scene.remove(aroMesh); aroMesh = null; }
   }
 
-  // ---------------------------------------------------------------- sonido (viento y avisos)
+  // ---------------------------------------------------------------- sonido: todo suave y sintetizado (viento, agua, aves lejanas, aleteo, avisos); se puede silenciar
+  let bus = null, aguaG = null, bufRuido = null, tAve = 2, sonidoOn = true;
+  try { sonidoOn = localStorage.getItem('ren3d_sonido') !== '0'; } catch (e) { /* ok */ }
+  const VOL = 0.5;
   function iniciarAudio() {
     try {
       const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
-      audio = new AC(); const n = audio.sampleRate * 2, buf = audio.createBuffer(1, n, audio.sampleRate), d = buf.getChannelData(0);
+      audio = new AC(); try { if (audio.state === 'suspended') audio.resume(); } catch (e) { /* ok */ } const n = audio.sampleRate * 2; bufRuido = audio.createBuffer(1, n, audio.sampleRate); const d = bufRuido.getChannelData(0);
       let l = 0; for (let i = 0; i < n; i++) { l = l * 0.97 + (Math.random() * 2 - 1) * 0.03; d[i] = l * 6; }
-      const src = audio.createBufferSource(); src.buffer = buf; src.loop = true;
-      const f = audio.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 500; vientoG = audio.createGain(); vientoG.gain.value = 0.05;
-      src.connect(f); f.connect(vientoG); vientoG.connect(audio.destination); src.start();
-      // ruido del tráfico: rumor grave de motores + zumbido de llantas; sube con la hora pico y cuando estás cerca de la avenida
-      const s2 = audio.createBufferSource(); s2.buffer = buf; s2.loop = true; s2.playbackRate.value = 0.8;
-      const f2 = audio.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 280; f2.Q.value = 0.6; trafG = audio.createGain(); trafG.gain.value = 0;
-      s2.connect(f2); f2.connect(trafG); trafG.connect(audio.destination); s2.start();
-      const mot = audio.createOscillator(); mot.type = 'sawtooth'; mot.frequency.value = 52; const fm = audio.createBiquadFilter(); fm.type = 'lowpass'; fm.frequency.value = 160; motG = audio.createGain(); motG.gain.value = 0;
-      mot.connect(fm); fm.connect(motG); motG.connect(audio.destination); mot.start();
+      const comp = audio.createDynamicsCompressor(); comp.threshold.value = -24; comp.ratio.value = 6; bus = audio.createGain(); bus.gain.value = sonidoOn ? VOL : 0; bus.connect(comp); comp.connect(audio.destination);
+      const capa = (rate, tipo, fq, q) => { const s = audio.createBufferSource(); s.buffer = bufRuido; s.loop = true; s.playbackRate.value = rate; const fl = audio.createBiquadFilter(); fl.type = tipo; fl.frequency.value = fq; if (q) fl.Q.value = q; const g = audio.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(bus); s.start(); return g; };
+      vientoG = capa(1, 'lowpass', 380); // viento
+      aguaG = capa(0.7, 'bandpass', 650, 0.7); // olitas del humedal (sube cuando vuelas bajo sobre el agua)
+      const lfo = audio.createOscillator(), lg = audio.createGain(); lfo.frequency.value = 0.23; lg.gain.value = 0.35; lfo.connect(lg); lg.connect(aguaG.gain); lfo.start(); // el agua sube y baja suavemente
+      trafG = capa(0.8, 'bandpass', 260, 0.6); // rumor de la avenida
+      const mot = audio.createOscillator(); mot.type = 'triangle'; mot.frequency.value = 52; const fm = audio.createBiquadFilter(); fm.type = 'lowpass'; fm.frequency.value = 140; motG = audio.createGain(); motG.gain.value = 0;
+      mot.connect(fm); fm.connect(motG); motG.connect(bus); mot.start();
     } catch (e) { audio = null; }
   }
-  function bocina() { // pitido de carro: dos tonos
-    if (!audio) return;
-    try { const t = audio.currentTime, g = audio.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05 + 0.06 * via.intens, t + 0.03); g.gain.setValueAtTime(0.05, t + 0.28); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34); g.connect(audio.destination); for (const fq of [400 + Math.random() * 60, 500 + Math.random() * 60]) { const o = audio.createOscillator(); o.type = 'square'; o.frequency.value = fq; const fl = audio.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1400; o.connect(fl); fl.connect(g); o.start(t); o.stop(t + 0.36); } } catch (e) { /* sin audio */ }
+  function nota(f0, dur, vol, tipo, retraso, f1, pan) { // tono corto con entrada y salida suaves
+    if (!audio || !bus) return;
+    try {
+      const t = audio.currentTime + (retraso || 0), o = audio.createOscillator(), g = audio.createGain(), fl = audio.createBiquadFilter(); o.type = tipo || 'sine'; o.frequency.setValueAtTime(f0, t); if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      fl.type = 'lowpass'; fl.frequency.value = 3600; g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.3)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(fl); fl.connect(g); let out = g; if (pan != null && audio.createStereoPanner) { const p = audio.createStereoPanner(); p.pan.value = pan; g.connect(p); out = p; } out.connect(bus); o.start(t); o.stop(t + dur + 0.05);
+    } catch (e) { /* sin audio */ }
   }
-  function pip(f0, f1, dur, vol) {
-    if (!audio) return;
-    try { const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime; o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur); g.gain.setValueAtTime(vol || 0.15, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g); g.connect(audio.destination); o.start(t); o.stop(t + dur); } catch (e) { /* sin audio */ }
+  function soplo(dur, vol, f0, f1) { // ruido filtrado: aleteo, golpe
+    if (!audio || !bus || !bufRuido) return;
+    try { const t = audio.currentTime, s = audio.createBufferSource(), fl = audio.createBiquadFilter(), g = audio.createGain(); s.buffer = bufRuido; s.playbackRate.value = 1.4; fl.type = 'bandpass'; fl.Q.value = 0.8; fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(f1, t + dur); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(fl); fl.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + dur + 0.05); } catch (e) { /* sin audio */ }
   }
-
+  const pip = (f0, f1, dur, vol) => nota(f0, dur, Math.min(0.05, (vol || 0.1) * 0.3), 'sine', 0, f1); // los avisos viejos suenan ahora muy suaves
+  const sAleteo = () => soplo(0.3, 0.05, 900, 280);
+  const sCaptura = () => { nota(380, 0.14, 0.05, 'sine', 0, 190); nota(760, 0.1, 0.02, 'sine', 0.03, 520); };
+  const sEntrega = () => { [523, 659, 784].forEach((f, i) => nota(f, 0.55, 0.035, 'sine', i * 0.12)); for (let i = 0; i < 4; i++) nota(3200 + Math.random() * 600, 0.05, 0.012, 'sine', 0.45 + i * 0.09, 3700); }; // acorde suave y piar de polluelos
+  const sAro = () => { nota(784, 0.22, 0.03, 'sine'); nota(988, 0.26, 0.03, 'sine', 0.09); };
+  const sChoque = () => { nota(110, 0.4, 0.1, 'sine', 0, 45); soplo(0.25, 0.04, 400, 120); };
+  const sFin = () => [523, 659, 784, 1046].forEach((f, i) => nota(f, 0.7, 0.035, 'sine', i * 0.16));
+  function chirp() { // ave lejana: dos o tres notitas
+    const n = 2 + Math.floor(Math.random() * 3), base = 2200 + Math.random() * 1400, pan = Math.random() * 1.6 - 0.8, up = Math.random() < 0.5;
+    for (let i = 0; i < n; i++) nota(base + i * 120, 0.07 + Math.random() * 0.04, 0.012 + Math.random() * 0.01, 'sine', i * 0.11, base + (up ? 500 : -400), pan);
+  }
+  function audioPaso(dt, p, sobreAgua) {
+    if (!audio) return;
+    const baja = clamp(1 - p.y / 30, 0, 1);
+    if (aguaG) aguaG.gain.value += ((sobreAgua ? 0.03 * baja + 0.006 : 0.003) - aguaG.gain.value) * Math.min(1, dt * 2);
+    tAve -= dt; if (tAve <= 0) { tAve = 2.5 + Math.random() * 5.5; chirp(); }
+  }
+  function bocina() { // pitido de carro lejano: dos tonos suaves
+    if (!audio) return; const v = 0.012 + 0.012 * via.intens, f = 400 + Math.random() * 60;
+    nota(f, 0.3, v, 'triangle'); nota(f * 1.25, 0.3, v, 'triangle');
+  }
+  const btnSnd = document.createElement('button'); btnSnd.id = 'pjSnd'; document.body.appendChild(btnSnd);
+  const pintarSnd = () => { btnSnd.textContent = sonidoOn ? 'Sonido' : 'Silencio'; btnSnd.classList.toggle('mudo', !sonidoOn); };
+  btnSnd.onclick = () => { sonidoOn = !sonidoOn; try { localStorage.setItem('ren3d_sonido', sonidoOn ? '1' : '0'); } catch (e) { /* ok */ } if (bus) bus.gain.value = sonidoOn ? VOL : 0; pintarSnd(); try { if (audio && audio.state === 'suspended') audio.resume(); } catch (e) { /* ok */ } }; pintarSnd();
   // ---------------------------------------------------------------- mensajes y HUD
   function mensaje(t, seg) {
     t = sinEmoji(t);
@@ -688,7 +722,7 @@ export function crearPajaro(ctx) {
     const p = rig.position, av = ctx.aves(), b = av.burro;
     if (!sim.terminado) sim.tiempo += dt;
     // energía: depende del ave (la tingua descansa rozando el agua y no aguanta volar alto; la gaviota gasta al acelerar)
-    energiaPaso(dt, p, b, av);
+    energiaPaso(dt, p, b, av); audioPaso(dt, p, !!b && av.dentro(p.x, p.z, b.pts));
     // avenida: tráfico, ruido y choques
     if (via.coches.length) {
       pasoTrafico(dt);
@@ -702,7 +736,7 @@ export function crearPajaro(ctx) {
       }
       const prox = clamp(1 - via.d / 260, 0, 1) * clamp(1 - p.y / 300, 0.15, 1), lou = via.intens * prox;
       if (audio && trafG) {
-        trafG.gain.value = 0.015 * via.intens + 0.95 * lou * lou; motG.gain.value = 0.14 * lou * lou;
+        trafG.gain.value = 0.008 * via.intens + 0.3 * lou * lou; motG.gain.value = 0.045 * lou * lou;
         tBocina -= dt; if (tBocina <= 0) { tBocina = (2 + Math.random() * 4) / (0.3 + via.intens * 1.6); if (lou > 0.2 && Math.random() < 0.8) bocina(); }
       }
       ruidoEl.style.opacity = String(clamp(sim.ex * 1.5 + (sim.inmune > 3 ? 0.5 : 0), 0, 0.9));
@@ -732,7 +766,7 @@ export function crearPajaro(ctx) {
         if (obj === 'pesca' && vh > 17.5 && f.salto >= 0) { if (performance.now() - (sim.avisoVel || 0) > 3500) { sim.avisoVel = performance.now(); mensaje('Muy rápido: las garzas pescan despacio. Frena (S) al acercarte', 2400); } continue; }
         if (obj === 'insectos' && vh < 13) { if (performance.now() - (sim.avisoVel || 0) > 3500) { sim.avisoVel = performance.now(); mensaje('Si vas lento los insectos se escapan: acelera para atravesar el enjambre', 2400); } continue; }
         f.vivo = false; f.espera = obj === 'insectos' ? 2 : 1.5; f.mesh.visible = false; f.haz.visible = false; if (obj !== 'insectos') av.anillo(f.x, f.z);
-        sim.llevando++; sim.puntos += 25; pip(520, 1040, 0.18, 0.18); if (obj === 'insectos') sim.energia = Math.max(0, sim.energia - 6);
+        sim.llevando++; sim.puntos += 25; sCaptura(); if (obj === 'insectos') sim.energia = Math.max(0, sim.energia - 6);
         mensaje(sim.llevando >= AVE.cap ? 'Carga completa: llévala al nido' : (obj === 'pesca' ? 'Pez atrapado' : obj === 'juncos' ? 'Tallo recogido' : 'Bocado de insectos') + ' (' + sim.llevando + '/' + AVE.cap + ')', 2200);
       }
     }
@@ -740,7 +774,7 @@ export function crearPajaro(ctx) {
     if (nido) {
       const dn = Math.hypot(nido.x - p.x, nido.y - p.y, nido.z - p.z); animarNido(dt, dn);
       if (dn < 13 && sim.llevando > 0) {
-        const n = sim.llevando, pts = (obj === 'insectos' ? 120 : 100) * n; sim.llevando = 0; sim.entregados += n; sim.puntos += pts; pip(660, 1320, 0.35, 0.2); setTimeout(() => pip(880, 1760, 0.4, 0.15), 160); crecerNido(n);
+        const n = sim.llevando, pts = (obj === 'insectos' ? 120 : 100) * n; sim.llevando = 0; sim.entregados += n; sim.puntos += pts; sEntrega(); crecerNido(n);
         mensaje((obj === 'juncos' ? 'Agregaste ' + n + ' ' + (n > 1 ? noms : nom) + ' a tu nido' : 'Alimentaste a tus polluelos: ' + n + ' ' + (n > 1 ? noms : nom)) + ' · +' + pts + ' pts', 2800);
         if (sim.entregados % 3 === 0 || sim.entregados < 3) setTimeout(() => mensaje(DATOS[(sim.entregados + 1) % DATOS.length], 5500), 3000);
         if (sim.entregados >= AVE.meta && !sim.terminado) terminar();
@@ -748,7 +782,7 @@ export function crearPajaro(ctx) {
     }    // aros
     if (aroMesh) {
       aroMesh.rotation.z += dt * 0.6;
-      if (p.distanceTo(aroMesh.position) < 12) { sim.aro++; sim.aros++; sim.puntos += 50; pip(400, 900, 0.25, 0.15); mensaje('⭕ Aro +50', 1500); colocarAro(); }
+      if (p.distanceTo(aroMesh.position) < 12) { sim.aro++; sim.aros++; sim.puntos += 50; sAro(); mensaje('⭕ Aro +50', 1500); colocarAro(); }
     }
     // vuelo rasante: deja ondas sobre el agua
     if (p.y < 3.2 && b && av.dentro(p.x, p.z, b.pts)) { sim.tOnda = (sim.tOnda || 0) - dt; if (sim.tOnda <= 0) { sim.tOnda = 0.35; av.anillo(p.x, p.z); } }
@@ -774,7 +808,7 @@ export function crearPajaro(ctx) {
     sim.terminado = true; const t = sim.tiempo, bono = Math.max(0, Math.round((240 - t) * 2)); sim.puntos += bono;
     if (sim.puntos > sim.mejor) { sim.mejor = sim.puntos; try { localStorage.setItem('ren3d_pajaro_mejor', String(sim.puntos)); } catch (e) { /* sin almacenamiento */ } }
     mensaje('Misión cumplida: ' + sim.puntos + ' pts en ' + fmt(t) + '. Sigue volando; la ronda se reinicia sola.', 9000);
-    pip(523, 1046, 0.5, 0.2); setTimeout(() => pip(784, 1568, 0.6, 0.2), 250);
+    sFin();
     setTimeout(() => { if (activo && sim.terminado) nuevaRonda('Nueva ronda: ' + AVE.metaTxt); }, 12000);
   }
   // ---------------------------------------------------------------- modo observar: el ave vuela sola (cámara en tercera persona)
@@ -923,7 +957,7 @@ export function crearPajaro(ctx) {
       const ph = now * fq * Math.PI * 2, mun = Math.sin(ph - 1.0) * amp * 0.75 - 0.05, abre = 0.14 * (1 - Math.min(1, Math.abs(amp) * 1.3)) + 0.06 * Math.max(0, Math.cos(ph)); // la muñeca va un poco atrasada y las puntas se abren al planear
       for (const a of [alaI, alaD]) { a.userData.muneca.rotation.z = mun; a.userData.prim.forEach((p, k) => { p.rotation.y = -(0.02 + k / 9 * 0.95) - (k - 4.5) * abre * 0.2; }); }
     }
-    if (vientoG && audio) vientoG.gain.value = 0.02 + Math.min(0.12, vel / 400);
+    if (vientoG && audio) vientoG.gain.value = 0.012 + Math.min(0.05, vel / 700);
     juego(dt);
     T3.vpos = rig.position;
     ctx.sim(dt, rig.position);
@@ -1016,7 +1050,7 @@ export function crearPajaro(ctx) {
     try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) { /* ok */ }
     try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* ok */ }
     try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { /* ok */ }
-    try { if (audio) { audio.close(); audio = null; vientoG = null; trafG = null; motG = null; } } catch (e) { /* ok */ }
+    try { if (audio) { audio.close(); audio = null; vientoG = null; trafG = null; motG = null; bus = null; aguaG = null; } } catch (e) { /* ok */ }
     document.body.classList.remove('pj', 'pjvr', 'pjcb', 'pjtouch', 'pjobs'); tactil = false; hud.classList.remove('on'); btnSalir.classList.remove('on'); msgEl.style.display = 'none';
     xrAcelera = 0; xrFrena = 0; ctrlY = [null, null]; acelera = false; frena = false;
     if (T3.trees) { T3.trees.umbral = 0; T3.trees.minMs = 0; } if (T3.plants) T3.plants.minMs = 0; via.tope = 1; calidad = 0; tAcum = 0; nAcum = 0; tPrev = 0; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = true; } catch (e) { /* ok */ }
