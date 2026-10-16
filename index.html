@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>REN3D • Kennedy 3D · Territorio Real</title>
 <link rel="icon" href="data:,">
 <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
@@ -88,6 +88,7 @@
   #hud-c #b-pajaro{padding:14px 54px;font-size:15px;letter-spacing:.32em;color:#04121c;background:linear-gradient(100deg,#7dd3fc,#34d399);box-shadow:none;transition:filter .15s,transform .15s}
   #hud-c #b-pajaro:hover{filter:brightness(1.12);transform:translateY(-2px);color:#04121c}
   #hud-c #b-night.on{color:#fde68a;box-shadow:inset 0 0 0 1px rgba(253,230,138,.55)}
+  @media(max-width:700px){#hud-c{bottom:max(18px,env(safe-area-inset-bottom));gap:10px}#hud-c button{padding:13px 18px;font-size:11px}#hud-c #b-pajaro{padding:13px 34px;font-size:13px;letter-spacing:.24em}}
   #trafficHud{position:fixed;left:14px;bottom:64px;z-index:18;width:min(344px,44vw);padding:10px 14px;background:rgba(7,13,22,.92);border:1px solid rgba(56,189,248,.45);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.5);color:#e8eef7;display:none}
   #trafficHud .trafficTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;font-weight:700;font-size:13px}
   #trafficHud .trafficTop b{font-variant-numeric:tabular-nums;letter-spacing:.02em;white-space:nowrap}
@@ -112,7 +113,7 @@
 <div class="hud" id="hud-l">
   <div class="t">REN3D · TERRITORIO KENNEDY</div>
   <div class="s">Satélite real + edificios 3D + árboles 3D + agua animada + relieve. Motor de vuelo jugable.</div>
-  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v36</div>
+  <div id="modebadge">MODO: 🏙️ FOTORREALISTA · v37</div>
   <div id="poi-list"></div>
   <div id="mission">▶ Misión: reconoce el territorio</div>
 </div>
@@ -528,7 +529,7 @@ function setMode(m) {
   $('b-todo').classList.toggle('on', m === 'todo');
   $('b-splat').classList.toggle('on', m === 'splat');
   const mb = $('modebadge');
-  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v36' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v36' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v36' : 'MODO: 🛰️ SATÉLITE · v36'));
+  if (mb) mb.textContent = m === 'foto' ? 'MODO: 🏙️ FOTORREALISTA · v37' : (m === 'todo' ? 'MODO: 🧱 TODO 3D · v37' : (m === 'splat' ? 'MODO: 🌀 SPLAT HUMEDAL · v37' : 'MODO: 🛰️ SATÉLITE · v37'));
   const dim = m !== 'sat';
   ['b-trees', 'b-water'].forEach(id => { $(id).style.opacity = dim ? '.35' : '1'; });
   if (m === 'sat') { try { map.resize(); } catch (e) {} }
@@ -612,7 +613,7 @@ function fotoFail(m) {
   fotoFailed = true;
   setMode('sat');
   const mb2 = $('modebadge');
-  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v36 · 3D no cargó: ' + m;
+  if (mb2) mb2.textContent = 'MODO: 🛰️ SATÉLITE · v37 · 3D no cargó: ' + m;
   say('⚠️ Fotorrealista no cargó: ' + m + '. Quedaste en modo satélite.', 7000);
 }
 async function initFoto() {
@@ -883,6 +884,8 @@ function tick() {
 let LIVIANO = new URLSearchParams(location.search).get('liviano') === '1'; // sin edificios, sombras ni tráfico (gafas VR, celulares, equipos modestos)
 let MEDIO = false; // con LIVIANO: conserva los edificios (Quest sola)
 if (/OculusBrowser|Quest|Pico/i.test(navigator.userAgent)) { LIVIANO = true; MEDIO = true; } // gafas independientes: el mundo abre directo en versión media
+const MOVIL = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches && Math.min(screen.width, screen.height) < 900);
+if (MOVIL) LIVIANO = true; // celular: sin edificios, sombras ni tráfico, árboles más livianos y sin descargar los modelos pesados (carga mucho más rápido)
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
   fondo: 0xa9cbe6, niebla: 0xc9dcea, densNiebla: 0.00011,
   top: 0x2f78cf, mid: 0x78b3e6, bot: 0xd9e6ec, nubes: 0.5,
@@ -921,8 +924,8 @@ async function initTodo() {
     const THREE = await import('three');
     const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
     REFL = null; // agua analítica, sin espejo físico (evita manchas negras)
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.25));
+    const renderer = new THREE.WebGLRenderer({ antialias: !MOVIL, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(MOVIL ? 1 : Math.min(devicePixelRatio, 1.25));
     renderer.setSize(innerWidth, innerHeight);
     renderer.shadowMap.enabled = !LIVIANO || MEDIO; // MEDIO (Quest sola) también lleva sombras
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -996,11 +999,11 @@ async function initTodo() {
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.3;
     ground.receiveShadow = true;
     scene.add(ground);
-    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, liviano: LIVIANO, night: false, anim: null, last: 0, counts: {},
+    T3 = { THREE, renderer, scene, camera, orbit, hemi, sun, skyU, liviano: LIVIANO, movil: MOVIL && !MEDIO, night: false, anim: null, last: 0, counts: {},
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js?v=36'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
+    try { T3.R = await import('./data3d/real3d.js?v=37'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
     const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
@@ -1044,7 +1047,7 @@ async function initTodo() {
         T3.counts.t = T.t.length;
         say('🌳 Árboles reales 3D cargados', 3000);
       } catch (e) { console.warn('arboles reales:', e); T3.trees = null; try { await buildTreesReal(THREE, T); } catch (e2) { console.warn('trees:', e2); } }
-      try { T3.plants = await T3.R.buildNearPlants(T3, W, lw, T3.env, P); }
+      try { if (!T3.movil) T3.plants = await T3.R.buildNearPlants(T3, W, lw, T3.env, P); } // en celular no se descargan las plantas 3D (varios MB)
       catch (e) { console.warn('pasto 3D:', e); pastoRespaldo(); }
     })();
     if (!LIVIANO) (async () => {
@@ -2212,7 +2215,7 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=36');
+      const m = await import('./data3d/pajaro.js?v=37');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),

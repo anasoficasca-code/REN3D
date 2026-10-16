@@ -86,7 +86,49 @@ body.pj #pjRuido{display:block}
 body.pj.pjcb #pjRuido,body.pj.pjvr #pjRuido{display:none!important}
 body.pj #pjHud.on,body.pj #pjSalir.on{display:block}
 body.pj.pjcb #pjHud,body.pj.pjcb #pjSalir,body.pj.pjcb #pjMsg{display:none!important}
-body.pj #hud-c{display:none!important}
+#pjTouch{position:fixed;inset:0;z-index:28;display:none;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none}
+body.pjtouch #pjTouch{display:block}
+#pjStick{position:absolute;left:max(22px,env(safe-area-inset-left));bottom:max(26px,env(safe-area-inset-bottom));width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(125,211,252,.10),rgba(125,211,252,.04) 70%);box-shadow:inset 0 0 0 2px rgba(200,225,245,.35);pointer-events:auto;touch-action:none}
+#pjKnob{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:rgba(232,241,248,.55);box-shadow:0 0 0 2px rgba(255,255,255,.7);transition:transform .05s}
+#pjBtns{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(26px,env(safe-area-inset-bottom));display:grid;grid-template-columns:auto auto;gap:12px;align-items:end;pointer-events:none}
+#pjBtns button,#pjBCam{pointer-events:auto;touch-action:none;border:none;border-radius:0;font:700 12px "Segoe UI",system-ui,sans-serif;letter-spacing:.16em;text-transform:uppercase;color:#05131d;background:rgba(232,241,248,.82);padding:0 16px;height:58px;min-width:92px;clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%);-webkit-tap-highlight-color:transparent}
+#pjBtns button:active,#pjBtns button.on{background:#7dd3fc}
+#pjBAle{grid-column:1/3;height:74px;font-size:14px;background:rgba(125,211,252,.9)!important}
+#pjBCam{position:absolute;right:max(22px,env(safe-area-inset-right));bottom:max(26px,env(safe-area-inset-bottom));display:none}
+body.pjobs #pjBCam{display:block}body.pjobs #pjStick,body.pjobs #pjBtns{display:none}
+#pjGira{position:fixed;left:50%;top:46%;transform:translateX(-50%);z-index:27;display:none;padding:10px 20px;background:rgba(5,11,18,.85);color:#e8f1f8;font:600 12px "Segoe UI",sans-serif;letter-spacing:.14em;text-transform:uppercase;pointer-events:none;text-align:center}
+@media(orientation:portrait){body.pjtouch #pjGira{display:block;animation:pjFade 6s forwards}}
+@keyframes pjFade{0%,70%{opacity:1}100%{opacity:0}}
+#pjHud .sec{display:flex}
+@media(max-width:860px),(max-height:520px){
+  #pjMenu .wrap{padding:16px 16px 20px}
+  #pjMenu h1{margin:16px 0 4px;font-size:26px}
+  #pjMenu .lead{display:none}
+  #pjMenu .aves{gap:10px}
+  #pjMenu .ave .in{padding:12px 14px 12px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px))}
+  #pjMenu .ave svg{float:left;width:88px;height:46px;margin:0 12px 4px 0}
+  #pjMenu .ave h3{font-size:18px}
+  #pjMenu .ave .rol{margin:2px 0 8px;font-size:10px}
+  #pjMenu .ave .num{display:none}
+  #pjMenu .ave p{clear:both;font-size:12px;min-height:0;margin-bottom:8px;line-height:1.4}
+  #pjMenu .ave .st{grid-template-columns:1fr 1fr;gap:3px 12px;margin-bottom:8px}
+  #pjMenu .ave .st li b{width:72px;font-size:9.5px}
+  #pjMenu .ave .st li span i{width:13px}
+  #pjMenu .ave .meta{padding-top:7px;font-size:10px}
+  #pjMenu .pie{position:sticky;bottom:0;margin-top:12px;padding:12px 0 4px;background:linear-gradient(0deg,rgba(3,8,14,.99) 72%,rgba(3,8,14,0));z-index:3}
+  #pjMenu .jugar{width:100%;padding:16px 20px;margin-left:0}
+  #pjMenu details{display:none}
+  #pjHud{top:8px;left:8px;width:182px;padding:8px 10px;font-size:11px}
+  #pjHud .n{font-size:20px}
+  #pjHud .fila{margin:3px 0;font-size:9.5px}
+  #pjHud .fila b{font-size:11.5px}
+  #pjHud .barra{width:72px}
+  #pjHud .sec{display:none}
+  #pjHud .guia{font-size:9.5px;margin-top:5px;padding-top:5px}
+  #pjSalir{top:8px;right:8px;padding:9px 16px}
+  #pjMsg{bottom:36%;font-size:11.5px;padding:8px 16px}
+}
+@media(max-width:860px) and (orientation:landscape),(max-height:520px){#pjMenu .aves{grid-template-columns:repeat(3,1fr)}#pjMenu .ave svg{float:none;width:100%;height:40px}#pjMenu .ave p{display:none}}body.pj #hud-c{display:none!important}
 `;
 
 const giro = (a, b) => { let x = b - a; while (x > Math.PI) x -= 2 * Math.PI; while (x < -Math.PI) x += 2 * Math.PI; return x; };
@@ -133,6 +175,7 @@ const AVES_JUEGO = {
   }
 };
 const ESQUEST = /OculusBrowser|Quest|Pico/i.test(navigator.userAgent); // gafas independientes (sin PC)
+const MOVIL = !ESQUEST && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches && Math.min(screen.width, screen.height) < 900)); // celular o tableta: controles táctiles automáticos
 export function crearPajaro(ctx) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const div = (id, html, cls) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; e.innerHTML = html || ''; document.body.appendChild(e); return e; };
@@ -144,8 +187,8 @@ export function crearPajaro(ctx) {
     <div class="aves">${Object.values(AVES_JUEGO).map(tarjeta).join('')}</div>
     <div class="pie">
       <div class="ctrl"><label>Modo</label><div class="seg" id="pjSegJ"><button data-j="jugar" class="on">Jugar yo</button><button data-j="observar">Ver al ave sola</button></div></div>
-      <div class="ctrl" id="pjCtrl"><label>Controles</label><div class="seg" id="pjSeg"><button data-c="pantalla" class="on">Pantalla</button><button data-c="vr">Gafas VR</button><button data-c="cardboard">Celular + visor</button></div></div>
-      <label class="esp"><input type="checkbox" id="pjEsp"> Ver en el computador lo que ves en las gafas</label>
+      <label class="esp" id="pjVrL" style="display:none"><input type="checkbox" id="pjVr"> Jugar con gafas VR</label>
+      <label class="esp" id="pjEspL" style="display:none"><input type="checkbox" id="pjEsp"> Ver en el computador lo que ves en las gafas</label>
       <button class="jugar" data-m="jugar" id="pjJugar">Comenzar vuelo</button>
       <div id="pjXr"></div><div id="pjEstado"></div>
     </div>
@@ -162,8 +205,22 @@ export function crearPajaro(ctx) {
   const msgEl = div('pjMsg', '');
   const ruidoEl = div('pjRuido', '');
   const $ = (id) => document.getElementById(id);
-  const pjEsp = $('pjEsp');
-
+  const pjEsp = $('pjEsp'), pjVr = $('pjVr');
+  const touch = div('pjTouch', `<div id="pjStick"><div id="pjKnob"></div></div><div id="pjBtns"><button id="pjBFrena">Frenar</button><button id="pjBAcel">Acelerar</button><button id="pjBAle">Aletear</button></div><button id="pjBCam">Cámara</button>`);
+  const gira = div('pjGira', 'Gira el celular en horizontal para jugar mejor');
+  const tc = { x: 0, y: 0, acel: false, frena: false, id: null }; let tactil = false; // controles táctiles (celular): palanca para dirigir y botones
+  {
+    const stick = $('pjStick'), knob = $('pjKnob');
+    const mover = (e) => { const r = stick.getBoundingClientRect(), R = 52; let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const l = Math.hypot(dx, dy); if (l > R) { dx *= R / l; dy *= R / l; } tc.x = dx / R; tc.y = dy / R; knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; };
+    stick.addEventListener('pointerdown', (e) => { e.preventDefault(); tc.id = e.pointerId; try { stick.setPointerCapture(e.pointerId); } catch (_) { /* ok */ } mover(e); });
+    stick.addEventListener('pointermove', (e) => { if (e.pointerId === tc.id) { e.preventDefault(); mover(e); } });
+    const soltar = (e) => { if (e.pointerId === tc.id) { tc.id = null; tc.x = 0; tc.y = 0; knob.style.transform = 'translate(0,0)'; } };
+    stick.addEventListener('pointerup', soltar); stick.addEventListener('pointercancel', soltar);
+    const bt = (id, on, off) => { const b = $(id); b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.classList.add('on'); on(); }); const u = () => { b.classList.remove('on'); if (off) off(); }; b.addEventListener('pointerup', u); b.addEventListener('pointercancel', u); b.addEventListener('pointerleave', u); };
+    bt('pjBAcel', () => { tc.acel = true; }, () => { tc.acel = false; }); bt('pjBFrena', () => { tc.frena = true; }, () => { tc.frena = false; }); bt('pjBAle', () => { if (activo) aleteo(); });
+    $('pjBCam').addEventListener('pointerdown', (e) => { e.preventDefault(); if (activo && modo === 'observar') { camVista++; ponerCamara(); } });
+    pjVr.addEventListener('change', () => { modoSel = pjVr.checked ? 'vr' : 'pantalla'; pintarSel(); infoXr(); });
+  }
   // ---- estado ----
   let T3 = null, activo = false, modo = null, loop = null, ultimo = 0;
   let AVE = AVES_JUEGO.garza, modoSel = 'pantalla', modoJ = 'jugar';
@@ -187,10 +244,13 @@ export function crearPajaro(ctx) {
     menu.style.setProperty('--cs', AVE.color);
     menu.querySelectorAll('#pjSeg button').forEach(b => b.classList.toggle('on', b.getAttribute('data-c') === modoSel));
     menu.querySelectorAll('#pjSegJ button').forEach(b => b.classList.toggle('on', b.getAttribute('data-j') === modoJ));
-    const ct = pjCtrl; if (ct) ct.style.display = modoJ === 'observar' ? 'none' : ''; pjJugar.textContent = modoJ === 'observar' ? 'Ver vuelo' : 'Comenzar vuelo';
+    $('pjVrL').style.display = hayVr && modoJ === 'jugar' ? 'flex' : 'none'; $('pjEspL').style.display = hayVr && modoJ === 'jugar' && pjVr.checked ? 'flex' : 'none'; $('pjJugar').textContent = modoJ === 'observar' ? 'Ver vuelo' : 'Comenzar vuelo';
   };
+  let hayVr = false; // las gafas sólo se ofrecen si el navegador las reconoce (en el celular se juega con controles táctiles, sin elegir nada)
   async function abrirMenu() {
-    menu.style.display = 'block'; estado(''); pjEsp.checked = espejo; pintarSel(); await infoXr();
+    menu.style.display = 'block'; estado(''); pjEsp.checked = espejo; pintarSel();
+    try { hayVr = !MOVIL && !!navigator.xr && await navigator.xr.isSessionSupported('immersive-vr'); } catch (e) { hayVr = false; }
+    pintarSel(); await infoXr();
   }
   async function infoXr() {
     const el = $('pjXr'); if (modoSel === 'cardboard') { el.textContent = 'Pon el celular en horizontal dentro del visor; se pedirá permiso de movimiento.'; return; }
@@ -215,7 +275,7 @@ export function crearPajaro(ctx) {
   });
   async function elegir(m) {
     // celular: versión ligera. Quest sola: versión media (con edificios, sin sombras ni tráfico). Gafas conectadas al PC (Link/SteamVR): versión completa
-    const nivel = m === 'cardboard' ? 'ligero' : (m === 'vr' && ESQUEST) ? 'medio' : 'completo';
+    const nivel = m === 'cardboard' || MOVIL ? 'ligero' : (m === 'vr' && ESQUEST) ? 'medio' : 'completo';
     let cargo = false;
     if (!ctx.listo()) {
       cargo = true; estado('Cargando el mundo' + (nivel === 'completo' ? '' : nivel === 'medio' ? ' (versión media para las gafas)' : ' (versión ligera)') + '. Puede tardar un poco...');
@@ -430,7 +490,7 @@ export function crearPajaro(ctx) {
     if (sim.inmune > 0 || sim.perdido) return;
     sim.vidas--; sim.golpes++; const perdidos = sim.llevando; sim.llevando = 0; sim.energia = 100; sim.inmune = 3.5; caida = 0; lift = 0;
     pip(220, 60, 0.5, 0.25); setTimeout(() => pip(150, 50, 0.4, 0.2), 120);
-    const b = ctx.aves().burro, p0 = puntoSeguro(b); rig.position.set(p0[0], 38, p0[1]); vel = AVE.vel.cru; impulso = 0;
+    const b = ctx.aves().burro, p0 = puntoSeguro(b); rig.position.set(p0[0], AVE.techo ? 8 : 38, p0[1]); vel = AVE.vel.cru; impulso = 0;
     if (sim.vidas <= 0) fallar(motivo);
     else mensaje(motivo + (perdidos ? ' Perdiste ' + perdidos + ' ' + (perdidos > 1 ? AVE.item[1] : AVE.item[0]) + '.' : '') + ' Vidas: ' + sim.vidas, 4000);
   }
@@ -531,7 +591,7 @@ export function crearPajaro(ctx) {
     try { sim.mejor = Number(localStorage.getItem('ren3d_pajaro_mejor') || 0); } catch (e) { sim.mejor = 0; }
     // arranque: sobre el agua del humedal, mirando al primer pez
     const p0 = puntoSeguro(b), f0 = peces[0];
-    rig.position.set(p0[0], 38, p0[1]); yaw = Math.atan2(p0[0] - f0.x, p0[1] - f0.z); pit = -0.12; vel = AVE.vel.cru; impulso = 0; // la cámara mira hacia -Z girada por yaw: así arranca mirando al primer objetivo
+    rig.position.set(p0[0], AVE.techo ? 8 : 38, p0[1]); yaw = Math.atan2(p0[0] - f0.x, p0[1] - f0.z); pit = -0.12; vel = AVE.vel.cru; impulso = 0; // la cámara mira hacia -Z girada por yaw: así arranca mirando al primer objetivo
     rig.rotation.set(0, 0, 0);
   }
   function limpiarJuego() {
@@ -598,12 +658,12 @@ export function crearPajaro(ctx) {
         + `<div class="fila">Vidas ${pips(sim.vidas, 3, 'vida')}</div>`
         + `<div class="fila">${ETQ[AVE.objetivo]} <b>${sim.entregados} / ${AVE.meta}</b></div>`
         + (AVE.cap > 1 ? `<div class="fila">Carga ${pips(sim.llevando, AVE.cap)}</div>` : '')
-        + `<div class="fila">Tiempo <b>${tiempo}</b></div>`
+        + `<div class="fila sec">Tiempo <b>${tiempo}</b></div>`
         + `<div class="fila">Energía <span class="barra"><i style="width:${en}%;background:${colE}"></i></span></div>`
         + `<div class="fila">Tráfico <span class="barra"><i style="width:${tr}%;background:${colT}"></i></span></div>`
-        + `<div class="fila">Altura <b>${Math.round(p.y)} m</b></div><div class="fila">Velocidad <b>${Math.round(vel * 3.6)} km/h</b></div>`
+        + `<div class="fila sec">Altura <b>${Math.round(p.y)} m</b></div><div class="fila sec">Velocidad <b>${Math.round(vel * 3.6)} km/h</b></div>`
         + (modo === 'observar' ? `<div class="guia">${bot.estado || 'Buscando objetivo'}</div><div class="fila" style="margin-top:5px">Cámara: tecla V</div>` : o ? `<div class="guia"><span class="arrow" style="transform:rotate(${-rel}rad)">&#10148;</span>${o.txt} ${Math.round(dist)} m</div>` : '') + (aviso ? `<div class="aviso">${aviso}</div>` : '')
-        + `<div class="fila" style="margin-top:7px">Récord <b>${sim.mejor}</b></div>`;
+        + `<div class="fila sec" style="margin-top:7px">Récord <b>${sim.mejor}</b></div>`;
     }
     if ((modo === 'vr' || modo === 'cardboard') && hudCv) {
       const g = hudCv.getContext('2d'), W = hudCv.width, H = hudCv.height;
@@ -793,7 +853,7 @@ export function crearPajaro(ctx) {
   let tToque = 0;
   const onTouchStart = () => { if (activo && (modo === 'cardboard')) { acelera = true; tToque = performance.now(); } };
   const onTouchEnd = () => { acelera = false; if (activo && modo === 'cardboard' && performance.now() - tToque < 220) aleteo(); }; // toque corto = aletear
-  const onClickCanvas = () => { if (activo && modo === 'pantalla' && !document.pointerLockElement) { try { T3.renderer.domElement.requestPointerLock(); } catch (e) { /* sin bloqueo */ } } };
+  const onClickCanvas = () => { if (activo && modo === 'pantalla' && !MOVIL && !document.pointerLockElement) { try { T3.renderer.domElement.requestPointerLock(); } catch (e) { /* sin bloqueo */ } } };
   let cdGiro = 0, ctrlY = [null, null], cdAleteo = 0, xrAcelera = 0, xrFrena = 0;
   function leerXR(dt) {
     const s = T3.renderer.xr.getSession && T3.renderer.xr.getSession(); if (!s) return;
@@ -821,7 +881,7 @@ export function crearPajaro(ctx) {
     const now = performance.now() / 1000, dt = dtFijo || clamp(now - (ultimo || now), 0.001, 0.05); ultimo = now;
     const cam = T3.camera;
     sim.ex = via.seg.length ? exposicion(rig.position) : 0; sacudida += dt * 11;
-    if ((modo === 'vr' || modo === 'cardboard') && !dtFijo) { // si las gafas/celular no sostienen ~60 cuadros por segundo, se baja el detalle poco a poco para que se vea fluido
+    if ((modo === 'vr' || modo === 'cardboard' || MOVIL) && !dtFijo) { // si las gafas/celular no sostienen ~60 cuadros por segundo, se baja el detalle poco a poco para que se vea fluido
       if (tPrev) { tAcum += now - tPrev; nAcum++; } tPrev = now;
       if (nAcum >= 90) { const ms = tAcum / nAcum * 1000; tAcum = 0; nAcum = 0;
         if (ms > 17.5 && calidad < 3) { calidad++; if (calidad === 1) { T3.sun.castShadow = false; via.tope = 0.55; } else if (calidad === 2) { via.tope = 0.3; if (T3.trees) T3.trees.minMs = 2500; try { if (modo === 'vr') T3.renderer.xr.setFoveation(0.6); } catch (e) { /* ok */ } } else { via.tope = 0.15; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = false; } catch (e) { /* ok */ } } }
@@ -839,6 +899,7 @@ export function crearPajaro(ctx) {
       if (teclas.KeyA || teclas.ArrowLeft) yaw += AVE.giro * dt; if (teclas.KeyD || teclas.ArrowRight) yaw -= AVE.giro * dt;
       if (teclas.ArrowUp) pit = clamp(pit + 0.9 * dt, -1.25, 1.25); if (teclas.ArrowDown) pit = clamp(pit - 0.9 * dt, -1.25, 1.25);
       acelera = !!(teclas.KeyW || teclas.ShiftLeft || teclas.ShiftRight) || (modo === 'cardboard' && acelera); frena = !!teclas.KeyS; }
+      if (tactil && modo !== 'observar') { yaw -= tc.x * AVE.giro * 1.15 * dt; pit = clamp(pit - tc.y * 0.95 * dt, -1.2, 1.2); if (Math.abs(tc.y) < 0.18) pit += (-0.04 - pit) * Math.min(1, dt * 0.7); acelera = acelera || tc.acel; frena = frena || tc.frena; } // palanca: izquierda/derecha gira, arriba/abajo sube/baja; sin tocarla el ave se nivela
       rig.rotation.set(pit + Math.sin(sacudida * 1.3) * 0.012 * sim.ex, yaw + Math.sin(sacudida * 0.9) * 0.01 * sim.ex, Math.sin(sacudida) * 0.03 * sim.ex); // el aire revuelto sacude la vista
     }
     if (modo === 'observar') dir.set(-Math.sin(yaw) * Math.cos(pit), Math.sin(pit), -Math.cos(yaw) * Math.cos(pit)); else camaraDir(dir);
@@ -894,8 +955,8 @@ export function crearPajaro(ctx) {
     Object.assign(guardado, { pos: cam.position.clone(), tgt: T3.orbit.target.clone(), near: cam.near, far: cam.far, sombra: T3.sun.castShadow, pr: r.getPixelRatio(), quat: cam.quaternion.clone() });
     try {
       T3.orbit.enabled = false; cam.near = 0.5; cam.far = 30000; cam.updateProjectionMatrix();
-      if (m === 'cardboard' || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (las sombras en baja resolución se veían como cuadros)
-      if (m !== 'pantalla') { if (T3.trees) { T3.trees.umbral = 40; T3.trees.minMs = 800; } if (T3.plants) T3.plants.minMs = 800; } // recorrer todos los árboles cada pocos metros daba tirones
+      if (m === 'cardboard' || MOVIL || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (las sombras en baja resolución se veían como cuadros)
+      if (m !== 'pantalla' || MOVIL) { if (T3.trees) { T3.trees.umbral = 40; T3.trees.minMs = 800; } if (T3.plants) T3.plants.minMs = 800; } // recorrer todos los árboles cada pocos metros daba tirones
       T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
       camVista = 0;
       crearAlas(); if (!hudPlano) crearHudPlano(); // las alas se rehacen en cada partida: cambian con el ave elegida
@@ -929,11 +990,14 @@ export function crearPajaro(ctx) {
       const ok = await pedirOrientacion(); if (!ok) ctx.say('Sin giroscopio: mira con el mouse/dedo', 4000);
       cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
     }
+    tactil = MOVIL && (m === 'pantalla' || m === 'observar'); tc.x = tc.y = 0; tc.acel = tc.frena = false; document.getElementById('pjKnob').style.transform = 'translate(0,0)';
+    if (MOVIL) { try { const p = document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* ok */ } try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); } catch (e) { /* ok */ } }
+    document.body.classList.toggle('pjtouch', tactil); document.body.classList.toggle('pjobs', m === 'observar');
     activo = true; document.body.classList.add('pj');
     document.body.classList.toggle('pjcb', m === 'cardboard'); hud.classList.toggle('on', m !== 'cardboard'); btnSalir.classList.toggle('on', true);
     ultimo = 0; iniciarAudio();
     r.setAnimationLoop(bucle);
-    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500);
+    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); if (tactil && m === 'pantalla') setTimeout(() => mensaje('Palanca: dirigir. Botones: acelerar, frenar y aletear', 4000), 4700);
   }
   function abortar() { activo = false; restaurar(); }
   function restaurar() {
@@ -953,7 +1017,7 @@ export function crearPajaro(ctx) {
     try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { /* ok */ }
     try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) { /* ok */ }
     try { if (audio) { audio.close(); audio = null; vientoG = null; trafG = null; motG = null; } } catch (e) { /* ok */ }
-    document.body.classList.remove('pj', 'pjvr', 'pjcb'); hud.classList.remove('on'); btnSalir.classList.remove('on'); msgEl.style.display = 'none';
+    document.body.classList.remove('pj', 'pjvr', 'pjcb', 'pjtouch', 'pjobs'); tactil = false; hud.classList.remove('on'); btnSalir.classList.remove('on'); msgEl.style.display = 'none';
     xrAcelera = 0; xrFrena = 0; ctrlY = [null, null]; acelera = false; frena = false;
     if (T3.trees) { T3.trees.umbral = 0; T3.trees.minMs = 0; } if (T3.plants) T3.plants.minMs = 0; via.tope = 1; calidad = 0; tAcum = 0; nAcum = 0; tPrev = 0; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = true; } catch (e) { /* ok */ }
   }

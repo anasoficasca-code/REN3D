@@ -92,3 +92,7 @@ et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido
 ## v36
 - Aves basadas en como viven de verdad (garza real: pesca al acecho y nido de palitos en arbol; tingua de pico rojo: vuelo corto y bajo, nido flotante de tallos de junco; gaviota andina: insectos al vuelo, nido de pasto en el suelo). Sin torre ni huevos: nidos con polluelos.
 - Modo 'Ver al ave sola' (piloto automatico, camara en tercera persona, tecla V cambia la camara).
+
+## v37 - Celular
+- Deteccion automatica de celular/tableta: controles tactiles (palanca + Acelerar/Frenar/Aletear), sin elegir controles; menu y HUD adaptados; pantalla completa y horizontal al jugar.
+- Carga liviana en celular: sin edificios, sombras, trafico ni plantas 3D; arboles solo con modelo reducido (carga ~15 MB en vez de ~100 MB). Gafas VR solo se ofrecen si el navegador las reconoce.

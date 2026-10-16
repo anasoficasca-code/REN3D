@@ -322,26 +322,28 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
     }
   }
   const N = X.length, ROT = new Float32Array(N); for (let i = 0; i < N; i++) ROT[i] = hash(i * 41 + 11) * Math.PI * 2;
-  const especies = [];
+  const especies = [], MV = !!T3.movil; // celular: sólo el modelo reducido de cada árbol (se descarga mucho menos)
   for (const E of ESPECIES_ARBOL) {
     const niveles = {};
-    for (const nv of ['L0', 'L1']) {
+    for (const nv of MV ? ['L1'] : ['L0', 'L1']) {
       const partes = [];
-      for (const parte of ['madera', 'hojas']) { const g = await gltfLoader.loadAsync(`data3d/models/${E.base}_${nv}_${parte}.glb`); partes.push(...recolectar(g.scene).map(p => ({ ...p, hoja: parte === 'hojas' }))); }
+      const gs = await Promise.all(['madera', 'hojas'].map(parte => gltfLoader.loadAsync(`data3d/models/${E.base}_${nv}_${parte}.glb`))); // madera y hojas se descargan a la vez
+      ['madera', 'hojas'].forEach((parte, k) => partes.push(...recolectar(gs[k].scene).map(p => ({ ...p, hoja: parte === 'hojas' }))));
       niveles[nv] = partes;
     }
+    if (MV) niveles.L0 = niveles.L1;
     const b = cajaDe(niveles.L0), cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2, alto = b.max.y - b.min.y, ancho = Math.max(b.max.x - b.min.x, b.max.z - b.min.z);
-    for (const nv of ['L0', 'L1']) niveles[nv].forEach(p => { p.geo.translate(-cx, -b.min.y, -cz); realzarMaterial(p.mat, env, p.hoja); });
+    for (const nv of MV ? ['L1'] : ['L0', 'L1']) niveles[nv].forEach(p => { p.geo.translate(-cx, -b.min.y, -cz); realzarMaterial(p.mat, env, p.hoja); });
     const hojaRGB = colorPromedioHoja(niveles.L1) || colorPromedioHoja(niveles.L0) || [0.11, 0.17, 0.06];
-    for (const nv of ['L0', 'L1']) niveles[nv].forEach(p => { if (p.hoja) balanceo(p.mat, alto, T3); });
+    for (const nv of MV ? ['L1'] : ['L0', 'L1']) niveles[nv].forEach(p => { if (p.hoja) balanceo(p.mat, alto, T3); });
     const sil = dibujarSiluetas(T3, niveles.L0, alto, ancho);
     especies.push({ ...E, niveles, alto, ancho, sil, hojaRGB });
   }
   // L0 modelo real completo (cerca) · L1 modelo real reducido (medio) · L2 arbol 3D de bajos poligonos (lejos) · siluetas sólo más allá de R2 o si se llena el cupo
   // la versión ligera (gafas VR, celulares: T3.liviano) usa menos árboles detallados y copas más simples; la completa muestra más modelos reales
-  const LV = !!T3.liviano, CAP2 = LV ? 5000 : 10000, R0 = LV ? 40 : 100, R1 = LV ? 400 : 1000, R2 = LV ? 1200 : 2200, d = new THREE.Object3D(), col = new THREE.Color();
-  const CAP0S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 4 : 10) : (LV ? 10 : 32)); // el arbolpeq tiene 83.000 triángulos en el nivel 0
-  const CAP1S = especies.map(e => e.base === 'arbolpeq' ? (LV ? 40 : 200) : (LV ? 240 : 1100)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
+  const LV = !!T3.liviano, CAP2 = LV ? 5000 : 10000, R0 = MV ? 0 : LV ? 40 : 100, R1 = MV ? 260 : LV ? 400 : 1000, R2 = LV ? 1200 : 2200, d = new THREE.Object3D(), col = new THREE.Color();
+  const CAP0S = especies.map(e => MV ? 1 : e.base === 'arbolpeq' ? (LV ? 4 : 10) : (LV ? 10 : 32)); // el arbolpeq tiene 83.000 triángulos en el nivel 0
+  const CAP1S = especies.map(e => MV ? (e.base === 'arbolpeq' ? 25 : 90) : e.base === 'arbolpeq' ? (LV ? 40 : 200) : (LV ? 240 : 1100)); // el arbolpeq tiene 14.000 triángulos en el nivel 1: menos copias
   const TIPO_BAJO = especies.map(e => (e.base === 'arbolpeq' || e.base === 'island_tree_02') ? 1 : 0);
   const matBajo = materialArbolBajo(T3), REF = [0.17, 0.255, 0.0875]; // REF = verde medio del degradado de vértices
   const USAR_BAJOS = false; // las copas de bajos polígonos se veían como bolas verdes al alejar la cámara: lejos ahora se dibuja el mismo árbol real (fotos desde el lado y desde arriba)
