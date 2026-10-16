@@ -113,6 +113,9 @@ body.pj .hud,body.pj #trafficHud,body.pj #toast{display:none!important}
 body.pj #pjRuido{display:block}
 body.pj.pjcb #pjRuido,body.pj.pjvr #pjRuido{display:none!important}
 body.pj #pjHud.on,body.pj #pjSalir.on{display:block}
+#pjMapa{position:fixed;top:68px;right:18px;z-index:30;display:none;width:176px;height:176px;border-radius:50%;pointer-events:none;background:#0b1622;box-shadow:0 0 0 2px rgba(232,241,248,.9),0 0 0 5px rgba(8,16,26,.72),0 10px 24px rgba(0,0,0,.5);opacity:.96}
+body.pj #pjMapa.on{display:block}
+body.pj.pjcb #pjMapa,body.pj.pjvr #pjMapa{display:none!important}
 body.pj.pjcb #pjHud,body.pj.pjcb #pjSalir,body.pj.pjcb #pjMsg{display:none!important}
 #pjTouch{position:fixed;inset:0;z-index:28;display:none;pointer-events:none;touch-action:none;user-select:none;-webkit-user-select:none}
 body.pjtouch #pjTouch{display:block}
@@ -134,6 +137,7 @@ body.pjobs #pjBCam{display:block}body.pjobs #pjStick,body.pjobs #pjBtns{display:
   #pjHud .fila b{font-size:11.5px}
   #pjHud .barra{width:68px}
   #pjHud .guia{font-size:9.5px;margin-top:5px;padding-top:5px}
+  #pjMapa{top:52px;right:10px;width:118px;height:118px}
   #pjSalir{top:8px;right:8px;padding:9px 16px}
   #pjSnd{top:8px;right:92px;padding:9px 12px}
   #pjMsg{bottom:36%;font-size:11.5px;padding:8px 16px}
@@ -260,17 +264,38 @@ export function crearPajaro(ctx) {
     if (m3dCarga) return; if (m3d) { m3d.arranca(); return; }
     m3dCarga = true;
     try {
-      const mod = await import('./aves_menu.js?v=1');
+      const mod = await import('./aves_menu.js?v=2');
       const rend = new THREE.WebGLRenderer({ alpha: true, antialias: true }); rend.toneMapping = THREE.ACESFilmicToneMapping; rend.toneMappingExposure = 1.05;
-      const esc = new THREE.Scene(); esc.add(new THREE.HemisphereLight(0xdfeeff, 0x2a3a2a, 1.2));
-      const sol = new THREE.DirectionalLight(0xfff1dc, 2.6); sol.position.set(2.5, 4, 3); esc.add(sol);
-      const rim = new THREE.DirectionalLight(0x7dd3fc, 1.4); rim.position.set(-3, 2, -3); esc.add(rim);
-      const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 50), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0, side: THREE.DoubleSide });
+      const esc = new THREE.Scene(); esc.add(new THREE.HemisphereLight(0xdfeeff, 0x2a3a2a, 0.55));
+      const sol = new THREE.DirectionalLight(0xfff1dc, 2.4); sol.position.set(2.5, 4, 3); esc.add(sol);
+      const rim = new THREE.DirectionalLight(0x9bd8ff, 1.6); rim.position.set(-3, 2, -3); esc.add(rim);
+      try { const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js'); const pm = new THREE.PMREMGenerator(rend); esc.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; pm.dispose(); } catch (e) { /* sin reflejos de ambiente */ }
+      const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
+      // material de plumaje: brillo suave tipo plumón (sheen), rugosidad por vértice (pico y ojos brillantes) y un relieve fino alargado en el sentido de las plumas
+      const mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.78, metalness: 0, sheen: 0.35, sheenRoughness: 0.65, sheenColor: new THREE.Color(0x6f7f90), envMapIntensity: 0.4, side: THREE.DoubleSide });
+      mat.onBeforeCompile = (sh) => {
+        sh.vertexShader = 'attribute float rug;\nvarying float vRug;\nvarying vec3 vOP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvRug = rug; vOP = position;');
+        sh.fragmentShader = `varying float vRug; varying vec3 vOP;
+          float h31(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+          float vn3(vec3 x){ vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(mix(mix(h31(i), h31(i + vec3(1,0,0)), f.x), mix(h31(i + vec3(0,1,0)), h31(i + vec3(1,1,0)), f.x), f.y), mix(mix(h31(i + vec3(0,0,1)), h31(i + vec3(1,0,1)), f.x), mix(h31(i + vec3(0,1,1)), h31(i + vec3(1,1,1)), f.x), f.y), f.z); }
+          float plumH(vec3 p){ return vn3(p * vec3(60.0, 60.0, 15.0)) * 0.65 + vn3(p * vec3(140.0, 140.0, 34.0)) * 0.35; }
+        ` + sh.fragmentShader
+          .replace('float roughnessFactor = roughness;', 'float roughnessFactor = roughness * vRug;')
+          .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+          { float hh = plumH(vOP) * smoothstep(0.35, 0.7, vRug) * 0.55; vec2 dH = vec2(dFdx(hh), dFdy(hh));
+            vec3 sX = normalize(dFdx(-vViewPosition)), sY = normalize(dFdy(-vViewPosition)), R1 = cross(sY, normal), R2 = cross(normal, sX); float det = dot(sX, R1);
+            normal = normalize(abs(det) * normal - sign(det) * (dH.x * R1 + dH.y * R2)); }`);
+      };
+      mat.customProgramCacheKey = () => 'aves-menu-v2';
       const items = [];
       menu.querySelectorAll('.ave').forEach((b) => {
         const geo = mod.geometriaAveMenu(b.getAttribute('data-ave')), cv = b.querySelector('canvas.m3d'); if (!geo || !cv) return;
         geo.computeBoundingBox(); const bb = geo.boundingBox, c = bb.getCenter(new THREE.Vector3()), s = bb.getSize(new THREE.Vector3());
         const mesh = new THREE.Mesh(geo, mat); mesh.position.sub(c); const piv = new THREE.Group(); piv.add(mesh); piv.visible = false; esc.add(piv);
+        if (b.getAttribute('data-ave') !== 'gaviota') { // las aves de pie llevan sombra de contacto sobre el suelo
+          const cv2 = document.createElement('canvas'); cv2.width = cv2.height = 128; const g2 = cv2.getContext('2d'), gr = g2.createRadialGradient(64, 64, 4, 64, 64, 62); gr.addColorStop(0, 'rgba(0,0,0,.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g2.fillStyle = gr; g2.fillRect(0, 0, 128, 128);
+          const som = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv2), transparent: true, depthWrite: false })); som.rotation.x = -Math.PI / 2; som.position.y = bb.min.y - c.y + 0.002; som.scale.setScalar(Math.max(s.x, s.z) * 0.9); piv.add(som);
+        }
         items.push({ b, cv, c2: cv.getContext('2d'), piv, alto: s.y / 2, radio: Math.hypot(s.x, s.z) / 2, listo: false, off: items.length * 2.1 });
       });
       let rw = 0, rh = 0, corre = false;
@@ -301,7 +326,7 @@ export function crearPajaro(ctx) {
     const el = $('pjXr'); if (modoSel === 'cardboard') { el.textContent = 'Pon el celular en horizontal dentro del visor; se pedirá permiso de movimiento.'; return; }
     if (modoSel !== 'vr') { el.textContent = ''; return; }
     try {
-      if (navigator.xr && await navigator.xr.isSessionSupported('immersive-vr')) el.textContent = 'Tu navegador reconoce gafas VR (WebXR). ' + (ESQUEST ? 'Se carga una versión más ligera para que vaya fluido. Para el máximo detalle conecta las gafas al PC (Quest Link) y abre la página en Chrome o Edge.' : 'Se carga la versión completa, con edificios y tráfico.');
+      if (navigator.xr && await navigator.xr.isSessionSupported('immersive-vr')) el.textContent = 'Tu navegador reconoce gafas VR (WebXR). ' + (ESQUEST ? 'Se cargan los edificios y los carros alrededor del humedal, optimizados para que vaya fluido. Para el máximo detalle conecta las gafas al PC (Quest Link) y abre la página en Chrome o Edge.' : 'Se carga la versión completa, con edificios y tráfico.');
       else el.textContent = navigator.xr ? 'WebXR sin gafas conectadas: conecta las gafas (Quest Link o SteamVR) o abre esta página en el navegador de las gafas.' : 'Este navegador no tiene WebXR: abre la página en el navegador de las gafas o en Chrome o Edge con las gafas conectadas.';
     } catch (e) { /* sin WebXR */ }
   }
@@ -321,9 +346,9 @@ export function crearPajaro(ctx) {
   });
   async function elegir(m) {
     // celular: versión ligera. Quest sola: versión media (con edificios, sin sombras ni tráfico). Gafas conectadas al PC (Link/SteamVR): versión completa
-    const nivel = m === 'cardboard' || MOVIL ? 'ligero' : (m === 'vr' && ESQUEST) ? 'ligero' : 'completo';
+    const nivel = m === 'cardboard' || MOVIL ? 'ligero' : (m === 'vr' && ESQUEST) ? 'medio' : 'completo';
     let cargo = false;
-    if (!ctx.listo()) {
+    if (!ctx.listo() || (nivel === 'medio' && ctx.faltanEdificios && ctx.faltanEdificios())) { // en las Quest se cargan los edificios del entorno del humedal aunque el mundo ya estuviera abierto sin ellos
       cargo = true; estado('Cargando el mundo' + (nivel === 'completo' ? '' : nivel === 'medio' ? ' (versión media para las gafas)' : ' (versión ligera)') + '. Puede tardar un poco...');
       try { await ctx.cargar(nivel); } catch (e) { estado('No se pudo cargar el mundo: ' + (e && e.message || e)); return; }
     }
@@ -467,7 +492,7 @@ export function crearPajaro(ctx) {
       if (mejor) ch.unico = ((m.x - mejor[0]) * -m.dz + (m.z - mejor[1]) * m.dx) > 0 ? 1 : -1;
     });
     // carros: muchos más que en la simulación normal; según la hora pico se ven unos u otros (rank = orden en que aparecen)
-    const Ltot = via.cadenas.reduce((a, c) => a + c.L, 0), TOT = T3.liviano ? 150 : 320; let id = 0;
+    const Ltot = via.cadenas.reduce((a, c) => a + c.L, 0), TOT = T3.liviano ? 220 : 320; let id = 0;
     via.cadenas.forEach((ch, ci) => {
       const n = Math.round(TOT * ch.L / (Ltot || 1));
       for (let i = 0; i < n; i++) {
@@ -675,15 +700,7 @@ export function crearPajaro(ctx) {
       audio = new AC(); try { if (audio.state === 'suspended') audio.resume(); } catch (e) { /* ok */ } const n = audio.sampleRate * 2; bufRuido = audio.createBuffer(1, n, audio.sampleRate); const d = bufRuido.getChannelData(0);
       let l = 0; for (let i = 0; i < n; i++) { l = l * 0.97 + (Math.random() * 2 - 1) * 0.03; d[i] = l * 6; }
       const comp = audio.createDynamicsCompressor(); comp.threshold.value = -30; comp.ratio.value = 8; bus = audio.createGain(); bus.gain.value = sonidoOn ? VOL * (modo === 'vr' ? 0.85 : 1) : 0; bus.connect(comp); comp.connect(audio.destination);
-      const capa = (rate, tipo, fq, q) => { const s = audio.createBufferSource(); s.buffer = bufRuido; s.loop = true; s.playbackRate.value = rate; const fl = audio.createBiquadFilter(); fl.type = tipo; fl.frequency.value = fq; if (q) fl.Q.value = q; const g = audio.createGain(); g.gain.value = 0; s.connect(fl); fl.connect(g); g.connect(bus); s.start(); return g; };
-      vientoG = capa(1, 'lowpass', 380); // viento
-      aguaG = capa(0.7, 'bandpass', 650, 0.7); // olitas del humedal (sube cuando vuelas bajo sobre el agua)
-      const lfo = audio.createOscillator(), lg = audio.createGain(); lfo.frequency.value = 0.23; lg.gain.value = 0.35; lfo.connect(lg); lg.connect(aguaG.gain); lfo.start(); // el agua sube y baja suavemente
-      trafG = capa(0.8, 'bandpass', 260, 0.6); // rumor de la avenida: suena desde donde está la calle (audio 3D)
-      trafP = audio.createPanner(); trafP.panningModel = 'HRTF'; trafP.distanceModel = 'inverse'; trafP.refDistance = 60; trafP.rolloffFactor = 0.25; trafP.maxDistance = 2000; trafG.disconnect(); trafG.connect(trafP); trafP.connect(bus);
-      grillosG = capa(1, 'bandpass', 4300, 9); { const lf = audio.createOscillator(), lq = audio.createGain(); lf.type = 'square'; lf.frequency.value = 7.5; lq.gain.value = 0.0025; lf.connect(lq); lq.connect(grillosG.gain); lf.start(); } // grillos y bichos del humedal, muy bajitos
-      const mot = audio.createOscillator(); mot.type = 'triangle'; mot.frequency.value = 52; const fm = audio.createBiquadFilter(); fm.type = 'lowpass'; fm.frequency.value = 140; motG = audio.createGain(); motG.gain.value = 0;
-      mot.connect(fm); fm.connect(motG); motG.connect(trafP); mot.start();
+      // sin viento, agua, grillos ni ruido de tráfico: sólo suena el pajarito (suave) y, cerca de la avenida, la alarma de peligro
     } catch (e) { audio = null; }
   }
   function nota(f0, dur, vol, tipo, retraso, f1, pan) { // tono corto con entrada y salida suaves
@@ -699,15 +716,28 @@ export function crearPajaro(ctx) {
     try { const t = audio.currentTime, s = audio.createBufferSource(), fl = audio.createBiquadFilter(), g = audio.createGain(); s.buffer = bufRuido; s.playbackRate.value = 1.4; fl.type = 'bandpass'; fl.Q.value = 0.8; fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(f1, t + dur); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + dur * 0.35); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(fl); fl.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + dur + 0.05); } catch (e) { /* sin audio */ }
   }
   const pip = (f0, f1, dur, vol) => nota(f0, dur, Math.min(0.05, (vol || 0.1) * 0.3), 'sine', 0, f1); // los avisos viejos suenan ahora muy suaves
-  const sAleteo = () => { soplo(0.3, 0.05, 900, 280); vibrar(0.12, 40); };
-  const sCaptura = () => { vibrar(0.35, 80); nota(380, 0.14, 0.05, 'sine', 0, 190); nota(760, 0.1, 0.02, 'sine', 0.03, 520); };
-  const sEntrega = () => { vibrar(0.5, 160); [523, 659, 784].forEach((f, i) => nota(f, 0.55, 0.035, 'sine', i * 0.12)); for (let i = 0; i < 4; i++) nota(3200 + Math.random() * 600, 0.05, 0.012, 'sine', 0.45 + i * 0.09, 3700); }; // acorde suave y piar de polluelos
-  const sAro = () => { vibrar(0.25, 60); nota(784, 0.22, 0.03, 'sine'); nota(988, 0.26, 0.03, 'sine', 0.09); };
-  const sChoque = () => { vibrar(1, 320); nota(110, 0.4, 0.1, 'sine', 0, 45); soplo(0.25, 0.04, 400, 120); };
-  const sFin = () => [523, 659, 784, 1046].forEach((f, i) => nota(f, 0.7, 0.035, 'sine', i * 0.16));
-  function chirp() { // ave lejana: dos o tres notitas
-    const n = 2 + Math.floor(Math.random() * 3), base = 2200 + Math.random() * 1400, pan = Math.random() * 1.6 - 0.8, up = Math.random() < 0.5;
-    for (let i = 0; i < n; i++) nota(base + i * 120, 0.07 + Math.random() * 0.04, 0.012 + Math.random() * 0.01, 'sine', i * 0.11, base + (up ? 500 : -400), pan);
+  // todos los sonidos del juego son del pajarito: trinos suaves (cada ave con su voz); los avisos «de juego» son trinos cortos
+  const VOZ = { garza: [1900, 2700, 0.16], tingua: [1500, 2300, 0.09], gaviota: [2500, 3300, 0.12] }; // [grave, agudo, duración de cada nota]
+  function trino(n, vol, pan, sube) {
+    const v = VOZ[AVE.id] || VOZ.garza, base = v[0] + Math.random() * (v[1] - v[0]), d = v[2] * (0.5 + Math.random() * 0.4);
+    for (let i = 0; i < n; i++) nota(base + i * 90, d, vol * (0.8 + Math.random() * 0.4), 'sine', i * d * 1.25, base + i * 90 + (sube ? 520 : -420), pan);
+  }
+  const sAleteo = () => { vibrar(0.12, 40); };
+  const sCaptura = () => { vibrar(0.35, 80); trino(2, 0.09, 0, true); };
+  const sEntrega = () => { vibrar(0.5, 160); for (let i = 0; i < 5; i++) nota(3000 + Math.random() * 500, 0.06, 0.05, 'sine', i * 0.1, 3800); }; // polluelos felices
+  const sAro = () => { vibrar(0.25, 60); };
+  const sChoque = () => { vibrar(1, 320); nota(660, 0.18, 0.2, 'sawtooth'); nota(440, 0.3, 0.2, 'sawtooth', 0.14); nota(90, 0.4, 0.16, 'sine'); };
+  const sFin = () => { trino(3, 0.09, 0, true); setTimeout(() => trino(3, 0.08, 0, true), 700); };
+  function chirp() { trino(2 + Math.floor(Math.random() * 3), 0.07, Math.random() * 1.2 - 0.6, Math.random() < 0.5); } // el pajarito canta de vez en cuando
+  // peligro: aviso de dos tonos que se acelera y sube de volumen a medida que te acercas a la avenida (y más aún si vas bajo)
+  let tPel = 0, pelAlt = 0;
+  function peligro(dt, p) {
+    const lvl = via.seg.length ? clamp(1 - via.d / 130, 0, 1) * clamp(1.2 - p.y / 150, 0.35, 1) : 0;
+    tPel -= dt; if (lvl <= 0.03 || tPel > 0 || sim.perdido) return;
+    tPel = 1.15 - 0.95 * lvl; pelAlt ^= 1;
+    nota(pelAlt ? 880 : 622, 0.14 + 0.12 * (1 - lvl), 0.06 + 0.2 * lvl, lvl > 0.6 ? 'sawtooth' : 'triangle');
+    if (lvl > 0.5) nota(95, 0.16, 0.14 * lvl, 'sine');
+    if (lvl > 0.35) vibrar(0.15 + 0.4 * lvl, 60);
   }
   const ptV = new THREE.Vector3(), upV = new THREE.Vector3(), fwV = new THREE.Vector3();
   function oidos(dt, p) { // el oído sigue a la cabeza (gafas): la calle suena a un lado, los polluelos desde el nido
@@ -721,17 +751,10 @@ export function crearPajaro(ctx) {
     const pn = audio.createPanner(); pn.panningModel = 'HRTF'; pn.refDistance = 6; pn.rolloffFactor = 1.2; if (pn.positionX) { pn.positionX.value = nido.x; pn.positionY.value = nido.y; pn.positionZ.value = nido.z; } else pn.setPosition(nido.x, nido.y, nido.z); pn.connect(bus);
     const t = audio.currentTime; for (let i = 0; i < 3; i++) { const o = audio.createOscillator(), g = audio.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(3000 + Math.random() * 500, t + i * 0.1); o.frequency.exponentialRampToValueAtTime(3900, t + i * 0.1 + 0.07); g.gain.setValueAtTime(0.0001, t + i * 0.1); g.gain.linearRampToValueAtTime(0.03, t + i * 0.1 + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.1 + 0.09); o.connect(g); g.connect(pn); o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.12); }
   }
-  function audioPaso(dt, p, sobreAgua) {
+  function audioPaso(dt, p) {
     if (!audio) return; oidos(dt, p); piarNido(dt, p);
-    if (grillosG) grillosG.gain.value += ((p.y < 40 ? 0.003 : 0.001) - grillosG.gain.value) * Math.min(1, dt);
-    tRana -= dt; if (sobreAgua && p.y < 30 && tRana <= 0) { tRana = 7 + Math.random() * 8; nota(190, 0.1, 0.012, 'triangle', 0, 140); nota(200, 0.12, 0.012, 'triangle', 0.16, 150); }
-    const baja = clamp(1 - p.y / 30, 0, 1);
-    if (aguaG) aguaG.gain.value += ((sobreAgua ? 0.03 * baja + 0.006 : 0.003) - aguaG.gain.value) * Math.min(1, dt * 2);
-    tAve -= dt; if (tAve <= 0) { tAve = 2.5 + Math.random() * 5.5; chirp(); }
-  }
-  function bocina() { // pitido de carro lejano: dos tonos suaves
-    if (!audio) return; const v = 0.007 + 0.007 * via.intens, f = 400 + Math.random() * 60;
-    nota(f, 0.3, v, 'triangle'); nota(f * 1.25, 0.3, v, 'triangle');
+    tAve -= dt; if (tAve <= 0) { tAve = 3 + Math.random() * 6; chirp(); }
+    peligro(dt, p);
   }
   const btnSnd = document.createElement('button'); btnSnd.id = 'pjSnd'; document.body.appendChild(btnSnd);
   const pintarSnd = () => { btnSnd.textContent = sonidoOn ? 'Sonido' : 'Silencio'; btnSnd.classList.toggle('mudo', !sonidoOn); };
@@ -792,7 +815,7 @@ export function crearPajaro(ctx) {
     const p = rig.position, av = ctx.aves(), b = av.burro;
     if (!sim.terminado) sim.tiempo += dt;
     // energía: depende del ave (la tingua descansa rozando el agua y no aguanta volar alto; la gaviota gasta al acelerar)
-    energiaPaso(dt, p, b, av); audioPaso(dt, p, !!b && av.dentro(p.x, p.z, b.pts));
+    energiaPaso(dt, p, b, av); audioPaso(dt, p);
     // avenida: tráfico, ruido y choques
     if (via.coches.length) {
       pasoTrafico(dt);
@@ -803,11 +826,6 @@ export function crearPajaro(ctx) {
         }
         if (p.y < 2.8 && via.d < 14) chocar('Te hundiste hasta la avenida.');
         if (sim.energia <= 0 && sim.ex > 0.25) chocar('El ruido y el humo te agotaron.');
-      }
-      const prox = clamp(1 - via.d / 260, 0, 1) * clamp(1 - p.y / 300, 0.15, 1), lou = via.intens * prox;
-      if (audio && trafG) {
-        trafG.gain.value = 0.006 * via.intens + 0.2 * lou * lou; motG.gain.value = 0.03 * lou * lou;
-        tBocina -= dt; if (tBocina <= 0) { tBocina = (2 + Math.random() * 4) / (0.3 + via.intens * 1.6); if (lou > 0.2 && Math.random() < 0.8) bocina(); }
       }
       if (modo !== 'vr') ruidoEl.style.opacity = String(clamp(sim.ex * 1.5 + (sim.inmune > 3 ? 0.5 : 0), 0, 0.9));
     }
@@ -958,10 +976,10 @@ export function crearPajaro(ctx) {
   const onTouchStart = () => { if (activo && (modo === 'cardboard')) { acelera = true; tToque = performance.now(); } };
   const onTouchEnd = () => { acelera = false; if (activo && modo === 'cardboard' && performance.now() - tToque < 220) aleteo(); }; // toque corto = aletear
   const onClickCanvas = () => { if (activo && modo === 'pantalla' && !MOVIL && !document.pointerLockElement) { try { T3.renderer.domElement.requestPointerLock(); } catch (e) { /* sin bloqueo */ } } };
-  let cdGiro = 0, ctrlY = [null, null], cdAleteo = 0, xrAcelera = 0, xrFrena = 0;
+  let cdGiro = 0, ctrlY = [null, null], cdAleteo = 0, xrAcelera = 0, xrFrena = 0, tSalir = 0;
   function leerXR(dt) {
     const s = T3.renderer.xr.getSession && T3.renderer.xr.getSession(); if (!s) return;
-    cdGiro -= dt; cdAleteo -= dt; let ac = xrAcelera > 0, fr = xrFrena > 0;
+    cdGiro -= dt; cdAleteo -= dt; let ac = xrAcelera > 0, fr = xrFrena > 0, sal = false;
     for (const src of s.inputSources) {
       const gp = src.gamepad; if (!gp) continue;
       const x = gp.axes[2] || 0, y = gp.axes[3] || 0;
@@ -969,7 +987,9 @@ export function crearPajaro(ctx) {
       if (y < -0.6) ac = true; if (y > 0.6) fr = true;
       if (gp.buttons[0] && gp.buttons[0].pressed) ac = true;
       if (gp.buttons[1] && gp.buttons[1].pressed) fr = true;
+      if (gp.buttons[5] && gp.buttons[5].pressed) sal = true; // botón B (mano derecha) o Y (izquierda): mantenido un segundo, sale del juego
     }
+    if (sal) { tSalir += dt; if (tSalir > 0.35 && tSalir - dt <= 0.35) mensaje('Sigue pulsando B o Y para salir...', 1200); if (tSalir > 1.0) { tSalir = 0; try { if (sesionXR) sesionXR.end(); } catch (e) { salir(); } return; } } else tSalir = 0;
     // aletear: bajar rápido las manos da impulso
     for (let i = 0; i < 2; i++) {
       const c = T3.renderer.xr.getController(i); if (!c) continue;
@@ -979,6 +999,68 @@ export function crearPajaro(ctx) {
     acelera = ac; frena = fr;
   }
 
+  // ---------------------------------------------------------------- minimapa en planta
+  // Al empezar se toma UNA foto del mundo 3D real visto desde arriba (cámara ortográfica, sin niebla ni objetos del juego). Durante el vuelo sólo se
+  // recorta y gira esa foto alrededor del ave (cuesta casi nada) y se dibujan encima el ave, su campo de visión, los objetivos y el nido.
+  const mapaCv = document.createElement('canvas'); mapaCv.id = 'pjMapa'; document.body.appendChild(mapaCv);
+  let mapa = null, tMapa = 0;
+  function capturarMapa() {
+    mapa = null; mapaCv.classList.remove('on');
+    const av = ctx.aves(), b = av && av.burro; if (!b || !T3) return;
+    let x0 = b.x0, x1 = b.x1, z0 = b.z0, z1 = b.z1; if (nido) { x0 = Math.min(x0, nido.x); x1 = Math.max(x1, nido.x); z0 = Math.min(z0, nido.z); z1 = Math.max(z1, nido.z); }
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, span = clamp(Math.max(x1 - x0, z1 - z0) + 700, 1000, 2600), N = MOVIL ? 1024 : 2048;
+    const r = T3.renderer, sc = T3.scene, pr = r.getPixelRatio(), sz = r.getSize(new THREE.Vector2()), fog = sc.fog, ocultos = [];
+    const ocultar = (o) => { if (o && o.visible) { o.visible = false; ocultos.push(o); } };
+    try {
+      ocultar(rig); ocultar(av.grp); ocultar(nido && nido.g); ocultar(aroMesh); for (const f of peces) { ocultar(f.mesh); ocultar(f.haz); }
+      if (T3.trees) { const u = T3.trees.umbral, m = T3.trees.minMs; T3.trees.umbral = 0; T3.trees.minMs = 0; T3.trees.update({ position: new THREE.Vector3(cx, 200, cz) }); T3.trees.umbral = u; T3.trees.minMs = m; }
+      sc.fog = null;
+      const cm = new THREE.OrthographicCamera(-span / 2, span / 2, span / 2, -span / 2, 10, 7000); cm.up.set(0, 0, -1); cm.position.set(cx, 3000, cz); cm.lookAt(cx, 0, cz); cm.updateMatrixWorld(true);
+      r.setPixelRatio(1); r.setSize(N, N, false); r.setScissorTest(false); r.setViewport(0, 0, N, N);
+      r.render(sc, cm);
+      const img = document.createElement('canvas'); img.width = img.height = N; img.getContext('2d').drawImage(r.domElement, 0, 0);
+      mapa = { img, N, cx, cz, span };
+    } catch (e) { console.warn('minimapa:', e); mapa = null; }
+    finally { sc.fog = fog; ocultos.forEach(o => { o.visible = true; }); r.setPixelRatio(pr); r.setSize(sz.x, sz.y, false); r.setViewport(0, 0, sz.x, sz.y); }
+    if (mapa) mapaCv.classList.add('on');
+  }
+  function pintarMapa() {
+    if (!mapa || !activo || modo === 'vr' || modo === 'cardboard') return;
+    const css = mapaCv.clientWidth; if (!css) return;
+    const dpr = Math.min(devicePixelRatio || 1, 2), S = Math.round(css * dpr); if (mapaCv.width !== S) { mapaCv.width = S; mapaCv.height = S; }
+    const g = mapaCv.getContext('2d'), p = rig.position, VISTA = 420, pxm = mapa.N / mapa.span, k = (S / VISTA) / pxm, M = mapa.N / 2;
+    const px = (p.x - mapa.cx) * pxm + M, py = (p.z - mapa.cz) * pxm + M, phi = -Math.PI / 2 - Math.atan2(dir.z, dir.x), cs = Math.cos(phi), sn = Math.sin(phi), R = S / 2;
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, S, S); g.save(); g.beginPath(); g.arc(R, R, R, 0, Math.PI * 2); g.clip();
+    g.fillStyle = '#0b1622'; g.fillRect(0, 0, S, S);
+    g.translate(R, R); g.rotate(phi); g.scale(k, k); g.translate(-px, -py); g.imageSmoothingQuality = 'high'; g.drawImage(mapa.img, 0, 0);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const pos = (x, z) => { // posición en el lienzo; si queda fuera del círculo se pega al borde
+      const dx = ((x - p.x) * cs - (z - p.z) * sn) * (S / VISTA), dy = ((x - p.x) * sn + (z - p.z) * cs) * (S / VISTA), d = Math.hypot(dx, dy), lim = R - 8 * dpr;
+      return d > lim ? { x: R + dx / d * lim, y: R + dy / d * lim, f: true } : { x: R + dx, y: R + dy, f: false };
+    };
+    // campo de visión
+    g.fillStyle = 'rgba(255,255,255,.16)'; g.beginPath(); g.moveTo(R, R); g.arc(R, R, R * 0.8, -Math.PI / 2 - 0.62, -Math.PI / 2 + 0.62); g.closePath(); g.fill();
+    const punto = (q, rad, col, fuera) => { g.beginPath(); g.arc(q.x, q.y, rad * (q.f ? 0.75 : 1), 0, Math.PI * 2); g.fillStyle = col; g.fill(); g.lineWidth = 1.5 * dpr; g.strokeStyle = 'rgba(5,12,20,.85)'; g.stroke(); };
+    for (const f of peces) if (f.vivo) punto(pos(f.x, f.z), 3.2 * dpr, AVE.color);
+    if (nido) { const q = pos(nido.x, nido.z); g.save(); g.translate(q.x, q.y); g.rotate(Math.PI / 4); const a = 4.6 * dpr * (q.f ? 0.75 : 1); g.fillStyle = '#fbbf24'; g.fillRect(-a, -a, 2 * a, 2 * a); g.lineWidth = 1.5 * dpr; g.strokeStyle = 'rgba(5,12,20,.9)'; g.strokeRect(-a, -a, 2 * a, 2 * a); g.restore(); }
+    if (aroMesh) { const q = pos(aroMesh.position.x, aroMesh.position.z); g.beginPath(); g.arc(q.x, q.y, 5 * dpr, 0, Math.PI * 2); g.lineWidth = 2 * dpr; g.strokeStyle = '#5eead4'; g.stroke(); }
+    const o = objetivo(); if (o) { const q = pos(o.x, o.z), pu = 1 + 0.25 * Math.sin(performance.now() / 260); g.beginPath(); g.arc(q.x, q.y, 8 * dpr * pu, 0, Math.PI * 2); g.lineWidth = 1.8 * dpr; g.strokeStyle = 'rgba(255,255,255,.9)'; g.stroke(); }
+    // ave: triángulo siempre hacia arriba (el mapa gira con ella)
+    g.save(); g.translate(R, R); g.beginPath(); g.moveTo(0, -8 * dpr); g.lineTo(6 * dpr, 7 * dpr); g.lineTo(0, 4 * dpr); g.lineTo(-6 * dpr, 7 * dpr); g.closePath(); g.fillStyle = '#ffffff'; g.fill(); g.lineWidth = 1.6 * dpr; g.strokeStyle = AVE.color; g.stroke(); g.restore();
+    g.restore();
+    g.lineWidth = 2 * dpr; g.strokeStyle = 'rgba(8,16,26,.55)'; g.beginPath(); g.arc(R, R, R - dpr, 0, Math.PI * 2); g.stroke();
+    // norte
+    const nx = R + sn * (R - 11 * dpr), ny = R - cs * (R - 11 * dpr); g.beginPath(); g.arc(nx, ny, 7.5 * dpr, 0, Math.PI * 2); g.fillStyle = 'rgba(8,16,26,.85)'; g.fill();
+    g.fillStyle = '#f8fafc'; g.font = '700 ' + Math.round(9.5 * dpr) + 'px "Segoe UI",system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('N', nx, ny + dpr * 0.4);
+  }
+
+  // gafas / celular: los edificios (en bloques de ~350 m) lejanos al ave se ocultan; a menor calidad, más cerca. Así la ciudad se ve y el vuelo sigue fluido
+  let tEdif = 0;
+  function ocultarLejanos() {
+    const E = T3 && T3.edificios; if (!E || !E.length) return;
+    const p = rig.position, lim = (modo === 'vr' || modo === 'cardboard' || MOVIL) ? (calidad >= 3 ? 420 : calidad === 2 ? 650 : calidad === 1 ? 850 : 1100) : 1e9;
+    for (const e of E) { const v = Math.hypot(e.cx - p.x, e.cz - p.z) - e.r < lim; if (e.mesh.visible !== v) e.mesh.visible = v; }
+  }
   // ---------------------------------------------------------------- bucle
   function bucle() { try { paso(); } catch (e) { if (!bucle.avisado) { bucle.avisado = true; console.warn('modo pájaro:', e); } } }
   function paso(dtFijo) { // dtFijo: sólo para pruebas automáticas (avanza la simulación sin esperar cuadros)
@@ -988,7 +1070,7 @@ export function crearPajaro(ctx) {
     if ((modo === 'vr' || modo === 'cardboard' || MOVIL) && !dtFijo) { // si las gafas/celular no sostienen ~60 cuadros por segundo, se baja el detalle poco a poco para que se vea fluido
       if (tPrev) { tAcum += now - tPrev; nAcum++; } tPrev = now;
       if (nAcum >= 90) { const ms = tAcum / nAcum * 1000; tAcum = 0; nAcum = 0;
-        if (ms > 17.5 && calidad < 3) { calidad++; if (calidad === 1) { T3.sun.castShadow = false; via.tope = 0.55; } else if (calidad === 2) { via.tope = 0.3; if (T3.trees) T3.trees.minMs = 2500; try { if (modo === 'vr') T3.renderer.xr.setFoveation(0.6); } catch (e) { /* ok */ } } else { via.tope = 0.15; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = false; } catch (e) { /* ok */ } } }
+        if (ms > 17.5 && calidad < 3) { calidad++; if (calidad === 1) { T3.sun.castShadow = false; via.tope = 0.8; } else if (calidad === 2) { via.tope = 0.65; if (T3.trees) T3.trees.minMs = 2500; try { if (modo === 'vr') T3.renderer.xr.setFoveation(0.75); } catch (e) { /* ok */ } } else { via.tope = 0.5; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = false; } catch (e) { /* ok */ } } }
       }
     }
     if (modo === 'vr') { leerXR(dt); rig.rotation.set(0, yaw, 0); }
@@ -1027,11 +1109,12 @@ export function crearPajaro(ctx) {
       const ph = now * fq * Math.PI * 2, mun = Math.sin(ph - 1.0) * amp * 0.75 - 0.05, abre = 0.14 * (1 - Math.min(1, Math.abs(amp) * 1.3)) + 0.06 * Math.max(0, Math.cos(ph)); // la muñeca va un poco atrasada y las puntas se abren al planear
       for (const a of [alaI, alaD]) { a.userData.muneca.rotation.z = mun; a.userData.prim.forEach((p, k) => { p.rotation.y = -(0.02 + k / 9 * 0.95) - (k - 4.5) * abre * 0.2; }); }
     }
-    if (vientoG && audio) vientoG.gain.value = 0.01 + Math.min(0.035, vel / 900);
     juego(dt);
     T3.vpos = rig.position;
     ctx.sim(dt, rig.position);
     tHud -= dt; if (tHud <= 0) { tHud = 0.2; pintarHud(); }
+    tMapa -= dt; if (tMapa <= 0) { tMapa = 1 / 30; pintarMapa(); }
+    tEdif -= dt; if (tEdif <= 0) { tEdif = 0.6; ocultarLejanos(); }
     if (modo === 'cardboard' && efecto) efecto.render(T3.scene, cam); else T3.renderer.render(T3.scene, cam);
     if (modo === 'vr' && espejo) renderEspejo();
   }
@@ -1059,6 +1142,7 @@ export function crearPajaro(ctx) {
     Object.assign(guardado, { pos: cam.position.clone(), tgt: T3.orbit.target.clone(), near: cam.near, far: cam.far, sombra: T3.sun.castShadow, pr: r.getPixelRatio(), quat: cam.quaternion.clone() });
     try {
       T3.orbit.enabled = false; cam.near = 0.5; cam.far = m === 'vr' ? 9000 : 30000; cam.updateProjectionMatrix();
+      if (T3.fleet && T3.fleet.setNear) T3.fleet.setNear(m === 'vr' && ESQUEST || MOVIL || m === 'cardboard' ? 45 : 130); // gafas: el carro detallado sólo muy cerca (más lejos va el modelo simple)
       if (m === 'cardboard' || MOVIL || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (las sombras en baja resolución se veían como cuadros)
       if (m !== 'pantalla' || MOVIL) { if (T3.trees) { T3.trees.umbral = 40; T3.trees.minMs = 800; } if (T3.plants) T3.plants.minMs = 800; } // recorrer todos los árboles cada pocos metros daba tirones
       T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
@@ -1066,6 +1150,7 @@ export function crearPajaro(ctx) {
       crearAlas(); if (!hudPlano) crearHudPlano(); // las alas se rehacen en cada partida: cambian con el ave elegida
       if (m === 'observar') { avatar = crearAvatar(); rig.add(avatar); ponerCamara(); } else { cam.add(alaI, alaD, picoM, hudPlano); hudPlano.visible = m === 'vr' || m === 'cardboard'; if (hudPlano.visible) { if (!vinM) crearConfort(); fadeM.visible = true; fadeM.material.opacity = 1; tFade = 1.3; vinM.visible = false; cam.add(vinM, fadeM); } } // el HUD dentro de la escena es para gafas y Cardboard
       preparar();
+      if (m === 'pantalla' || m === 'observar') capturarMapa();
       try { r.compile(T3.scene, cam); } catch (e) { /* ok */ } // se compilan los materiales antes de entrar: evita tirones cuando aparecen carros, nido y polluelos
     } catch (e) { console.warn('pájaro:', e); estado(String(e.message || e)); abortar(); menu.style.display = 'flex'; return; }
     if (m === 'vr') {
@@ -1074,7 +1159,7 @@ export function crearPajaro(ctx) {
         r.xr.setReferenceSpaceType('local'); r.xr.enabled = true;
         try { r.xr.setFramebufferScaleFactor(ESQUEST ? 1.0 : 1.3); } catch (e) { /* ok */ } // más resolución = menos borroso
         sesionXR = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['local-floor', 'bounded-floor'] });
-        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(ESQUEST ? 0.35 : 0); } catch (e) { /* ok */ }
+        await r.xr.setSession(sesionXR); try { r.xr.setFoveation(ESQUEST ? 0.5 : 0); } catch (e) { /* ok */ }
         try { if (sesionXR.supportedFrameRates && sesionXR.supportedFrameRates.includes(ESQUEST ? 72 : 90)) await sesionXR.updateTargetFrameRate(ESQUEST ? 72 : 90); } catch (e) { /* ok */ }
         sesionXR.addEventListener('end', () => { if (activo) salir(); });
         for (let i = 0; i < 2; i++) { // manos: esferas luminosas y gatillo/grip
@@ -1102,7 +1187,7 @@ export function crearPajaro(ctx) {
     document.body.classList.toggle('pjcb', m === 'cardboard'); hud.classList.toggle('on', m !== 'cardboard'); btnSalir.classList.toggle('on', true);
     ultimo = 0; iniciarAudio();
     r.setAnimationLoop(bucle);
-    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); setTimeout(() => { if (activo) mensaje(m === 'observar' ? (tactil ? 'Botón Cámara: cambia la vista' : 'Tecla V: cambia la cámara') : tactil ? 'Palanca: dirigir. Botones: acelerar, frenar y aletear' : 'W acelerar · S frenar · A y D girar · Espacio aletear', 4500); }, 4800);
+    mensaje(AVE.nombre + ': ' + AVE.metaTxt, 4500); setTimeout(() => { if (activo) mensaje(m === 'vr' ? 'Para salir: mantén B o Y un segundo (o el botón Meta)' : m === 'observar' ? (tactil ? 'Botón Cámara: cambia la vista' : 'Tecla V: cambia la cámara') : tactil ? 'Palanca: dirigir. Botones: acelerar, frenar y aletear' : 'W acelerar · S frenar · A y D girar · Espacio aletear', 4500); }, 4800);
   }
   function abortar() { activo = false; restaurar(); }
   function restaurar() {
@@ -1112,7 +1197,8 @@ export function crearPajaro(ctx) {
     try { for (let i = 0; i < 2; i++) { const c = r.xr.getController(i); rig.remove(c); } r.xr.enabled = false; } catch (e) { /* ok */ }
     const cam = T3.camera;
     try { cam.remove(alaI, alaD, picoM, hudPlano); if (vinM) cam.remove(vinM, fadeM); if (avatar) { rig.remove(avatar); avatar = null; } rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
-    limpiarJuego(); T3.vpos = null;
+    try { if (T3.edificios) for (const e of T3.edificios) e.mesh.visible = true; if (T3.fleet && T3.fleet.setNear) T3.fleet.setNear(130); } catch (e) { /* ok */ }
+    limpiarJuego(); T3.vpos = null; mapa = null; mapaCv.classList.remove('on');
     cam.position.copy(guardado.pos); cam.quaternion.copy(guardado.quat); cam.near = guardado.near; cam.far = guardado.far; cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
     T3.orbit.target.copy(guardado.tgt); T3.orbit.enabled = true; T3.orbit.update();
     T3.sun.castShadow = guardado.sombra; r.setPixelRatio(guardado.pr); r.setSize(innerWidth, innerHeight); r.setScissorTest(false); r.setViewport(0, 0, innerWidth, innerHeight);

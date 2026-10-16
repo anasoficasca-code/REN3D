@@ -89,9 +89,11 @@ function geometriasCarro(E) {
 }
 
 export function createFleet(T3, env) {
-  const SC = 1.4, NEAR = 130, CAPN = 280, CAPF = 2800, YBASE = 0.64; // 0.64 = calzada a 0.62 + 2 cm
-  const paint = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.5, roughness: 0.30, clearcoat: 1, clearcoatRoughness: 0.05, envMap: env, envMapIntensity: 1.25 });
-  const glassM = new THREE.MeshPhysicalMaterial({ color: 0x0b1117, metalness: 0.3, roughness: 0.04, envMap: env, envMapIntensity: 1.8 });
+  const SC = 1.4, CAPN = 280, CAPF = 2800, YBASE = 0.64; // 0.64 = calzada a 0.62 + 2 cm
+  let NEAR = 130; // hasta qué distancia se dibuja el carro detallado (en gafas se acorta)
+  // gafas y celulares: pintura y vidrio estándar (sin capa de barniz), mucho más baratos de dibujar
+  const paint = T3.movil ? new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.45, roughness: 0.35, envMap: env, envMapIntensity: 1.1 }) : new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0.5, roughness: 0.30, clearcoat: 1, clearcoatRoughness: 0.05, envMap: env, envMapIntensity: 1.25 });
+  const glassM = T3.movil ? new THREE.MeshStandardMaterial({ color: 0x0b1117, metalness: 0.3, roughness: 0.1, envMap: env, envMapIntensity: 1.6 }) : new THREE.MeshPhysicalMaterial({ color: 0x0b1117, metalness: 0.3, roughness: 0.04, envMap: env, envMapIntensity: 1.8 });
   const trimM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.25, envMap: env, envMapIntensity: 0.6 });
   const lightM = new THREE.MeshBasicMaterial({ vertexColors: true });
   const est = NOMBRES.map(n => {
@@ -105,7 +107,7 @@ export function createFleet(T3, env) {
   const MAXC = 3200, X = new Float32Array(MAXC), Z = new Float32Array(MAXC), H = new Float32Array(MAXC), ID = new Int32Array(MAXC);
   const estiloDe = new Int8Array(8192).fill(-1), colorDe = new Int8Array(8192).fill(-1);
   const d = new THREE.Object3D(), col = new THREE.Color();
-  const fleet = { n: 0, estilos: est, begin() { this.n = 0; }, add(x, z, h, id) { if (this.n < MAXC) { X[this.n] = x; Z[this.n] = z; H[this.n] = h; ID[this.n] = id; this.n++; } } };
+  const fleet = { n: 0, estilos: est, setNear(v) { NEAR = v; }, begin() { this.n = 0; }, add(x, z, h, id) { if (this.n < MAXC) { X[this.n] = x; Z[this.n] = z; H[this.n] = h; ID[this.n] = id; this.n++; } } };
   fleet.end = function (cx, cz) {
     const cn = est.map(() => 0), cf = est.map(() => 0);
     for (let i = 0; i < this.n; i++) {

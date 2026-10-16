@@ -1004,10 +1004,11 @@ async function initTodo() {
       waterU: { value: 0 }, sunOff: new THREE.Vector3(0.42, 0.62, 0.35).normalize().multiplyScalar(2600), suelo };
     if (suelo) suelo.cargar().catch(e => console.warn('texturas del suelo:', e)); // las fotos bajan en segundo plano; mientras tanto el suelo tiene un color liso parecido
     // modelos reales (Poly Haven CC0): árboles 3D con LOD, pasto/plantas 3D y agua con mapa de normales
-    try { T3.R = await import('./data3d/real3d.js?v=41'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
+    try { T3.R = await import('./data3d/real3d.js?v=42'); T3.env = T3.R.makeEnv(renderer); T3.fleet = T3.R.createFleet(T3, T3.env); } catch (e) { console.warn('real3d:', e); T3.R = null; T3.env = null; T3.fleet = null; }
 
     $('lmsg').textContent = 'Cargando edificios (36 MB)…';
-    const B = (LIVIANO && !MEDIO) ? [] : await fetchProg('data3d/buildings.json', 'Edificios');
+    // MEDIO (gafas independientes): sólo los edificios a ~1,1 km del humedal (data3d/buildings_humedal.json, ~2 MB en vez de 37 MB)
+    const B = (LIVIANO && !MEDIO) ? [] : await fetchProg(LIVIANO ? 'data3d/buildings_humedal.json' : 'data3d/buildings.json', 'Edificios');
     $('lmsg').textContent = 'Levantando ' + B.length.toLocaleString('es-CO') + ' edificios…';
     await new Promise(r => setTimeout(r, 30));
     buildChunks(THREE, B);
@@ -1070,8 +1071,13 @@ function bColor(h, i) {
   else { w = [0.55 + v * 0.1, 0.65 + v * 0.1, 0.72 + v * 0.08]; r = [0.78 + v * 0.06, 0.82 + v * 0.06, 0.85 + v * 0.05]; }
   return { w, r };
 }
+// si el mundo se abrió en versión ligera y luego se entra con gafas, se agregan los edificios del entorno del humedal
+async function agregarEdificiosMedio() {
+  if (!T3 || T3.edifOK) return;
+  try { const B = await fetchProg('data3d/buildings_humedal.json', 'Edificios'); buildChunks(T3.THREE, B); } catch (e) { console.warn('edificios del humedal:', e); }
+}
 function buildChunks(THREE, B) {
-  const CELL = 1500;
+  const CELL = LIVIANO ? 350 : 1500; // en gafas/celular: bloques pequeños, para poder descartar los que no se ven (y los lejanos)
   const cells = new Map();
   let skipped = 0, total = 0;
   for (let bi = 0; bi < B.length; bi++) {
@@ -1090,7 +1096,9 @@ function buildChunks(THREE, B) {
     total++;
   }
   // material físico mate, sin ventanas dibujadas: paredes lisas con un reflejo suave del ambiente
-  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true, roughness: 0.86, metalness: 0, envMap: T3.env || null, envMapIntensity: 0.55 });
+  const mat = LIVIANO ? new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true }) // gafas: material barato (sin reflejos ni sombras)
+    : new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, flatShading: true, roughness: 0.86, metalness: 0, envMap: T3.env || null, envMapIntensity: 0.55 });
+  if (!T3.edificios) T3.edificios = [];
   for (const list of cells.values()) {
     const P = [], C = [], I = [];
     let vc = 0;
@@ -1121,10 +1129,11 @@ function buildChunks(THREE, B) {
     g.setIndex(I);
     g.computeVertexNormals();
     const bm = new THREE.Mesh(g, mat);
-    bm.castShadow = true; bm.receiveShadow = true;
+    bm.castShadow = !LIVIANO; bm.receiveShadow = !LIVIANO;
     T3.scene.add(bm);
+    g.computeBoundingSphere(); T3.edificios.push({ mesh: bm, cx: g.boundingSphere.center.x, cz: g.boundingSphere.center.z, r: g.boundingSphere.radius });
   }
-  T3.counts.b = total; T3.counts.skip = skipped;
+  T3.counts.b = (T3.counts.b || 0) + total; T3.counts.skip = skipped; if (total > 0) T3.edifOK = true;
 }
 function treeTexture(THREE, variant) {
   const S = 128, cv = document.createElement('canvas');
@@ -2216,15 +2225,16 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=43');
+      const m = await import('./data3d/pajaro.js?v=47');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
-        listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),
+        listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo), faltanEdificios: () => !!T3 && !T3.edifOK,
         cargar: async (nivel) => {
           if (nivel !== 'completo') LIVIANO = true; // si el mundo aún no está cargado, se carga la versión ligera o media
           if (nivel === 'medio') MEDIO = true;
           if (mode !== 'todo' || !T3) setMode('todo');
           await esperarHasta(() => T3 && T3.ready && AVES && AVES.nuevo, 600000);
+          if (nivel === 'medio' && !T3.edifOK) await agregarEdificiosMedio();
           await esperarHasta(() => !!T3.trees || T3.trees === null, 120000).catch(() => {});
         }
       });
