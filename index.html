@@ -889,10 +889,10 @@ if (QUEST) { LIVIANO = true; MEDIO = true; } // gafas independientes: versión l
 const MOVIL = QUEST || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || (matchMedia('(pointer:coarse)').matches && Math.min(screen.width, screen.height) < 900);
 if (MOVIL) LIVIANO = true; // celular: sin edificios, sombras ni tráfico, árboles más livianos y sin descargar los modelos pesados (carga mucho más rápido)
 const DIA = { // ambiente de día soleado (se usa al crear la escena y al volver de la noche)
-  fondo: 0xa9cbe6, niebla: 0xc9dcea, densNiebla: 0.00011,
-  top: 0x2f78cf, mid: 0x78b3e6, bot: 0xd9e6ec, nubes: 0.5,
-  hemiCielo: 0xcfe4ff, hemiSuelo: 0x6b6a45, hemi: 0.9,
-  solColor: 0xfff0d2, sol: 2.5, exposicion: 1.05
+  fondo: 0xa9cbe6, niebla: 0xcfdde8, densNiebla: 0.00017, // bruma que aclara y desatura lo lejano (perspectiva atmosférica)
+  top: 0x2a6fc4, mid: 0x74afe3, bot: 0xdbe6ea, nubes: 0.5,
+  hemiCielo: 0xb4d3ff, hemiSuelo: 0x7a6f4a, hemi: 0.86, // luz de cielo azulada arriba y rebote cálido del suelo
+  solColor: 0xffe6bf, sol: 3.0, exposicion: 1.0 // sol cálido y fuerte: más contraste entre luz y sombra
 };
 const LC = { x: 5341.33, y: 3161.9 };
 const lw = (x, y) => [x - LC.x, LC.y - y]; // z invertido: el territorio estaba en espejo (norte/sur al revés)
@@ -975,6 +975,8 @@ async function initTodoReal() {
               c = mix(c, cloudCol, cl * smoothstep(0.015, 0.18, d.y) * uCloud);
             }
             c += vec3(1.0, 0.86, 0.62) * (pow(sunAmt, 400.0) * 1.4 + pow(sunAmt, 14.0) * 0.18) * uGlow; // disco y halo del sol
+            c += vec3(1.0, 0.74, 0.46) * pow(sunAmt, 5.0) * 0.16 * (1.0 - smoothstep(0.0, 0.45, h)) * uGlow; // horizonte más cálido del lado del sol
+            c = mix(c, c * vec3(0.93, 0.97, 1.04), smoothstep(0.3, 0.9, h) * 0.5); // cenit algo más frío y profundo
             gl_FragColor = vec4(c, 1.0);
           }`
       })
@@ -1118,7 +1120,7 @@ function buildChunks(THREE, B) {
       cx /= n; cz /= n;
       const base = vc;
       for (let i = 0; i < n; i++) {
-        P.push(W[i][0], 0, W[i][1]); C.push(col.w[0] * 0.68, col.w[1] * 0.68, col.w[2] * 0.68); vc++;
+        P.push(W[i][0], 0, W[i][1]); C.push(col.w[0] * 0.5, col.w[1] * 0.5, col.w[2] * 0.52); vc++; // base más oscura (oclusión ambiental falsa): los edificios se asientan en el suelo
       }
       for (let i = 0; i < n; i++) {
         P.push(W[i][0], h, W[i][1]); C.push(col.w[0], col.w[1], col.w[2]); vc++;
