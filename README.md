@@ -108,3 +108,6 @@ et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido
 - Quest: version ligera (sin edificios ni sombras), 72 Hz, antialias, foveacion moderada, shaders precompilados, plano lejano reducido, HTML del HUD apagado en VR, calidad adaptativa.
 - Confort: fundido al entrar, vineta suave al girar/turbulencia, sin vibracion de camara, vibracion en los controles.
 - Audio: volumen general mas bajo; audio 3D (la avenida suena desde su lado, polluelos desde el nido), grillos y ranas muy bajitos.
+
+## v41
+- Ave del modo 'Ver al ave sola' mas natural: cuerpo mas esbelto, cola de plumas, patas finas y alas mas grandes.

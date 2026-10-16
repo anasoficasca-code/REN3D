@@ -838,20 +838,20 @@ export function crearPajaro(ctx) {
     const g = new THREE.Group(), L = (c) => new THREE.MeshLambertMaterial({ color: c, emissive: 0x161616 });
     const mc = L(AVE.cuerpo), mh = L(AVE.cabeza), mp = new THREE.MeshLambertMaterial({ color: AVE.pico, emissive: 0x201004 }), mpa = L(AVE.id === 'tingua' ? 0xb7c04a : AVE.id === 'gaviota' ? 0xb3342c : 0x2b2b2b);
     const garza = AVE.id === 'garza', tingua = AVE.id === 'tingua';
-    const cu = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), mc); cu.scale.set(0.95, 0.85, garza ? 2.5 : tingua ? 1.9 : 2.2); g.add(cu);
+    const cu = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), mc); cu.scale.set(0.8, 0.72, garza ? 2.6 : tingua ? 1.9 : 2.2); g.add(cu);
     const pts = garza ? [[0, 0.04, -0.4], [0, 0.2, -0.56], [0, 0.1, -0.74], [0, 0.2, -0.92]] : [[0, 0.04, -0.3], [0, 0.13, -0.4], [0, 0.14, -0.48]];
     const cuello = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))), 10, garza ? 0.045 : 0.07, 7), mc); g.add(cuello);
     const fin = pts[pts.length - 1], cab = new THREE.Mesh(new THREE.SphereGeometry(garza ? 0.06 : 0.085, 10, 8), mh); cab.position.set(...fin); cab.scale.z = 1.25; g.add(cab);
     const pico = new THREE.Mesh(new THREE.ConeGeometry(garza ? 0.035 : 0.04, garza ? 0.32 : 0.15, 6), mp); pico.rotation.x = -Math.PI / 2; pico.position.set(fin[0], fin[1] - 0.005, fin[2] - (garza ? 0.2 : 0.12)); g.add(pico);
     if (tingua) { const esc = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), L(0xd63a2f)); esc.position.set(fin[0], fin[1] + 0.04, fin[2] - 0.08); esc.scale.set(1, 0.8, 1.3); g.add(esc); }
-    const cola = new THREE.Mesh(new THREE.ConeGeometry(0.14, garza ? 0.32 : 0.4, 4), AVE.id === 'gaviota' ? L(0xf1f2f4) : mc); cola.rotation.x = Math.PI / 2; cola.scale.x = 1.6; cola.position.set(0, 0.0, garza ? 0.62 : 0.55); g.add(cola);
-    for (const s of [-1, 1]) { // patas: la garza las estira hacia atrás al volar; la tingua las deja colgar con dedos largos; la gaviota las recoge
-      const largo = garza ? 0.95 : tingua ? 0.32 : 0.2, pt = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, largo, 5), mpa);
-      if (garza) { pt.rotation.x = Math.PI / 2; pt.position.set(s * 0.05, -0.02, 0.55 + largo / 2); } else { pt.position.set(s * 0.07, -0.16, 0.18); pt.rotation.x = 0.25; }
+    const cg = new THREE.BufferGeometry(), cl = garza ? 0.32 : 0.36, cw = garza ? 0.08 : 0.12; cg.setAttribute('position', new THREE.Float32BufferAttribute([-cw * 0.6, 0, cl, cw * 0.6, 0, cl, cw, 0, cl * 0.85, -cw, 0, cl * 0.85, 0, 0, 0.04], 3)); cg.setIndex([4, 3, 0, 4, 0, 1, 4, 1, 2]); cg.computeVertexNormals();
+    const cola = new THREE.Mesh(cg, new THREE.MeshLambertMaterial({ color: AVE.id === 'gaviota' ? 0xf1f2f4 : AVE.cuerpo, side: THREE.DoubleSide, emissive: 0x161616 })); cola.position.set(0, 0.0, garza ? 0.5 : 0.42); g.add(cola);    for (const s of [-1, 1]) { // patas: la garza las estira hacia atrás al volar; la tingua las deja colgar con dedos largos; la gaviota las recoge
+      const largo = garza ? 0.75 : tingua ? 0.3 : 0.18, pt = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, largo, 5), mpa);
+      if (garza) { pt.rotation.x = Math.PI / 2; pt.position.set(s * 0.04, -0.03, 0.5 + largo / 2); } else { pt.position.set(s * 0.07, -0.16, 0.18); pt.rotation.x = 0.25; }
       g.add(pt);
     }
     g.userData = { cuello, cab }; g.scale.setScalar(1.45); // un poco más grande de lo real para que se aprecie desde la cámara
-    const wI = fabricaAla(-1), wD = fabricaAla(1); for (const [w, s] of [[wI, -1], [wD, 1]]) { w.scale.setScalar(AVE.escala * 1.25); w.position.set(s * 0.12, 0.13, -0.12); g.add(w); }
+    const wI = fabricaAla(-1), wD = fabricaAla(1); for (const [w, s] of [[wI, -1], [wD, 1]]) { w.scale.setScalar(AVE.escala * 1.6); w.position.set(s * 0.12, 0.13, -0.12); g.add(w); }
     alaI = wI; alaD = wD; return g;
   }
   const segCruza = (ax, az, bx, bz) => via.seg.some(s => { // ¿el trayecto A→B atraviesa la avenida?
