@@ -21,6 +21,9 @@ const CSS = `
 #pjMenu .ave:hover{transform:translateY(-3px)}
 #pjMenu .ave.sel .in{box-shadow:inset 0 0 0 2px var(--c),0 14px 30px -16px var(--c)}
 #pjMenu .ave .foto{position:relative;display:block;aspect-ratio:4/3;overflow:hidden;background:#0b1622}
+#pjMenu .ave .foto canvas.m3d{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+#pjMenu .ave .foto.ok{background:radial-gradient(ellipse at 50% 38%,color-mix(in srgb,var(--c) 26%,#16273a),#08111b 78%)}
+#pjMenu .ave .foto.ok img.ph{display:none}
 #pjMenu .ave .foto img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .5s,filter .2s;filter:saturate(.92)}
 #pjMenu .ave:hover .foto img,#pjMenu .ave.sel .foto img{transform:scale(1.05);filter:none}
 #pjMenu .ave .foto::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,#0a131e);pointer-events:none}
@@ -185,7 +188,7 @@ const MOVIL = !ESQUEST && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.use
 export function crearPajaro(ctx) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const div = (id, html, cls) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; e.innerHTML = html || ''; document.body.appendChild(e); return e; };
-  const tarjeta = (a) => `<button class="ave" data-ave="${a.id}" style="--c:${a.color}"><span class="in"><span class="foto"><img src="data3d/aves/${a.foto}" alt="${a.nombre}" loading="lazy" decoding="async"></span><span class="txt"><h3>${a.nombre}</h3><em class="rol">${a.rol}</em><p>${a.corto}</p><span class="dif">Dificultad <span>${[1, 2, 3].map(k => `<i class="${k <= a.stats[3][1] ? 'o' : ''}"></i>`).join('')}</span></span></span></span></button>`;
+  const tarjeta = (a) => `<button class="ave" data-ave="${a.id}" style="--c:${a.color}"><span class="in"><span class="foto"><img class="ph" src="data3d/aves/${a.foto}" alt="${a.nombre}" loading="lazy" decoding="async"><canvas class="m3d" aria-label="Modelo 3D de ${a.nombre}"></canvas></span><span class="txt"><h3>${a.nombre}</h3><em class="rol">${a.rol}</em><p>${a.corto}</p><span class="dif">Dificultad <span>${[1, 2, 3].map(k => `<i class="${k <= a.stats[3][1] ? 'o' : ''}"></i>`).join('')}</span></span></span></span></button>`;
   const menu = div('pjMenu', `<div class="wrap">
     <header><span class="marca">REN3D</span><button class="x" data-m="cerrar">Cerrar</button></header>
     <h1>Elige tu <span>ave</span></h1>
@@ -249,7 +252,50 @@ export function crearPajaro(ctx) {
   async function abrirMenu() {
     menu.style.display = 'block'; estado(''); pjEsp.checked = espejo; pintarSel();
     try { hayVr = !MOVIL && !!navigator.xr && await navigator.xr.isSessionSupported('immersive-vr'); } catch (e) { hayVr = false; }
-    pintarSel(); await infoXr();
+    pintarSel(); iniciarMenu3D(); await infoXr();
+  }
+  // aves 3D del menú: un solo renderer dibuja cada modelo (los mismos del humedal, con más resolución) y lo copia al lienzo de su tarjeta; si falla, quedan las fotos
+  let m3d = null, m3dCarga = false;
+  async function iniciarMenu3D() {
+    if (m3dCarga) return; if (m3d) { m3d.arranca(); return; }
+    m3dCarga = true;
+    try {
+      const mod = await import('./aves_menu.js?v=1');
+      const rend = new THREE.WebGLRenderer({ alpha: true, antialias: true }); rend.toneMapping = THREE.ACESFilmicToneMapping; rend.toneMappingExposure = 1.05;
+      const esc = new THREE.Scene(); esc.add(new THREE.HemisphereLight(0xdfeeff, 0x2a3a2a, 1.2));
+      const sol = new THREE.DirectionalLight(0xfff1dc, 2.6); sol.position.set(2.5, 4, 3); esc.add(sol);
+      const rim = new THREE.DirectionalLight(0x7dd3fc, 1.4); rim.position.set(-3, 2, -3); esc.add(rim);
+      const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 50), mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0, side: THREE.DoubleSide });
+      const items = [];
+      menu.querySelectorAll('.ave').forEach((b) => {
+        const geo = mod.geometriaAveMenu(b.getAttribute('data-ave')), cv = b.querySelector('canvas.m3d'); if (!geo || !cv) return;
+        geo.computeBoundingBox(); const bb = geo.boundingBox, c = bb.getCenter(new THREE.Vector3()), s = bb.getSize(new THREE.Vector3());
+        const mesh = new THREE.Mesh(geo, mat); mesh.position.sub(c); const piv = new THREE.Group(); piv.add(mesh); piv.visible = false; esc.add(piv);
+        items.push({ b, cv, c2: cv.getContext('2d'), piv, alto: s.y / 2, radio: Math.hypot(s.x, s.z) / 2, listo: false, off: items.length * 2.1 });
+      });
+      let rw = 0, rh = 0, corre = false;
+      const dibuja = () => {
+        if (menu.style.display !== 'block') { corre = false; return; }
+        const t = performance.now() / 1000, dpr = Math.min(devicePixelRatio || 1, 2);
+        for (const it of items) {
+          const w = it.cv.clientWidth, h = it.cv.clientHeight; if (!w || !h) continue;
+          const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+          if (it.cv.width !== pw || it.cv.height !== ph) { it.cv.width = pw; it.cv.height = ph; }
+          if (rw !== pw || rh !== ph) { rend.setPixelRatio(1); rend.setSize(pw, ph, false); rw = pw; rh = ph; }
+          cam.aspect = w / h; cam.updateProjectionMatrix();
+          const vf = cam.fov * Math.PI / 360, hf = Math.atan(Math.tan(vf) * cam.aspect), d = Math.max(it.alto * 1.12 / Math.tan(vf), it.radio * 0.9 / Math.tan(hf)) + it.radio * 0.45;
+          cam.position.set(0, d * 0.22, d); cam.lookAt(0, 0, 0);
+          for (const o of items) o.piv.visible = o === it;
+          it.piv.rotation.y = 0.6 + t * (it.b.classList.contains('sel') ? 0.9 : 0.45) + it.off; it.piv.rotation.x = Math.sin(t * 0.8 + it.off) * 0.04;
+          rend.render(esc, cam); it.c2.clearRect(0, 0, pw, ph); it.c2.drawImage(rend.domElement, 0, 0);
+          if (!it.listo) { it.listo = true; it.cv.parentNode.classList.add('ok'); }
+        }
+        requestAnimationFrame(dibuja);
+      };
+      m3d = { arranca: () => { if (!corre) { corre = true; requestAnimationFrame(dibuja); } } };
+      m3d.arranca();
+    } catch (e) { console.warn('aves 3D del menú no disponibles, se dejan las fotos', e); }
+    m3dCarga = false;
   }
   async function infoXr() {
     const el = $('pjXr'); if (modoSel === 'cardboard') { el.textContent = 'Pon el celular en horizontal dentro del visor; se pedirá permiso de movimiento.'; return; }
