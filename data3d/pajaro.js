@@ -17,14 +17,17 @@ const CSS = `
 #pjMenu h1 span{color:#7dd3fc}
 #pjMenu .aves{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 #pjMenu .ave{position:relative;text-align:left;border:none;border-radius:0;padding:0;background:none;color:inherit;font:inherit;cursor:pointer;transition:transform .15s;-webkit-tap-highlight-color:transparent}
-#pjMenu .ave .in{display:block;height:100%;padding:16px 16px 14px;background:linear-gradient(170deg,rgba(18,30,44,.94),rgba(8,15,24,.96));clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px));box-shadow:inset 0 0 0 1px rgba(148,163,184,.2)}
+#pjMenu .ave .in{display:flex;flex-direction:column;height:100%;overflow:hidden;background:#0a131e;box-shadow:inset 0 0 0 1px rgba(148,163,184,.2);transition:box-shadow .15s}
 #pjMenu .ave:hover{transform:translateY(-3px)}
-#pjMenu .ave.sel .in{background:linear-gradient(170deg,color-mix(in srgb,var(--c) 20%,#0b1622),rgba(8,15,24,.97));box-shadow:inset 0 0 0 2px var(--c)}
-#pjMenu .ave svg{display:block;width:100%;height:76px;margin-bottom:6px}
-#pjMenu .ave svg .ala{fill:var(--c);opacity:.92}
-#pjMenu .ave svg .cu{fill:#eaf3fa}
-#pjMenu .ave svg .pc{fill:#f2c230}
-#pjMenu .ave h3{font-size:20px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;margin:0}
+#pjMenu .ave.sel .in{box-shadow:inset 0 0 0 2px var(--c),0 14px 30px -16px var(--c)}
+#pjMenu .ave .foto{position:relative;display:block;aspect-ratio:4/3;overflow:hidden;background:#0b1622}
+#pjMenu .ave .foto img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .5s,filter .2s;filter:saturate(.92)}
+#pjMenu .ave:hover .foto img,#pjMenu .ave.sel .foto img{transform:scale(1.05);filter:none}
+#pjMenu .ave .foto::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,#0a131e);pointer-events:none}
+#pjMenu .ave .foto::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--c);opacity:.35;z-index:1}
+#pjMenu .ave.sel .foto::before{opacity:1}
+#pjMenu .ave .txt{display:block;padding:4px 16px 16px}
+#pjMenu .ave h3{font-size:19px;font-weight:700;letter-spacing:.01em;margin:0}
 #pjMenu .ave .rol{display:block;font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--c);margin:3px 0 8px;font-style:normal;font-weight:700}
 #pjMenu .ave p{font-size:13px;line-height:1.45;color:#b3c2d1;margin:0 0 10px}
 #pjMenu .ave .dif{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#7b8ea3}
@@ -45,9 +48,12 @@ const CSS = `
   #pjMenu .wrap{padding-left:16px;padding-right:16px;gap:14px}
   #pjMenu h1{font-size:24px}
   #pjMenu .aves{grid-template-columns:1fr;gap:10px}
-  #pjMenu .ave .in{display:grid;grid-template-columns:84px 1fr;gap:0 12px;align-items:center;padding:12px 14px}
-  #pjMenu .ave svg{grid-row:1/4;height:44px;margin:0}
-  #pjMenu .ave h3{font-size:17px}
+  #pjMenu .ave .in{display:grid;grid-template-columns:112px 1fr;align-items:stretch}
+  #pjMenu .ave .foto{aspect-ratio:auto;min-height:104px}
+  #pjMenu .ave .foto::after{background:linear-gradient(90deg,transparent 60%,#0a131e)}
+  #pjMenu .ave .foto::before{width:3px;height:auto;right:auto;bottom:0}
+  #pjMenu .ave .txt{padding:10px 14px 10px 6px;align-self:center}
+  #pjMenu .ave h3{font-size:16px}
   #pjMenu .ave .rol{margin:1px 0 4px;font-size:9.5px}
   #pjMenu .ave p{font-size:12px;margin:0 0 5px}
   #pjMenu .ave .dif{grid-column:2}
@@ -59,9 +65,12 @@ const CSS = `
   #pjMenu .wrap{gap:10px;padding-top:12px;padding-bottom:12px;justify-content:flex-start}
   #pjMenu h1{font-size:20px}
   #pjMenu .aves{grid-template-columns:repeat(3,1fr);gap:8px}
-  #pjMenu .ave .in{display:block;padding:10px 12px}
-  #pjMenu .ave svg{height:34px;margin-bottom:2px}
-  #pjMenu .ave h3{font-size:15px}
+  #pjMenu .ave .in{display:flex}
+  #pjMenu .ave .foto{aspect-ratio:auto;height:72px;min-height:0}
+  #pjMenu .ave .foto::after{background:linear-gradient(180deg,transparent 60%,#0a131e)}
+  #pjMenu .ave .foto::before{width:auto;height:3px;right:0;bottom:auto}
+  #pjMenu .ave .txt{padding:2px 10px 10px}
+  #pjMenu .ave h3{font-size:14px}
   #pjMenu .ave p{display:none}
   #pjMenu .ave .rol{margin:1px 0 4px}
   #pjMenu .pie{flex-direction:row;align-items:center;gap:10px 14px}
@@ -147,7 +156,7 @@ const DATOS = [
 //  - Gaviota andina (Chroicocephalus serranus): ágil y social; atrapa insectos al vuelo y en praderas; anida en el suelo, en nidos de pasto cerca del agua.
 const AVES_JUEGO = {
   garza: {
-    id: 'garza', nombre: 'Garza real', rol: 'Pescadora al acecho', corto: 'Pesca peces al acecho y llévalos a tus polluelos.', color: '#7dd3fc', objetivo: 'pesca', meta: 10, cap: 3, nidoTipo: 'arbol',
+    id: 'garza', foto: 'foto_garza.jpg', nombre: 'Garza real', rol: 'Pescadora al acecho', corto: 'Pesca peces al acecho y llévalos a tus polluelos.', color: '#7dd3fc', objetivo: 'pesca', meta: 10, cap: 3, nidoTipo: 'arbol',
     resumen: 'Pesca al acecho: acércate despacio y bajo a los peces que saltan, atrápalos y llévalos a tus polluelos. Tu nido de palitos está en un árbol de la colonia, al otro lado de la avenida.',
     vel: { min: 6, cru: 15, max: 30 }, regen: 9, hundir: 1.0, giro: 1.3, costo: 12, gasto: 0, item: ['pez', 'peces'],
     stats: [['Velocidad', 2], ['Resistencia', 3], ['Agilidad', 1], ['Dificultad', 2]], metaTxt: 'Alimenta a tus polluelos con 10 peces',
@@ -155,7 +164,7 @@ const AVES_JUEGO = {
     svg: '<path class="ala" d="M100 50C72 28 32 26 3 46c34-2 62 8 97 17 35-9 63-19 97-17-29-20-69-18-97 4z"/><ellipse class="cu" cx="100" cy="54" rx="8" ry="17"/><path class="cu" d="M96 40 92 16c-1-5 8-5 8 0l-2 24z"/><path class="pc" d="M92 16l-4-9 8 3z"/>'
   },
   tingua: {
-    id: 'tingua', nombre: 'Tingua de pico rojo', rol: 'Constructora de nido', corto: 'Construye tu nido flotante con tallos de junco.', color: '#fb7185', objetivo: 'juncos', meta: 12, cap: 2, nidoTipo: 'flotante', techo: 14, reposo: 14,
+    id: 'tingua', foto: 'foto_tingua.jpg', nombre: 'Tingua de pico rojo', rol: 'Constructora de nido', corto: 'Construye tu nido flotante con tallos de junco.', color: '#fb7185', objetivo: 'juncos', meta: 12, cap: 2, nidoTipo: 'flotante', techo: 14, reposo: 14,
     resumen: 'Casi no vuela: salta entre los juncos y cruza el agua en vuelos cortos y bajos. Junta tallos del borde del agua y construye tu nido flotante. Rozar el agua te deja descansar; subir mucho te agota.',
     vel: { min: 5, cru: 11, max: 20 }, regen: 1, hundir: 1.1, giro: 1.8, costo: 6, gasto: 5, item: ['tallo de junco', 'tallos de junco'],
     stats: [['Velocidad', 1], ['Resistencia', 1], ['Agilidad', 3], ['Dificultad', 3]], metaTxt: 'Construye tu nido con 12 tallos de junco',
@@ -163,7 +172,7 @@ const AVES_JUEGO = {
     svg: '<path class="ala" d="M100 52C86 42 64 40 46 48c18 4 36 8 54 14 18-6 36-10 54-14-18-8-40-6-54 4z"/><ellipse class="cu" cx="100" cy="57" rx="11" ry="14"/><circle class="cu" cx="100" cy="40" r="7"/><path d="M103 36l10 3-10 3z" fill="#e0443a"/>'
   },
   gaviota: {
-    id: 'gaviota', nombre: 'Gaviota andina', rol: 'Cazadora de insectos', corto: 'Caza insectos al vuelo para tus polluelos.', color: '#fbbf24', objetivo: 'insectos', meta: 12, cap: 4, nidoTipo: 'suelo',
+    id: 'gaviota', foto: 'foto_gaviota.jpg', nombre: 'Gaviota andina', rol: 'Cazadora de insectos', corto: 'Caza insectos al vuelo para tus polluelos.', color: '#fbbf24', objetivo: 'insectos', meta: 12, cap: 4, nidoTipo: 'suelo',
     resumen: 'Ágil y rápida: atraviesa los enjambres de insectos en pleno vuelo (si vas lento se escapan) y llévalos a tus polluelos, en un nido de pasto en la orilla. Cada sprint gasta energía.',
     vel: { min: 9, cru: 21, max: 40 }, regen: 7, hundir: 0.8, giro: 1.7, costo: 14, gasto: 6, item: ['bocado de insectos', 'bocados de insectos'],
     stats: [['Velocidad', 3], ['Resistencia', 2], ['Agilidad', 3], ['Dificultad', 2]], metaTxt: 'Alimenta a tus polluelos con 12 bocados de insectos',
@@ -176,7 +185,7 @@ const MOVIL = !ESQUEST && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.use
 export function crearPajaro(ctx) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
   const div = (id, html, cls) => { const e = document.createElement('div'); e.id = id; if (cls) e.className = cls; e.innerHTML = html || ''; document.body.appendChild(e); return e; };
-  const tarjeta = (a) => `<button class="ave" data-ave="${a.id}" style="--c:${a.color}"><span class="in"><svg viewBox="0 0 200 80" aria-hidden="true">${a.svg}</svg><h3>${a.nombre}</h3><em class="rol">${a.rol}</em><p>${a.corto}</p><span class="dif">Dificultad <span>${[1, 2, 3].map(k => `<i class="${k <= a.stats[3][1] ? 'o' : ''}"></i>`).join('')}</span></span></span></button>`;
+  const tarjeta = (a) => `<button class="ave" data-ave="${a.id}" style="--c:${a.color}"><span class="in"><span class="foto"><img src="data3d/aves/${a.foto}" alt="${a.nombre}" loading="lazy" decoding="async"></span><span class="txt"><h3>${a.nombre}</h3><em class="rol">${a.rol}</em><p>${a.corto}</p><span class="dif">Dificultad <span>${[1, 2, 3].map(k => `<i class="${k <= a.stats[3][1] ? 'o' : ''}"></i>`).join('')}</span></span></span></span></button>`;
   const menu = div('pjMenu', `<div class="wrap">
     <header><span class="marca">REN3D</span><button class="x" data-m="cerrar">Cerrar</button></header>
     <h1>Elige tu <span>ave</span></h1>

@@ -2216,7 +2216,7 @@ const esperarHasta = (cond, ms) => new Promise((res, rej) => {
 $('b-pajaro').onclick = async () => {
   if (!PAJARO) {
     try {
-      const m = await import('./data3d/pajaro.js?v=41');
+      const m = await import('./data3d/pajaro.js?v=42');
       PAJARO = m.crearPajaro({
         T3: () => T3, aves: () => AVES && AVES.nuevo, sim: simTick, say, lw,
         listo: () => !!(T3 && T3.ready && AVES && AVES.nuevo),

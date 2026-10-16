@@ -25,3 +25,9 @@ OTROS
 TEXTURAS DEL SUELO (data3d/textures)
   via_*, piso_*, acera_*: Poly Haven (polyhaven.com), licencia CC0 - rough_concrete, granular_concrete, concrete_pavement (1k, color y normales).
   pasto_*: Poliigon GrassPatchyGround_4585 reducida a 1024 px (segun su licencia).
+
+FOTOS DE AVES DEL MENU (data3d/aves/foto_*.jpg, Wikimedia Commons, reducidas a 800 px)
+  foto_garza.jpg: "Great egret in GWC (43539)", CC BY-SA 4.0.
+  foto_gaviota.jpg: Andean Gull (Chroicocephalus serranus), (4856332949), CC BY-SA 2.0.
+  foto_tingua.jpg: "Tingua de Pico Rojo.jpg", CC BY-SA 4.0.
+  Autores y enlaces: commons.wikimedia.org/wiki/File:<nombre del archivo>
