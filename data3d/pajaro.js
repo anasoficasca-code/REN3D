@@ -102,34 +102,36 @@ const DATOS = [
   'Los humedales urbanos son islas de vida: las aves deben cruzar calles peligrosas para llegar a ellos.'
 ];
 
-// Cada ave cambia la velocidad, la energía, el giro, la capacidad de carga y, sobre todo, la misión
+// Cada ave está basada en cómo vive de verdad: cambia la velocidad, la energía, el giro, la carga y, sobre todo, la misión
+//  - Garza real (Ardea alba): pesca al acecho (quieta o muy despacio, estocada rápida) y anida en colonias, en árboles, en una plataforma de palitos.
+//  - Tingua de pico rojo (Gallinula galeata): vuela poco y bajo; nada y trepa por los juncos; hace su nido flotante con tallos y hojas del borde del agua.
+//  - Gaviota andina (Chroicocephalus serranus): ágil y social; atrapa insectos al vuelo y en praderas; anida en el suelo, en nidos de pasto cerca del agua.
 const AVES_JUEGO = {
   garza: {
-    id: 'garza', nombre: 'Garza real', rol: 'Pescadora', color: '#7dd3fc', objetivo: 'pesca', meta: 10, cap: 3,
-    resumen: 'Atrapa los peces que saltan en el humedal y llévalos a tu nido, que queda al otro lado de la avenida. Vuelo elegante y estable.',
-    vel: { min: 6, cru: 15, max: 30 }, regen: 9, hundir: 1.0, giro: 1.3, item: ['pez', 'peces'],
-    stats: [['Velocidad', 2], ['Resistencia', 3], ['Agilidad', 2], ['Dificultad', 2]], metaTxt: 'Entrega 10 peces al nido',
-    ala: { base: '#f7f6f1', punta: '#2a2e36', espejo: null }, pico: 0xe8b923, escala: 0.62,
+    id: 'garza', nombre: 'Garza real', rol: 'Pescadora al acecho', color: '#7dd3fc', objetivo: 'pesca', meta: 10, cap: 3, nidoTipo: 'arbol',
+    resumen: 'Pesca al acecho: acércate despacio y bajo a los peces que saltan, atrápalos y llévalos a tus polluelos. Tu nido de palitos está en un árbol de la colonia, al otro lado de la avenida.',
+    vel: { min: 6, cru: 15, max: 30 }, regen: 9, hundir: 1.0, giro: 1.3, costo: 12, gasto: 0, item: ['pez', 'peces'],
+    stats: [['Velocidad', 2], ['Resistencia', 3], ['Agilidad', 1], ['Dificultad', 2]], metaTxt: 'Alimenta a tus polluelos con 10 peces',
+    ala: { base: '#f7f6f1', punta: '#2a2e36', espejo: null }, pico: 0xe8b923, escala: 0.62, cuerpo: '#f4f3ee', cabeza: '#f4f3ee',
     svg: '<path class="ala" d="M100 50C72 28 32 26 3 46c34-2 62 8 97 17 35-9 63-19 97-17-29-20-69-18-97 4z"/><ellipse class="cu" cx="100" cy="54" rx="8" ry="17"/><path class="cu" d="M96 40 92 16c-1-5 8-5 8 0l-2 24z"/><path class="pc" d="M92 16l-4-9 8 3z"/>'
   },
-  gaviota: {
-    id: 'gaviota', nombre: 'Gaviota andina', rol: 'Carroñera veloz', color: '#fbbf24', objetivo: 'carronera', meta: 8, cap: 2,
-    resumen: 'Recoge restos de comida que quedan junto a la avenida y llévalos a salvo a tu nido en el humedal. Muy rápida, pero cada recogida es una apuesta.',
-    vel: { min: 9, cru: 21, max: 40 }, regen: 7, costo: 14, hundir: 0.8, giro: 1.7, item: ['resto de comida', 'restos de comida'],
-    stats: [['Velocidad', 3], ['Resistencia', 1], ['Agilidad', 3], ['Dificultad', 3]], metaTxt: 'Rescata 8 restos de comida',
-    ala: { base: '#cfd4dc', punta: '#15171d', espejo: null }, pico: 0xd9532b, escala: 0.58,
-    svg: '<path class="ala" d="M100 52C78 34 50 28 24 38 16 28 7 28 1 35c24 17 60 19 99 28 39-9 75-11 99-28-6-7-15-7-23 3-26-10-54-4-76 14z"/><ellipse class="cu" cx="100" cy="55" rx="9" ry="14"/><circle class="cu" cx="100" cy="38" r="7"/><path class="pc" d="M105 38l9 3-9 3z"/>'
+  tingua: {
+    id: 'tingua', nombre: 'Tingua de pico rojo', rol: 'Constructora de nido', color: '#fb7185', objetivo: 'juncos', meta: 12, cap: 2, nidoTipo: 'flotante', techo: 14, reposo: 14,
+    resumen: 'Casi no vuela: salta entre los juncos y cruza el agua en vuelos cortos y bajos. Junta tallos del borde del agua y construye tu nido flotante. Rozar el agua te deja descansar; subir mucho te agota.',
+    vel: { min: 5, cru: 11, max: 20 }, regen: 1, hundir: 1.1, giro: 1.8, costo: 6, gasto: 5, item: ['tallo de junco', 'tallos de junco'],
+    stats: [['Velocidad', 1], ['Resistencia', 1], ['Agilidad', 3], ['Dificultad', 3]], metaTxt: 'Construye tu nido con 12 tallos de junco',
+    ala: { base: '#3a4350', punta: '#1d222b', espejo: null }, pico: 0xd63a2f, escala: 0.5, cuerpo: '#2b323d', cabeza: '#232a34',
+    svg: '<path class="ala" d="M100 52C86 42 64 40 46 48c18 4 36 8 54 14 18-6 36-10 54-14-18-8-40-6-54 4z"/><ellipse class="cu" cx="100" cy="57" rx="11" ry="14"/><circle class="cu" cx="100" cy="40" r="7"/><path d="M103 36l10 3-10 3z" fill="#e0443a"/>'
   },
-  pato: {
-    id: 'pato', nombre: 'Pato turrio', rol: 'Contrarreloj', color: '#34d399', objetivo: 'semillas', meta: 14, cap: 1,
-    resumen: 'Roza el agua para recoger semillas flotantes antes de que se acabe el tiempo; cada semilla suma segundos. Pesado de girar, pero aguanta mucho.',
-    vel: { min: 8, cru: 18, max: 34 }, regen: 12, costo: 10, hundir: 1.3, giro: 1.0, item: ['semilla', 'semillas'],
-    stats: [['Velocidad', 3], ['Resistencia', 3], ['Agilidad', 1], ['Dificultad', 1]], metaTxt: 'Junta 14 semillas contra el reloj',
-    ala: { base: '#a99a82', punta: '#3b2f22', espejo: '#2f6aa3' }, pico: 0x8fb4d9, escala: 0.66,
-    svg: '<path class="ala" d="M100 50C80 36 52 34 28 46c26 6 50 12 72 20 22-8 46-14 72-20-24-12-52-10-72 4z"/><ellipse class="cu" cx="100" cy="56" rx="11" ry="15"/><circle class="cu" cx="100" cy="38" r="7"/><path class="pc" d="M95 37l-9 4 9 3z"/>'
+  gaviota: {
+    id: 'gaviota', nombre: 'Gaviota andina', rol: 'Cazadora de insectos', color: '#fbbf24', objetivo: 'insectos', meta: 12, cap: 4, nidoTipo: 'suelo',
+    resumen: 'Ágil y rápida: atraviesa los enjambres de insectos en pleno vuelo (si vas lento se escapan) y llévalos a tus polluelos, en un nido de pasto en la orilla. Cada sprint gasta energía.',
+    vel: { min: 9, cru: 21, max: 40 }, regen: 7, hundir: 0.8, giro: 1.7, costo: 14, gasto: 6, item: ['bocado de insectos', 'bocados de insectos'],
+    stats: [['Velocidad', 3], ['Resistencia', 2], ['Agilidad', 3], ['Dificultad', 2]], metaTxt: 'Alimenta a tus polluelos con 12 bocados de insectos',
+    ala: { base: '#cfd4dc', punta: '#15171d', espejo: null }, pico: 0xb3342c, escala: 0.58, cuerpo: '#f1f2f4', cabeza: '#2d2622',
+    svg: '<path class="ala" d="M100 52C78 34 50 28 24 38 16 28 7 28 1 35c24 17 60 19 99 28 39-9 75-11 99-28-6-7-15-7-23 3-26-10-54-4-76 14z"/><ellipse class="cu" cx="100" cy="55" rx="9" ry="14"/><circle class="cu" cx="100" cy="38" r="7"/><path d="M105 38l9 3-9 3z" fill="#c23b32"/>'
   }
 };
-
 const ESQUEST = /OculusBrowser|Quest|Pico/i.test(navigator.userAgent); // gafas independientes (sin PC)
 export function crearPajaro(ctx) {
   const st = document.createElement('style'); st.textContent = CSS; document.head.appendChild(st);
@@ -141,7 +143,8 @@ export function crearPajaro(ctx) {
     <p class="lead">Cada ave vuela distinto y tiene su propia misión. La avenida que cruza el humedal es el peligro de todas: con mucho tráfico el ruido y el aire revuelto te frenan, te hunden y pueden hacerte perder.</p>
     <div class="aves">${Object.values(AVES_JUEGO).map(tarjeta).join('')}</div>
     <div class="pie">
-      <div class="ctrl"><label>Controles</label><div class="seg" id="pjSeg"><button data-c="pantalla" class="on">Pantalla</button><button data-c="vr">Gafas VR</button><button data-c="cardboard">Celular + visor</button></div></div>
+      <div class="ctrl"><label>Modo</label><div class="seg" id="pjSegJ"><button data-j="jugar" class="on">Jugar yo</button><button data-j="observar">Ver al ave sola</button></div></div>
+      <div class="ctrl" id="pjCtrl"><label>Controles</label><div class="seg" id="pjSeg"><button data-c="pantalla" class="on">Pantalla</button><button data-c="vr">Gafas VR</button><button data-c="cardboard">Celular + visor</button></div></div>
       <label class="esp"><input type="checkbox" id="pjEsp"> Ver en el computador lo que ves en las gafas</label>
       <button class="jugar" data-m="jugar" id="pjJugar">Comenzar vuelo</button>
       <div id="pjXr"></div><div id="pjEstado"></div>
@@ -163,7 +166,7 @@ export function crearPajaro(ctx) {
 
   // ---- estado ----
   let T3 = null, activo = false, modo = null, loop = null, ultimo = 0;
-  let AVE = AVES_JUEGO.garza, modoSel = 'pantalla';
+  let AVE = AVES_JUEGO.garza, modoSel = 'pantalla', modoJ = 'jugar';
   const rig = new THREE.Group(); rig.rotation.order = 'YXZ';
   let yaw = 0, pit = 0, vel = 14, impulso = 0, acelera = false, frena = false;
   const teclas = {};
@@ -183,6 +186,8 @@ export function crearPajaro(ctx) {
     menu.querySelectorAll('.ave').forEach(b => b.classList.toggle('sel', b.getAttribute('data-ave') === AVE.id));
     menu.style.setProperty('--cs', AVE.color);
     menu.querySelectorAll('#pjSeg button').forEach(b => b.classList.toggle('on', b.getAttribute('data-c') === modoSel));
+    menu.querySelectorAll('#pjSegJ button').forEach(b => b.classList.toggle('on', b.getAttribute('data-j') === modoJ));
+    const ct = pjCtrl; if (ct) ct.style.display = modoJ === 'observar' ? 'none' : ''; pjJugar.textContent = modoJ === 'observar' ? 'Ver vuelo' : 'Comenzar vuelo';
   };
   async function abrirMenu() {
     menu.style.display = 'block'; estado(''); pjEsp.checked = espejo; pintarSel(); await infoXr();
@@ -197,11 +202,12 @@ export function crearPajaro(ctx) {
   }
   menu.addEventListener('click', (e) => {
     const a = e.target.closest('.ave'); if (a) { AVE = AVES_JUEGO[a.getAttribute('data-ave')] || AVE; pintarSel(); return; }
+    const j = e.target.closest('#pjSegJ button'); if (j) { modoJ = j.getAttribute('data-j'); pintarSel(); return; }
     const c = e.target.closest('#pjSeg button'); if (c) { modoSel = c.getAttribute('data-c'); pintarSel(); infoXr(); return; }
     const b = e.target.closest('button[data-m]'); if (!b) return;
     const m = b.getAttribute('data-m');
     if (m === 'cerrar') { menu.style.display = 'none'; return; }
-    elegir(modoSel);
+    elegir(modoJ === 'observar' ? 'observar' : modoSel);
   });
   const esperarGesto = (titulo, texto, boton) => new Promise((res) => {
     $('pjListoT').textContent = titulo; $('pjListoP').textContent = texto; $('pjGo').textContent = boton; listo.style.display = 'flex';
@@ -259,7 +265,7 @@ export function crearPajaro(ctx) {
       for (let k = 0; k < 5; k++) pl(muneca, mBlanca, 0.17, 0.11, 0.0 + k * 0.01, -0.01 - k * 0.012, 0.35 + k * 0.2, 0.012, 0.0);
       piv.scale.setScalar(AVE.escala); piv.position.set(lado * 0.26, -0.36, -0.7); piv.userData = { muneca, prim }; return piv;
     };
-    alaI = mk(-1); alaD = mk(1);
+    fabricaAla = mk; alaI = mk(-1); alaD = mk(1);
     // pico amarillo, largo y fino, que se ve al mirar hacia abajo
     const pico = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.34, 6), new THREE.MeshLambertMaterial({ color: AVE.pico, emissive: 0x2a2208 })); pico.rotation.x = -Math.PI / 2; pico.position.set(0, -0.09, -0.45); pico.frustumCulled = false; picoM = pico;
   }
@@ -270,39 +276,31 @@ export function crearPajaro(ctx) {
     hudPlano.position.set(0, -0.6, -1.5); hudPlano.renderOrder = 999; hudPlano.frustumCulled = false;
   }
   const matHaz = (color, op) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
-  function crearPez() { // el 'objeto' a recoger depende del ave: pez (garza), resto de comida (gaviota) o semilla flotante (pato)
+  function crearPez() { // el objeto a recoger depende del ave: pez (garza), tallo de junco (tingua) o enjambre de insectos (gaviota)
     const g = new THREE.Group();
-    if (AVE.objetivo === 'carronera') {
-      const bolsa = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.55, 0.7), new THREE.MeshLambertMaterial({ color: 0xd9a05b, emissive: 0x4a3010 })); bolsa.position.y = 0.3; g.add(bolsa);
-      const pan = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), new THREE.MeshLambertMaterial({ color: 0xf1d39a, emissive: 0x40320f })); pan.scale.y = 0.6; pan.position.set(0.15, 0.7, 0); g.add(pan); g.visible = false; return g;
+    if (AVE.objetivo === 'juncos') {
+      const m = new THREE.MeshLambertMaterial({ color: 0x6f9a3c, emissive: 0x1c2c0c }), m2 = new THREE.MeshLambertMaterial({ color: 0x5a3a22 });
+      for (let i = 0; i < 7; i++) { const t = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 2.4 + (i % 3) * 0.4, 5), m); t.rotation.z = Math.PI / 2 + (i - 3) * 0.05; t.rotation.y = (i - 3) * 0.12; t.position.set(0, 0.05 + (i % 2) * 0.05, (i - 3) * 0.1); g.add(t); }
+      const e = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.5, 6), m2); e.rotation.z = Math.PI / 2; e.position.set(1.3, 0.12, 0); g.add(e); g.visible = false; return g;
     }
-    if (AVE.objetivo === 'semillas') {
-      const m = new THREE.MeshStandardMaterial({ color: 0xd9f26b, emissive: 0x4a5a10, emissiveIntensity: 0.7, roughness: 0.4 });
-      for (let i = 0; i < 5; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), m); s.scale.set(1, 0.7, 1.5); s.position.set(Math.cos(i * 1.26) * 0.55, 0.1, Math.sin(i * 1.26) * 0.55); s.rotation.y = i; g.add(s); }
-      const anillo = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.07, 6, 20), new THREE.MeshBasicMaterial({ color: 0xbef264, transparent: true, opacity: 0.6, fog: false })); anillo.rotation.x = Math.PI / 2; g.add(anillo); g.visible = false; return g;
+    if (AVE.objetivo === 'insectos') {
+      const n = 40, pos = new Float32Array(n * 3), geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0x1b1f26, size: 0.55, sizeAttenuation: true, transparent: true, opacity: 0.95, fog: false })); pts.frustumCulled = false; pts.userData.fase = Array.from({ length: n }, (_, i) => [rnd(i * 3 + 1) * 6.28, rnd(i * 5 + 2) * 6.28, 1.2 + rnd(i * 7 + 3) * 3.2]); pts.visible = false; return pts;
     }
     const mat = new THREE.MeshStandardMaterial({ color: 0xd2dde2, metalness: 0.6, roughness: 0.22, emissive: 0x3c5260, emissiveIntensity: 0.6 });
     const cu = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 9), mat); cu.scale.set(0.45, 0.8, 2.0); g.add(cu);
     const co = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.35, 4), mat); co.rotation.x = -Math.PI / 2; co.rotation.z = Math.PI / 4; co.position.z = -0.55; g.add(co);
     g.visible = false; return g;
   }
-  function puntoAgua(burro, margen) { for (let i = 0; i < 40; i++) { const p = ctx.aves().punto(burro, margen); if (p) return p; } return [burro.cx, burro.cz]; }
-  function puntoVia(b) { // un punto a un lado de la avenida (acera o pasto) donde la gaviota encuentra comida
-    const av = ctx.aves(); if (!via.cadenas.length) return puntoAgua(b, 14);
-    for (let i = 0; i < 40; i++) {
-      const ch = via.cadenas[Math.floor(Math.random() * via.cadenas.length)], s = Math.random() * ch.L; let j = 0; while (j < ch.pts.length - 2 && ch.cum[j + 1] < s) j++;
-      const a = ch.pts[j], e = ch.pts[j + 1], l = (ch.cum[j + 1] - ch.cum[j]) || 1, t = (s - ch.cum[j]) / l, tx = (e[0] - a[0]) / l, tz = (e[1] - a[1]) / l, lado = Math.random() < 0.5 ? -1 : 1, off = lado * (13 + Math.random() * 22);
-      const x = a[0] + (e[0] - a[0]) * t - tz * off, z = a[1] + (e[1] - a[1]) * t + tx * off; if (!av.dentro(x, z, b.pts)) return [x, z];
-    }
-    return puntoAgua(b, 14);
-  }
+  function puntoAgua(burro, margen, maxMargen) { for (let i = 0; i < 40; i++) { const p = ctx.aves().punto(burro, margen, maxMargen); if (p) return p; } return [burro.cx, burro.cz]; }
   function ponerPez(f) {
-    const b = ctx.aves().burro;
-    f.vivo = true; f.sig = 0.5 + Math.random() * 3; f.salto = -1; f.haz.visible = true;
-    if (AVE.objetivo === 'pesca') { const p = puntoAgua(b, 14); f.x = p[0]; f.z = p[1]; f.mesh.visible = false; f.haz.position.set(f.x, 30, f.z); return; }
-    const p = AVE.objetivo === 'carronera' ? puntoVia(b) : puntoAgua(b, 10); f.x = p[0]; f.z = p[1]; f.mesh.visible = true; f.mesh.position.set(f.x, 0.5, f.z); f.haz.position.set(f.x, 30, f.z);
-  }
-  // ---------------------------------------------------------------- avenida con tráfico (queda entre el humedal y el nido)
+    const b = ctx.aves().burro, obj = AVE.objetivo;
+    f.vivo = true; f.sig = 0.5 + Math.random() * 3; f.salto = -1; f.haz.visible = true; f.y = 0.4;
+    if (obj === 'pesca') { const p = puntoAgua(b, 14); f.x = p[0]; f.z = p[1]; f.mesh.visible = false; f.haz.position.set(f.x, 30, f.z); return; }
+    if (obj === 'juncos') { const p = puntoAgua(b, 2, 14); f.x = p[0]; f.z = p[1]; f.y = 0.35; f.mesh.rotation.y = Math.random() * 6.28; }
+    else { const p = puntoAgua(b, 6); f.x = p[0] + (Math.random() - 0.5) * 120; f.z = p[1] + (Math.random() - 0.5) * 120; f.y = 14 + Math.random() * 30; const a = Math.random() * 6.28; f.vx = Math.cos(a) * 2.2; f.vz = Math.sin(a) * 2.2; } // enjambre a la deriva
+    f.mesh.visible = true; f.mesh.position.set(f.x, f.y, f.z); f.haz.position.set(f.x, f.y + 20, f.z);
+  }  // ---------------------------------------------------------------- avenida con tráfico (queda entre el humedal y el nido)
   const via = { cadenas: [], coches: [], seg: [], intens: 0.3, hora: 0, d: 999, estado: 0 };
   const lw = (x, z) => ctx.lw(x, z);
   const rnd = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -450,24 +448,63 @@ export function crearPajaro(ctx) {
     for (let i = 0; i < 24 && via.seg.length; i++) { const q = puntoAgua(b, 40), d = distVia(q[0], q[1]); if (d > md) { md = d; mejor = q; } }
     return mejor;
   }
+  // ---- nidos reales: palitos entrelazados (no hay torre ni huevos); los polluelos piden comida con el pico abierto
+  function palitos(g, n, R, y0, alto, color, grosor) {
+    const m = new THREE.MeshLambertMaterial({ color });
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * 6.28, r = R * (0.15 + Math.random() * 0.95), len = R * (0.9 + Math.random() * 1.1);
+      const s = new THREE.Mesh(new THREE.CylinderGeometry(grosor * 0.7, grosor, len, 5), m);
+      s.position.set(Math.cos(a) * r * 0.8, y0 + Math.random() * alto + (r > R * 0.7 ? alto * 0.6 : 0), Math.sin(a) * r * 0.8);
+      s.rotation.set((Math.random() - 0.5) * 0.5, Math.random() * 3.14, Math.PI / 2 + (Math.random() - 0.5) * 0.45); s.frustumCulled = false; g.add(s);
+    }
+  }
+  function polluelo(g, x, y, z, color, pico) {
+    const c = new THREE.Group(), m = new THREE.MeshLambertMaterial({ color, emissive: 0x181614 });
+    const cu = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), m); cu.scale.set(1, 0.85, 1.25); c.add(cu);
+    const cuello = new THREE.Group(); cuello.position.set(0, 0.12, -0.14); c.add(cuello);
+    const cab = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), m); cab.position.set(0, 0.16, -0.04); cuello.add(cab);
+    const pc = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.2, 5), new THREE.MeshLambertMaterial({ color: pico })); pc.rotation.x = -Math.PI / 2; pc.position.set(0, 0.16, -0.17); cuello.add(pc);
+    c.position.set(x, y, z); c.rotation.y = Math.random() * 6.28; g.add(c); return cuello;
+  }
   function crearNido(b) {
-    const av = ctx.aves(); let pos = AVE.objetivo === 'pesca' ? nidoAlOtroLado(b) : nidoSeguro(b);
+    const av = ctx.aves(), tipo = AVE.nidoTipo; let pos = null, yN = 0.4;
+    if (tipo === 'arbol') pos = nidoAlOtroLado(b);
+    else if (tipo === 'flotante') { let md = -1; for (let i = 0; i < 30; i++) { const q = puntoAgua(b, 3, 12), dv = via.seg.length ? distVia(q[0], q[1]) : 400; if (dv > md) { md = dv; pos = q; } } }
+    else pos = nidoSeguro(b);
     for (let i = 0; i < 80 && !pos; i++) { // sin avenida en los datos: nido cerca de la orilla
       const x = b.x0 - 150 + Math.random() * (b.x1 - b.x0 + 300), z = b.z0 - 150 + Math.random() * (b.z1 - b.z0 + 300);
       if (av.dentro(x, z, b.pts)) continue; const d = av.distBorde(x, z, b.pts);
       if (d > 30 && d < 90) pos = [x, z];
     }
     pos = pos || [b.cx + (b.x1 - b.x0) / 2 + 60, b.cz];
-    const g = new THREE.Group(); g.position.set(pos[0], 0, pos[1]);
-    const marron = new THREE.MeshLambertMaterial({ color: 0x6b4a2b });
-    const tronco = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.55, 13, 8), marron); tronco.position.y = 6.5; g.add(tronco);
-    const aro = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.55, 8, 18), marron); aro.rotation.x = Math.PI / 2; aro.position.y = 13.2; g.add(aro);
-    for (let i = 0; i < 3; i++) { const h = new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), new THREE.MeshLambertMaterial({ color: 0xf6efd9 })); h.scale.y = 1.25; h.position.set(Math.cos(i * 2.1) * 0.6, 13.5, Math.sin(i * 2.1) * 0.6); g.add(h); }
-    const haz = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 160, 16, 1, true), matHaz(0xffc933, 0.38)); haz.position.y = 80; g.add(haz);
-    const halo = new THREE.Mesh(new THREE.TorusGeometry(11, 0.35, 8, 40), matHaz(0xffe58a, 0.7)); halo.rotation.x = Math.PI / 2; halo.position.y = 13; g.add(halo);
-    T3.scene.add(g); return { g, x: pos[0], y: 13, z: pos[1] };
+    const g = new THREE.Group(), chicos = [];
+    if (tipo === 'arbol') { // la garza anida en colonias, en las copas: se busca un árbol alto cerca del lugar elegido
+      const P = T3.trees && T3.trees.pos; let bi = -1, bd = 1e9;
+      if (P) for (let i = 0; i < P.X.length; i++) { const d = Math.hypot(P.X[i] - pos[0], P.Z[i] - pos[1]); if (d < 80 && P.Hh[i] >= 10 && d - P.Hh[i] * 2 < bd) { bd = d - P.Hh[i] * 2; bi = i; } }
+      if (bi >= 0) { pos = [P.X[bi], P.Z[bi]]; yN = Math.max(9, P.Hh[bi] * 0.82); }
+      else { yN = 12; const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.5, 11, 7), new THREE.MeshLambertMaterial({ color: 0x4a3626 })); tr.position.y = 5.5; g.add(tr); }
+      g.position.set(pos[0], yN, pos[1]); palitos(g, 70, 1.0, 0, 0.35, 0x5b4129, 0.045); palitos(g, 26, 1.25, 0.1, 0.2, 0x70503a, 0.05);
+      for (let i = 0; i < 2; i++) chicos.push(polluelo(g, (i - 0.5) * 0.5, 0.28, 0.05 * i, 0xf1efe8, 0xd9a82b));
+    } else if (tipo === 'flotante') { // la tingua: plataforma de tallos sobre el agua, entre juncos
+      yN = 0.45; g.position.set(pos[0], 0, pos[1]); 
+      const mv = new THREE.MeshLambertMaterial({ color: 0x6f9a3c, emissive: 0x16240a }); for (let i = 0; i < 22; i++) { const a = i * 0.29 + Math.random() * 0.3, h = 1.6 + Math.random() * 1.2, j = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, h, 5), mv); j.position.set(Math.cos(a) * 1.35, h / 2, Math.sin(a) * 1.35); j.rotation.set((Math.random() - 0.5) * 0.25, 0, (Math.random() - 0.5) * 0.25); g.add(j); }
+      const base = new THREE.Group(); base.position.y = 0.3; g.add(base); palitos(base, 26, 0.8, 0, 0.12, 0x7a6a3a, 0.04);
+      for (let i = 0; i < 2; i++) chicos.push(polluelo(g, (i - 0.5) * 0.4, 0.45, 0.05 * i, 0x20252c, 0xd63a2f));
+      g.userData.base = base;
+    } else { // la gaviota: nido de pasto en el suelo, cerca del agua
+      yN = 0.4; g.position.set(pos[0], 0, pos[1]); palitos(g, 40, 0.7, 0.05, 0.1, 0xb8a46a, 0.03);
+      for (let i = 0; i < 2; i++) chicos.push(polluelo(g, (i - 0.5) * 0.4, 0.3, 0.05 * i, 0xa89a82, 0xc9a24a));
+    }
+    const haz = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 150, 10, 1, true), matHaz(0xe8f4ff, 0.07)); haz.position.y = 75 - (tipo === 'arbol' ? 0 : 0); g.add(haz); // baliza muy tenue para ubicarlo desde lejos
+    T3.scene.add(g); return { g, x: pos[0], y: tipo === 'arbol' ? yN : 1.2, z: pos[1], chicos, tipo };
   }
-  function crearAros(b) {
+  function animarNido(dt, d) { // los polluelos piden comida: más cuanto más cerca estés
+    if (!nido) return; const t = sim.tiempo, ex = d < 60 ? 1 : 0.3;
+    nido.chicos.forEach((c, i) => { c.rotation.x = -0.25 - ex * (0.3 + 0.25 * Math.sin(t * 7 + i * 1.7)); c.position.y = ex * 0.03 * Math.sin(t * 9 + i); });
+  }
+  function crecerNido(n) { // la tingua va armando su nido: cada tallo entregado agrega palitos
+    if (!nido || nido.tipo !== 'flotante') return; const base = nido.g.userData.base; palitos(base, 7 * n, 0.8 + 0.04 * sim.entregados, 0, 0.12 + 0.01 * sim.entregados, 0x7a6a3a, 0.045); base.scale.setScalar(1 + sim.entregados * 0.03);
+  }  function crearAros(b) {
     const rx = (b.x1 - b.x0) / 2 + 90, rz = (b.z1 - b.z0) / 2 + 90; arosPos = [];
     for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; arosPos.push(new THREE.Vector3(b.cx + Math.cos(a) * rx * 0.8, 28 + (i % 3) * 16, b.cz + Math.sin(a) * rz * 0.8)); }
     aroMesh = new THREE.Group();
@@ -483,12 +520,12 @@ export function crearPajaro(ctx) {
     const av = ctx.aves(), b = av && av.burro; if (!b) throw new Error('No hay datos del Humedal El Burro');
     limpiarJuego();
     try { construirAvenida(b); } catch (e) { console.warn('avenida:', e); via.cadenas = []; via.coches = []; via.seg = []; } // primero la avenida: los restos de comida y el nido dependen de ella
-    peces = []; for (let i = 0; i < (AVE.objetivo === 'semillas' ? 9 : AVE.objetivo === 'carronera' ? 5 : 7); i++) {
-      const mesh = crearPez(), haz = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 60, 8, 1, true), matHaz(AVE.objetivo === 'carronera' ? 0xfbbf24 : AVE.objetivo === 'semillas' ? 0x34d399 : 0x7dd3fc, 0.3));
+    peces = []; for (let i = 0; i < (AVE.objetivo === 'juncos' ? 9 : AVE.objetivo === 'insectos' ? 5 : 7); i++) {
+      const mesh = crearPez(), haz = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 60, 8, 1, true), matHaz(AVE.objetivo === 'insectos' ? 0xfbbf24 : AVE.objetivo === 'juncos' ? 0x86efac : 0x7dd3fc, AVE.objetivo === 'pesca' ? 0.3 : 0.2));
       T3.scene.add(mesh, haz); const f = { mesh, haz }; ponerPez(f); peces.push(f);
     }
     T3.extraCars = via.coches.length ? (F) => { for (const c of via.coches) if (c.act) F.add(c.x, c.z, c.h, 5000 + c.id); } : null; // la flota de carros dibuja también los de la avenida
-    nido = AVE.objetivo === 'semillas' ? null : crearNido(b); crearAros(b);
+    nido = crearNido(b); crearAros(b);
     Object.assign(sim, { puntos: 0, llevando: 0, entregados: 0, tiempo: 0, terminado: false, aro: 0, aros: 0, vidas: 3, energia: 100, inmune: 2, perdido: false, ex: 0, golpes: 0, restante: 100 });
     via.hora = 0; via.intens = 0.3; via.estado = 0; caida = 0; lift = 0; sacudida = 0;
     try { sim.mejor = Number(localStorage.getItem('ren3d_pajaro_mejor') || 0); } catch (e) { sim.mejor = 0; }
@@ -546,7 +583,7 @@ export function crearPajaro(ctx) {
     if (best) return { x: best.x, y: 1, z: best.z, txt: 'Objetivo cercano' };
     return nido ? { x: nido.x, y: nido.y, z: nido.z, txt: 'Nido' } : null;
   }
-  const ETQ = { pesca: 'Peces', carronera: 'Comida', semillas: 'Semillas' };
+  const ETQ = { pesca: 'Peces', juncos: 'Tallos', insectos: 'Bocados' };
   function pintarHud() {
     const o = objetivo(), p = rig.position; let rel = 0, dist = 0;
     camaraDir(dir);
@@ -554,21 +591,21 @@ export function crearPajaro(ctx) {
     const en = Math.round(sim.energia), colE = en > 50 ? '#4ade80' : en > 20 ? '#fde047' : '#f87171', tr = Math.round(via.intens * 100), colT = tr > 75 ? '#f87171' : tr > 45 ? '#fb923c' : '#4ade80';
     const aviso = sim.ex > 0.12 ? (sim.energia < 12 ? 'Sin energía: te hundes' : 'Turbulencia del tráfico: sube y aletea') : '';
     const pips = (n, tot, cls) => `<span class="pips ${cls || ''}">${Array.from({ length: tot }, (_, k) => `<i class="${k < n ? 'o' : ''}"></i>`).join('')}</span>`;
-    const tiempo = AVE.objetivo === 'semillas' ? fmt(sim.restante) : fmt(sim.tiempo);
+    const tiempo = fmt(sim.tiempo);
     if (modo !== 'cardboard') {
       hud.style.setProperty('--c', AVE.color);
       hud.innerHTML = `<div class="cab"><span class="ave">${AVE.nombre}</span><span class="n">${sim.puntos}<small>PTS</small></span></div>`
         + `<div class="fila">Vidas ${pips(sim.vidas, 3, 'vida')}</div>`
         + `<div class="fila">${ETQ[AVE.objetivo]} <b>${sim.entregados} / ${AVE.meta}</b></div>`
         + (AVE.cap > 1 ? `<div class="fila">Carga ${pips(sim.llevando, AVE.cap)}</div>` : '')
-        + `<div class="fila">${AVE.objetivo === 'semillas' ? 'Tiempo restante' : 'Tiempo'} <b>${tiempo}</b></div>`
+        + `<div class="fila">Tiempo <b>${tiempo}</b></div>`
         + `<div class="fila">Energía <span class="barra"><i style="width:${en}%;background:${colE}"></i></span></div>`
         + `<div class="fila">Tráfico <span class="barra"><i style="width:${tr}%;background:${colT}"></i></span></div>`
         + `<div class="fila">Altura <b>${Math.round(p.y)} m</b></div><div class="fila">Velocidad <b>${Math.round(vel * 3.6)} km/h</b></div>`
-        + (o ? `<div class="guia"><span class="arrow" style="transform:rotate(${-rel}rad)">&#10148;</span>${o.txt} ${Math.round(dist)} m</div>` : '') + (aviso ? `<div class="aviso">${aviso}</div>` : '')
+        + (modo === 'observar' ? `<div class="guia">${bot.estado || 'Buscando objetivo'}</div><div class="fila" style="margin-top:5px">Cámara: tecla V</div>` : o ? `<div class="guia"><span class="arrow" style="transform:rotate(${-rel}rad)">&#10148;</span>${o.txt} ${Math.round(dist)} m</div>` : '') + (aviso ? `<div class="aviso">${aviso}</div>` : '')
         + `<div class="fila" style="margin-top:7px">Récord <b>${sim.mejor}</b></div>`;
     }
-    if (modo !== 'pantalla' && hudCv) {
+    if ((modo === 'vr' || modo === 'cardboard') && hudCv) {
       const g = hudCv.getContext('2d'), W = hudCv.width, H = hudCv.height;
       g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(6,14,22,.82)'; g.strokeStyle = sim.ex > 0.12 ? 'rgba(248,113,113,.95)' : 'rgba(148,163,184,.55)'; g.lineWidth = 3;
       g.beginPath(); g.moveTo(4, 4); g.lineTo(W - 30, 4); g.lineTo(W - 4, 30); g.lineTo(W - 4, H - 4); g.lineTo(30, H - 4); g.lineTo(4, H - 30); g.closePath(); g.fill(); g.stroke();
@@ -576,7 +613,7 @@ export function crearPajaro(ctx) {
       txt(AVE.nombre.toUpperCase(), 28, 40, '700 22px "Segoe UI",system-ui,sans-serif', AVE.color); txt(String(sim.puntos), 28, 96, '800 52px "Segoe UI",system-ui,sans-serif', '#fff'); txt('PTS', 30 + g.measureText(String(sim.puntos)).width + 8, 96, '600 20px "Segoe UI",system-ui,sans-serif', '#7b8ea3');
       for (let k = 0; k < 3; k++) { g.fillStyle = k < sim.vidas ? '#f87171' : 'rgba(148,163,184,.3)'; g.fillRect(W - 150 + k * 40, 60, 30, 14); }
       txt(ETQ[AVE.objetivo].toUpperCase() + '  ' + sim.entregados + ' / ' + AVE.meta, 28, 138, '700 28px "Segoe UI",system-ui,sans-serif', '#e8f1f8');
-      txt((AVE.objetivo === 'semillas' ? 'RESTANTE ' : 'TIEMPO ') + tiempo + '   ALT ' + Math.round(p.y) + ' m', 28, 174, '600 24px "Segoe UI",system-ui,sans-serif', '#a3b5c7');
+      txt('TIEMPO ' + tiempo + '   ALT ' + Math.round(p.y) + ' m', 28, 174, '600 24px "Segoe UI",system-ui,sans-serif', '#a3b5c7');
       if (AVE.cap > 1) for (let k = 0; k < AVE.cap; k++) { g.fillStyle = k < sim.llevando ? AVE.color : 'rgba(148,163,184,.3)'; g.fillRect(W - 150 + k * 40, 120, 30, 14); }
       const barra = (y, v, c, t) => { txt(t, 28, y + 15, '600 20px "Segoe UI",system-ui,sans-serif', '#7b8ea3'); g.fillStyle = 'rgba(148,163,184,.25)'; g.fillRect(190, y, 230, 14); g.fillStyle = c; g.fillRect(190, y, 230 * clamp(v, 0, 1), 14); };
       barra(190, sim.energia / 100, colE, 'ENERGÍA'); barra(218, via.intens, colT, 'TRÁFICO');
@@ -590,10 +627,11 @@ export function crearPajaro(ctx) {
   function juego(dt) {
     const p = rig.position, av = ctx.aves(), b = av.burro;
     if (!sim.terminado) sim.tiempo += dt;
-    // avenida: tráfico, energía, ruido y choques
+    // energía: depende del ave (la tingua descansa rozando el agua y no aguanta volar alto; la gaviota gasta al acelerar)
+    energiaPaso(dt, p, b, av);
+    // avenida: tráfico, ruido y choques
     if (via.coches.length) {
       pasoTrafico(dt);
-      sim.energia = sim.ex < 0.06 ? Math.min(100, sim.energia + AVE.regen * dt) : Math.max(0, sim.energia - 4 * sim.ex * dt);
       sim.inmune = Math.max(0, sim.inmune - dt);
       if (sim.inmune <= 0 && !sim.perdido) {
         if (p.y < 12) for (const c of via.coches) if (c.act && Math.abs(c.x - p.x) < 14 && Math.abs(c.z - p.z) < 14) { // muy cerca del tráfico y bajo: te asustas y te pierdes
@@ -609,9 +647,8 @@ export function crearPajaro(ctx) {
       }
       ruidoEl.style.opacity = String(clamp(sim.ex * 1.5 + (sim.inmune > 3 ? 0.5 : 0), 0, 0.9));
     }
-    // objetos de la misión: peces que saltan (garza), restos de comida junto a la avenida (gaviota) o semillas flotantes (pato)
-    const obj = AVE.objetivo, nom = AVE.item[0], noms = AVE.item[1];
-    if (obj === 'semillas' && !sim.terminado && !sim.perdido) { sim.restante -= dt; if (sim.restante <= 0) { sim.restante = 0; fallar('Se acabó el tiempo.'); } }
+    // objetos de la misión: peces que saltan (garza), tallos de junco en el borde del agua (tingua) o enjambres de insectos en el aire (gaviota)
+    const obj = AVE.objetivo, nom = AVE.item[0], noms = AVE.item[1], vh = vel;
     for (const f of peces) {
       if (!f.vivo) { f.espera -= dt; if (f.espera <= 0) ponerPez(f); continue; }
       if (obj === 'pesca') {
@@ -622,28 +659,29 @@ export function crearPajaro(ctx) {
           if (u >= 1) { f.salto = -1; f.sig = 2 + Math.random() * 3; f.mesh.visible = false; av.anillo(f.x, f.z); }
           else { f.mesh.visible = true; f.mesh.position.set(f.x, 0.4 + 4.2 * 4 * u * (1 - u), f.z); f.mesh.rotation.x = (u - 0.5) * 2.2; f.mesh.rotation.y = f.x; }
         }
-      } else { f.mesh.position.y = 0.5 + 0.18 * Math.sin(sim.tiempo * 2.4 + f.x); f.mesh.rotation.y += dt * 0.8; }
-      const dh = Math.hypot(f.x - p.x, f.z - p.z);
-      if (dh < 7 && p.y < 7.5 && (obj === 'semillas' || sim.llevando < AVE.cap)) { // recogido
-        f.vivo = false; f.espera = obj === 'carronera' ? 3 : 1.5; f.mesh.visible = false; f.haz.visible = false; av.anillo(f.x, f.z);
-        if (obj === 'semillas') {
-          sim.entregados++; sim.puntos += 100; sim.restante = Math.min(150, sim.restante + 6); pip(520, 1040, 0.18, 0.18);
-          mensaje('Semilla ' + sim.entregados + '/' + AVE.meta + ' · +6 s', 1800);
-          if (sim.entregados % 4 === 0) setTimeout(() => mensaje(DATOS[(sim.entregados + 1) % DATOS.length], 5000), 2000);
-          if (sim.entregados >= AVE.meta && !sim.terminado) terminar();
-        } else {
-          sim.llevando++; sim.puntos += 25; pip(520, 1040, 0.18, 0.18);
-          mensaje(sim.llevando >= AVE.cap ? 'Carga completa: llévala al nido' : (obj === 'pesca' ? 'Pez atrapado' : 'Comida recogida') + ' (' + sim.llevando + '/' + AVE.cap + ')', 2200);
-        }
-      } else if (dh < 7 && p.y < 7.5 && sim.llevando >= AVE.cap && performance.now() - (sim.avisoLleno || 0) > 4000) { sim.avisoLleno = performance.now(); mensaje('Ya vas con la carga completa: ve al nido', 2000); }
+      } else if (obj === 'juncos') { f.mesh.position.y = 0.35 + 0.05 * Math.sin(sim.tiempo * 1.6 + f.x); f.mesh.rotation.z = 0.05 * Math.sin(sim.tiempo * 1.1 + f.z); }
+      else { // enjambre: deriva, cambia de rumbo y sus puntos giran
+        f.x += f.vx * dt; f.z += f.vz * dt; if (Math.random() < dt * 0.3) { const a = Math.random() * 6.28; f.vx = Math.cos(a) * 2.4; f.vz = Math.sin(a) * 2.4; }
+        const cy = f.y + 1.5 * Math.sin(sim.tiempo * 0.8 + f.z * 0.1); f.mesh.position.set(f.x, cy, f.z); f.haz.position.set(f.x, cy + 20, f.z);
+        const P = f.mesh.geometry.attributes.position, ph = f.mesh.userData.fase, T = sim.tiempo; for (let k = 0; k < ph.length; k++) { const a = T * ph[k][2] * 0.5 + ph[k][0], r = 1.6 + 1.1 * Math.sin(T * 0.9 + ph[k][1]); P.setXYZ(k, Math.cos(a) * r, Math.sin(T * 1.3 + ph[k][1]) * 1.2, Math.sin(a) * r); } P.needsUpdate = true;
+      }
+      const dh = Math.hypot(f.x - p.x, f.z - p.z), dy = obj === 'insectos' ? Math.abs(f.mesh.position.y - p.y) : (p.y - (obj === 'juncos' ? 0 : 0));
+      const alcance = obj === 'insectos' ? (dh < 7 && dy < 7) : (dh < (obj === 'juncos' ? 6.5 : 7) && p.y < (obj === 'juncos' ? 4.5 : 7.5));
+      if (alcance) {
+        if (sim.llevando >= AVE.cap) { if (performance.now() - (sim.avisoLleno || 0) > 4000) { sim.avisoLleno = performance.now(); mensaje('Ya vas con la carga completa: ve al nido', 2000); } continue; }
+        if (obj === 'pesca' && vh > 17.5 && f.salto >= 0) { if (performance.now() - (sim.avisoVel || 0) > 3500) { sim.avisoVel = performance.now(); mensaje('Muy rápido: las garzas pescan despacio. Frena (S) al acercarte', 2400); } continue; }
+        if (obj === 'insectos' && vh < 13) { if (performance.now() - (sim.avisoVel || 0) > 3500) { sim.avisoVel = performance.now(); mensaje('Si vas lento los insectos se escapan: acelera para atravesar el enjambre', 2400); } continue; }
+        f.vivo = false; f.espera = obj === 'insectos' ? 2 : 1.5; f.mesh.visible = false; f.haz.visible = false; if (obj !== 'insectos') av.anillo(f.x, f.z);
+        sim.llevando++; sim.puntos += 25; pip(520, 1040, 0.18, 0.18); if (obj === 'insectos') sim.energia = Math.max(0, sim.energia - 6);
+        mensaje(sim.llevando >= AVE.cap ? 'Carga completa: llévala al nido' : (obj === 'pesca' ? 'Pez atrapado' : obj === 'juncos' ? 'Tallo recogido' : 'Bocado de insectos') + ' (' + sim.llevando + '/' + AVE.cap + ')', 2200);
+      }
     }
     // nido
     if (nido) {
-      nido.g.children[nido.g.children.length - 1].rotation.z += dt * 0.5;
-      const dn = Math.hypot(nido.x - p.x, nido.y - p.y, nido.z - p.z);
+      const dn = Math.hypot(nido.x - p.x, nido.y - p.y, nido.z - p.z); animarNido(dt, dn);
       if (dn < 13 && sim.llevando > 0) {
-        const n = sim.llevando, pts = (obj === 'carronera' ? 150 : 100) * n; sim.llevando = 0; sim.entregados += n; sim.puntos += pts; pip(660, 1320, 0.35, 0.2); setTimeout(() => pip(880, 1760, 0.4, 0.15), 160);
-        mensaje('Entregaste ' + n + ' ' + (n > 1 ? noms : nom) + ' · +' + pts + ' pts', 2800);
+        const n = sim.llevando, pts = (obj === 'insectos' ? 120 : 100) * n; sim.llevando = 0; sim.entregados += n; sim.puntos += pts; pip(660, 1320, 0.35, 0.2); setTimeout(() => pip(880, 1760, 0.4, 0.15), 160); crecerNido(n);
+        mensaje((obj === 'juncos' ? 'Agregaste ' + n + ' ' + (n > 1 ? noms : nom) + ' a tu nido' : 'Alimentaste a tus polluelos: ' + n + ' ' + (n > 1 ? noms : nom)) + ' · +' + pts + ' pts', 2800);
         if (sim.entregados % 3 === 0 || sim.entregados < 3) setTimeout(() => mensaje(DATOS[(sim.entregados + 1) % DATOS.length], 5500), 3000);
         if (sim.entregados >= AVE.meta && !sim.terminado) terminar();
       }
@@ -666,12 +704,71 @@ export function crearPajaro(ctx) {
     mensaje(motivo + ' Fin de la partida: ' + sim.entregados + '/' + AVE.meta + '. Reiniciando...', 6000);
     setTimeout(() => { if (activo) nuevaRonda('Nueva ronda: ' + AVE.metaTxt); }, 6500);
   }
-  function terminar() {
-    sim.terminado = true; const t = sim.tiempo, bono = AVE.objetivo === 'semillas' ? Math.round(sim.restante * 5) : Math.max(0, Math.round((240 - t) * 2)); sim.puntos += bono;
+  function energiaPaso(dt, p, b, av) {
+    const sobreAgua = b && av.dentro(p.x, p.z, b.pts), descansa = AVE.reposo && p.y < 2.8 && sobreAgua;
+    if (sim.ex >= 0.06) sim.energia -= 4 * sim.ex * dt; else sim.energia += (descansa ? AVE.reposo : AVE.reposo ? 0.8 : AVE.regen) * dt;
+    if (acelera) sim.energia -= (AVE.gasto || 0) * dt;
+    if (AVE.techo && p.y > AVE.techo) { sim.energia -= 9 * dt; if (performance.now() - (sim.avisoTecho || 0) > 4000) { sim.avisoTecho = performance.now(); mensaje('Las tinguas vuelan bajo: no subas tanto', 2200); } }
+    sim.energia = clamp(sim.energia, 0, 100);
+  }  function terminar() {
+    sim.terminado = true; const t = sim.tiempo, bono = Math.max(0, Math.round((240 - t) * 2)); sim.puntos += bono;
     if (sim.puntos > sim.mejor) { sim.mejor = sim.puntos; try { localStorage.setItem('ren3d_pajaro_mejor', String(sim.puntos)); } catch (e) { /* sin almacenamiento */ } }
     mensaje('Misión cumplida: ' + sim.puntos + ' pts en ' + fmt(t) + '. Sigue volando; la ronda se reinicia sola.', 9000);
     pip(523, 1046, 0.5, 0.2); setTimeout(() => pip(784, 1568, 0.6, 0.2), 250);
     setTimeout(() => { if (activo && sim.terminado) nuevaRonda('Nueva ronda: ' + AVE.metaTxt); }, 12000);
+  }
+  // ---------------------------------------------------------------- modo observar: el ave vuela sola (cámara en tercera persona)
+  let avatar = null, fabricaAla = null, camVista = 0;
+  const bot = { estado: '', tAle: 0 };
+  const VISTAS = [[0, 2.2, 6.4], [0, 1.0, 3.6], [6.0, 1.4, 0.4], [0, 5.0, 10]];
+  function ponerCamara() {
+    const e = new THREE.Vector3(...VISTAS[camVista % VISTAS.length]), m4 = new THREE.Matrix4().lookAt(e, new THREE.Vector3(0, 0.1, -1.2), new THREE.Vector3(0, 1, 0));
+    T3.camera.position.copy(e); T3.camera.quaternion.setFromRotationMatrix(m4);
+  }
+  function crearAvatar() { // el ave completa, vista desde fuera: cuerpo, cuello, cabeza, pico, patas y alas de plumas
+    const g = new THREE.Group(), L = (c) => new THREE.MeshLambertMaterial({ color: c, emissive: 0x161616 });
+    const mc = L(AVE.cuerpo), mh = L(AVE.cabeza), mp = new THREE.MeshLambertMaterial({ color: AVE.pico, emissive: 0x201004 }), mpa = L(AVE.id === 'tingua' ? 0xb7c04a : AVE.id === 'gaviota' ? 0xb3342c : 0x2b2b2b);
+    const garza = AVE.id === 'garza', tingua = AVE.id === 'tingua';
+    const cu = new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 10), mc); cu.scale.set(0.95, 0.85, garza ? 2.5 : tingua ? 1.9 : 2.2); g.add(cu);
+    const pts = garza ? [[0, 0.04, -0.4], [0, 0.2, -0.56], [0, 0.1, -0.74], [0, 0.2, -0.92]] : [[0, 0.04, -0.3], [0, 0.13, -0.4], [0, 0.14, -0.48]];
+    const cuello = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))), 10, garza ? 0.045 : 0.07, 7), mc); g.add(cuello);
+    const fin = pts[pts.length - 1], cab = new THREE.Mesh(new THREE.SphereGeometry(garza ? 0.06 : 0.085, 10, 8), mh); cab.position.set(...fin); cab.scale.z = 1.25; g.add(cab);
+    const pico = new THREE.Mesh(new THREE.ConeGeometry(garza ? 0.035 : 0.04, garza ? 0.32 : 0.15, 6), mp); pico.rotation.x = -Math.PI / 2; pico.position.set(fin[0], fin[1] - 0.005, fin[2] - (garza ? 0.2 : 0.12)); g.add(pico);
+    if (tingua) { const esc = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 6), L(0xd63a2f)); esc.position.set(fin[0], fin[1] + 0.04, fin[2] - 0.08); esc.scale.set(1, 0.8, 1.3); g.add(esc); }
+    const cola = new THREE.Mesh(new THREE.ConeGeometry(0.14, garza ? 0.32 : 0.4, 4), AVE.id === 'gaviota' ? L(0xf1f2f4) : mc); cola.rotation.x = Math.PI / 2; cola.scale.x = 1.6; cola.position.set(0, 0.0, garza ? 0.62 : 0.55); g.add(cola);
+    for (const s of [-1, 1]) { // patas: la garza las estira hacia atrás al volar; la tingua las deja colgar con dedos largos; la gaviota las recoge
+      const largo = garza ? 0.95 : tingua ? 0.32 : 0.2, pt = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, largo, 5), mpa);
+      if (garza) { pt.rotation.x = Math.PI / 2; pt.position.set(s * 0.05, -0.02, 0.55 + largo / 2); } else { pt.position.set(s * 0.07, -0.16, 0.18); pt.rotation.x = 0.25; }
+      g.add(pt);
+    }
+    g.userData = { cuello, cab }; g.scale.setScalar(1.45); // un poco más grande de lo real para que se aprecie desde la cámara
+    const wI = fabricaAla(-1), wD = fabricaAla(1); for (const [w, s] of [[wI, -1], [wD, 1]]) { w.scale.setScalar(AVE.escala * 1.25); w.position.set(s * 0.12, 0.13, -0.12); g.add(w); }
+    alaI = wI; alaD = wD; return g;
+  }
+  const segCruza = (ax, az, bx, bz) => via.seg.some(s => { // ¿el trayecto A→B atraviesa la avenida?
+    const d1x = bx - ax, d1z = bz - az, d2x = s[2] - s[0], d2z = s[3] - s[1], den = d1x * d2z - d1z * d2x; if (Math.abs(den) < 1e-9) return false;
+    const t = ((s[0] - ax) * d2z - (s[1] - az) * d2x) / den, u = ((s[0] - ax) * d1z - (s[1] - az) * d1x) / den; return t > 0 && t < 1 && u > 0 && u < 1;
+  });
+  function cerebro(dt) { // piloto automático: busca el objetivo, esquiva el tráfico cruzando en alto y llega con la altura y la velocidad que pide cada ave
+    const p = rig.position; bot.tAle = Math.max(0, bot.tAle - dt);
+    const lleno = sim.llevando >= AVE.cap; let cand = null, bd = 1e12;
+    for (const f of peces) { if (!f.vivo) continue; const d = (f.x - p.x) ** 2 + (f.z - p.z) ** 2 + (via.seg.length && segCruza(p.x, p.z, f.x, f.z) ? 250000 : 0) + (via.seg.length && distVia(f.x, f.z) < 45 ? 4e6 : 0); if (d < bd) { bd = d; cand = f; } }
+    let T = null, tipo = 'item';
+    if (nido && (lleno || (sim.llevando > 0 && (!cand || bd > 90000)))) { T = { x: nido.x, y: nido.y, z: nido.z }; tipo = 'nido'; }
+    else if (cand) T = { x: cand.x, y: cand.mesh.position.y, z: cand.z };
+    else if (nido) { T = { x: nido.x, y: nido.y, z: nido.z }; tipo = 'nido'; }
+    if (!T) return;
+    const dxz = Math.hypot(T.x - p.x, T.z - p.z), cruce = via.seg.length && segCruza(p.x, p.z, T.x, T.z), id = AVE.id, cerca = dxz < 55;
+    let alt = id === 'tingua' ? 7 : 33;
+    if (cerca) alt = tipo === 'nido' ? T.y + 3 : id === 'pesca' || id === 'garza' ? 3.2 : id === 'tingua' ? 2.2 : T.y;
+    const baja = cerca && !cruce && (!via.seg.length || distVia(T.x, T.z) > 45); // el ave sólo baja a su objetivo si éste no está pegado al tráfico
+    if ((cruce || via.d < 110) && !baja) alt = Math.max(alt, id === 'tingua' ? 20 : 85); // sobre la avenida se vuela por encima de la turbulencia
+    const cansada = id === 'tingua' && sim.energia < 22 && !cruce; if (cansada) alt = 2.2; // la tingua baja al agua a descansar
+    const rate = AVE.giro * 1.25, yd = giro(yaw, Math.atan2(p.x - T.x, p.z - T.z)); yaw += clamp(yd, -rate * dt, rate * dt);
+    const pitD = cerca && !cruce ? clamp(Math.atan2(alt - p.y, Math.max(dxz, 9)), -0.6, 0.5) : clamp((alt - p.y) * 0.03, -0.5, 0.4); pit += (pitD - pit) * Math.min(1, dt * 3);
+    acelera = !cansada && dxz > 140 && (!AVE.gasto || sim.energia > 40); frena = cerca && AVE.id !== 'gaviota' && vel > AVE.vel.min + 3;
+    if (p.y < alt - 4 && (sim.ex > 0.04 || caida < -1) && sim.energia > 20 && bot.tAle <= 0) { aleteo(); bot.tAle = 0.7; }
+    bot.estado = cansada ? 'Descansando sobre el agua para recuperar energía' : cruce || via.d < 110 && !cerca ? 'Cruzando la avenida por encima del tráfico' : tipo === 'nido' ? 'Llevando la carga al nido' : AVE.objetivo === 'pesca' ? 'Acechando un pez: baja y frena' : AVE.objetivo === 'juncos' ? 'Buscando tallos de junco en el borde del agua' : 'Persiguiendo un enjambre de insectos';
   }
   // ---------------------------------------------------------------- entradas
   const camaraDir = (v) => { rig.updateMatrixWorld(true); T3.camera.getWorldDirection(v); return v; };
@@ -686,10 +783,11 @@ export function crearPajaro(ctx) {
     if (!activo) return; teclas[e.code] = e.type === 'keydown';
     if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
     if (e.type === 'keydown' && e.code === 'Space' && !e.repeat) aleteo();
+    if (e.type === 'keydown' && e.code === 'KeyV' && modo === 'observar') { camVista++; ponerCamara(); }
     if (e.type === 'keydown' && e.code === 'Escape' && !document.pointerLockElement) salir();
   };
   const onMouse = (e) => {
-    if (!activo || modo === 'vr' || (modo === 'cardboard' && tieneOri)) return;
+    if (!activo || modo === 'vr' || modo === 'observar' || (modo === 'cardboard' && tieneOri)) return;
     if (document.pointerLockElement || e.buttons) { yaw -= e.movementX * 0.0024; pit = clamp(pit - e.movementY * 0.0024, -1.25, 1.25); }
   };
   let tToque = 0;
@@ -723,7 +821,7 @@ export function crearPajaro(ctx) {
     const now = performance.now() / 1000, dt = dtFijo || clamp(now - (ultimo || now), 0.001, 0.05); ultimo = now;
     const cam = T3.camera;
     sim.ex = via.seg.length ? exposicion(rig.position) : 0; sacudida += dt * 11;
-    if (modo !== 'pantalla' && !dtFijo) { // si las gafas/celular no sostienen ~60 cuadros por segundo, se baja el detalle poco a poco para que se vea fluido
+    if ((modo === 'vr' || modo === 'cardboard') && !dtFijo) { // si las gafas/celular no sostienen ~60 cuadros por segundo, se baja el detalle poco a poco para que se vea fluido
       if (tPrev) { tAcum += now - tPrev; nAcum++; } tPrev = now;
       if (nAcum >= 90) { const ms = tAcum / nAcum * 1000; tAcum = 0; nAcum = 0;
         if (ms > 17.5 && calidad < 3) { calidad++; if (calidad === 1) { T3.sun.castShadow = false; via.tope = 0.55; } else if (calidad === 2) { via.tope = 0.3; if (T3.trees) T3.trees.minMs = 2500; try { if (modo === 'vr') T3.renderer.xr.setFoveation(0.6); } catch (e) { /* ok */ } } else { via.tope = 0.15; try { const A = ctx.aves(); if (A && A.grp) A.grp.visible = false; } catch (e) { /* ok */ } } }
@@ -737,12 +835,13 @@ export function crearPajaro(ctx) {
       cam.quaternion.copy(qOri); rig.rotation.set(0, yaw - oriYawBase, 0);
       acelera = acelera || !!teclas.KeyW;
     } else { // pantalla (o cardboard sin giroscopio: se mira con el mouse)
+      if (modo === 'observar') cerebro(dt); else {
       if (teclas.KeyA || teclas.ArrowLeft) yaw += AVE.giro * dt; if (teclas.KeyD || teclas.ArrowRight) yaw -= AVE.giro * dt;
       if (teclas.ArrowUp) pit = clamp(pit + 0.9 * dt, -1.25, 1.25); if (teclas.ArrowDown) pit = clamp(pit - 0.9 * dt, -1.25, 1.25);
-      acelera = !!(teclas.KeyW || teclas.ShiftLeft || teclas.ShiftRight) || (modo === 'cardboard' && acelera); frena = !!teclas.KeyS;
+      acelera = !!(teclas.KeyW || teclas.ShiftLeft || teclas.ShiftRight) || (modo === 'cardboard' && acelera); frena = !!teclas.KeyS; }
       rig.rotation.set(pit + Math.sin(sacudida * 1.3) * 0.012 * sim.ex, yaw + Math.sin(sacudida * 0.9) * 0.01 * sim.ex, Math.sin(sacudida) * 0.03 * sim.ex); // el aire revuelto sacude la vista
     }
-    camaraDir(dir);
+    if (modo === 'observar') dir.set(-Math.sin(yaw) * Math.cos(pit), Math.sin(pit), -Math.cos(yaw) * Math.cos(pit)); else camaraDir(dir);
     // velocidad: planeo suave; la picada acelera, subir frena; aletear da impulsos
     let obj = AVE.vel.cru; if (acelera) obj = AVE.vel.max; if (frena) obj = AVE.vel.min + 1;
     obj *= 1 + clamp(-dir.y * 0.6, -0.35, 0.5); impulso *= Math.exp(-1.6 * dt); obj += impulso;
@@ -750,7 +849,7 @@ export function crearPajaro(ctx) {
     vel += (obj - vel) * Math.min(1, dt * 1.5); vel = Math.max(AVE.vel.min, vel);
     rig.position.addScaledVector(dir, vel * dt);
     // turbulencia sobre la avenida: te hunde (más con peces y sin energía); aletear (lift) te sube
-    const hundir = AVE.hundir * sim.ex * (7 + 1.3 * sim.llevando) * (sim.energia < 5 ? 1.6 : 1);
+    const hundir = AVE.hundir * sim.ex * (7 + 1.3 * sim.llevando) * (sim.energia < 5 ? 1.6 : 1) + (sim.energia <= 0 ? 2.5 : 0); // sin energía caes despacio (la tingua aterriza en el agua y descansa)
     caida += (-hundir - caida) * Math.min(1, dt * 2.5); lift *= Math.exp(-1.5 * dt);
     rig.position.y += (caida + lift + sim.ex * (Math.sin(sacudida) * 0.9 + Math.sin(sacudida * 2.7) * 0.6)) * dt;
     if (rig.position.y < 1.8) rig.position.y = 1.8; if (rig.position.y > 600) rig.position.y = 600;
@@ -798,8 +897,9 @@ export function crearPajaro(ctx) {
       if (m === 'cardboard' || (m === 'vr' && ESQUEST)) T3.sun.castShadow = false; // celular y Quest solas: sin sombras para ir fluido (las sombras en baja resolución se veían como cuadros)
       if (m !== 'pantalla') { if (T3.trees) { T3.trees.umbral = 40; T3.trees.minMs = 800; } if (T3.plants) T3.plants.minMs = 800; } // recorrer todos los árboles cada pocos metros daba tirones
       T3.scene.add(rig); rig.add(cam); cam.position.set(0, 0, 0); cam.quaternion.identity();
+      camVista = 0;
       crearAlas(); if (!hudPlano) crearHudPlano(); // las alas se rehacen en cada partida: cambian con el ave elegida
-      cam.add(alaI, alaD, picoM, hudPlano); hudPlano.visible = m !== 'pantalla'; // el HUD dentro de la escena es para gafas y Cardboard
+      if (m === 'observar') { avatar = crearAvatar(); rig.add(avatar); ponerCamara(); } else { cam.add(alaI, alaD, picoM, hudPlano); hudPlano.visible = m === 'vr' || m === 'cardboard'; } // el HUD dentro de la escena es para gafas y Cardboard
       preparar();
     } catch (e) { console.warn('pájaro:', e); estado(String(e.message || e)); abortar(); menu.style.display = 'flex'; return; }
     if (m === 'vr') {
@@ -842,7 +942,7 @@ export function crearPajaro(ctx) {
     try { if (sesionXR) { const s = sesionXR; sesionXR = null; s.end().catch(() => {}); } } catch (e) { /* ok */ }
     try { for (let i = 0; i < 2; i++) { const c = r.xr.getController(i); rig.remove(c); } r.xr.enabled = false; } catch (e) { /* ok */ }
     const cam = T3.camera;
-    try { cam.remove(alaI, alaD, picoM, hudPlano); rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
+    try { cam.remove(alaI, alaD, picoM, hudPlano); if (avatar) { rig.remove(avatar); avatar = null; } rig.remove(cam); T3.scene.remove(rig); } catch (e) { /* ok */ }
     limpiarJuego(); T3.vpos = null;
     cam.position.copy(guardado.pos); cam.quaternion.copy(guardado.quat); cam.near = guardado.near; cam.far = guardado.far; cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
     T3.orbit.target.copy(guardado.tgt); T3.orbit.enabled = true; T3.orbit.update();
@@ -863,5 +963,5 @@ export function crearPajaro(ctx) {
   addEventListener('touchstart', onTouchStart, { passive: true }); addEventListener('touchend', onTouchEnd, { passive: true });
   document.addEventListener('click', (e) => { if (e.target && e.target.tagName === 'CANVAS') onClickCanvas(); });
   addEventListener('resize', () => { if (activo && efecto) { efecto.setSize(innerWidth, innerHeight); T3.camera.aspect = innerWidth / innerHeight; T3.camera.updateProjectionMatrix(); } });
-  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, via, peces, nido, rig, vel, paso, tecla: (c, v) => { teclas[c] = v; }, aleteo, ver: (y, p) => { yaw = y; pit = p; } }; } };
+  return { abrirMenu, salir, get activo() { return activo; }, get modo() { return modo; }, renderEspejo, get debug() { return { sim, via, bot, peces, nido, rig, vel, paso, tecla: (c, v) => { teclas[c] = v; }, aleteo, ver: (y, p) => { yaw = y; pit = p; } }; } };
 }

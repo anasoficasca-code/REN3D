@@ -362,6 +362,7 @@ export async function buildTrees(T3, T, W, lw, env, Pq, Net) {
   for (let i = 0; i < N; i++) { d.position.set(X[i], 0, Z[i]); d.rotation.set(0, ROT[i], 0); d.scale.setScalar(esc(i)); d.updateMatrix(); FM.set(d.matrix.elements, i * 16); const tv = 0.88 + hash(i * 19) * 0.24; FC[i * 3] = tv; FC[i * 3 + 1] = tv; FC[i * 3 + 2] = tv; }
   const ult = { x: 1e9, z: 1e9, t: 0 }, cand = [];
   const api = { N, ribera, enParques, deCalle, especies: especies.map(e => e.base + ':' + e.niveles.L0.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0) + '/' + e.niveles.L1.reduce((a, p) => a + (p.geo.index ? p.geo.index.count : p.geo.attributes.position.count) / 3, 0)) };
+  api.pos = { X, Z, Hh }; // posiciones y alturas de los árboles (el modo pájaro pone los nidos en las copas)
   api.update = (cam, force) => {
     const now = performance.now(), dx = cam.position.x - ult.x, dz = cam.position.z - ult.z, U = api.umbral || 6;
     if (!force && ((dx * dx + dz * dz < U * U && now - ult.t < 1500) || now - ult.t < (api.minMs || 0))) return; // en VR se actualiza menos seguido: recorrer todos los árboles cada pocos metros causaba tirones

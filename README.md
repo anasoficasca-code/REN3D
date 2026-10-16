@@ -88,3 +88,7 @@ et.json). La avenida lleva muchos mas carros (hasta 320, una calzada por sentido
 ## v35
 - Pagina limpia: arranca en el Humedal El Burro; solo botones Dia/Noche y JUGAR.
 - Seleccion de ave (AVES_JUEGO en pajaro.js): garza real (pesca), gaviota andina (carronera) y pato turrio (semillas contrarreloj), cada una con velocidad, energia, giro y mision propias. Menu y HUD sin emojis.
+
+## v36
+- Aves basadas en como viven de verdad (garza real: pesca al acecho y nido de palitos en arbol; tingua de pico rojo: vuelo corto y bajo, nido flotante de tallos de junco; gaviota andina: insectos al vuelo, nido de pasto en el suelo). Sin torre ni huevos: nidos con polluelos.
+- Modo 'Ver al ave sola' (piloto automatico, camara en tercera persona, tecla V cambia la camara).
